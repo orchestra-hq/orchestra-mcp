@@ -1,0 +1,356 @@
+import os
+from datetime import datetime
+from typing import Any
+
+import httpx
+
+from orchestramcp.errors import OrchestraAPIError, parse_error_response
+from orchestramcp.models import (
+    PaginatedResponse,
+    PipelineImportResponse,
+    PipelineRunStatus,
+    PipelineStartResponse,
+)
+
+
+class OrchestraClient:
+    @staticmethod
+    def _build_base_url() -> str:
+        env = os.getenv("ORCHESTRA_ENV", "app").lower().strip()
+        if env not in ("app", "stage", "dev"):
+            raise ValueError(f"Invalid environment: {env}. Must be one of: app, stage, dev")
+        return f"https://{env}.getorchestra.io/api/engine/public"
+
+    def __init__(self, api_key: str):
+        self.api_key = api_key
+        self.base_url = self._build_base_url()
+        self._client = httpx.AsyncClient(
+            base_url=self.base_url,
+            headers={"Authorization": f"Bearer {api_key}"},
+            timeout=30.0,
+        )
+
+    async def close(self) -> None:
+        await self._client.aclose()
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        pass
+
+    def _build_query_params(
+        self,
+        time_from: datetime | None = None,
+        time_to: datetime | None = None,
+        **kwargs: Any,
+    ) -> dict[str, Any]:
+        params: dict[str, Any] = {}
+        if time_from and time_to:
+            params["time_from"] = time_from.isoformat()
+            params["time_to"] = time_to.isoformat()
+        elif time_from or time_to:
+            raise ValueError("Both time_from and time_to must be provided together")
+
+        for key, value in kwargs.items():
+            if value is not None:
+                params[key] = value
+
+        return params
+
+    def _raise_for_status(self, response: httpx.Response) -> None:
+        if response.is_success:
+            return
+        raise OrchestraAPIError(
+            response.status_code, parse_error_response(response)
+        )
+
+    async def list_pipeline_runs(
+        self,
+        time_from: datetime | None = None,
+        time_to: datetime | None = None,
+        status: str | None = None,
+        pipeline_run_ids: str | None = None,
+    ) -> PaginatedResponse:
+        """List pipeline runs.
+
+        Args:
+            time_from: Start time for filtering (ISO 8601)
+            time_to: End time for filtering (ISO 8601)
+            status: Comma-separated statuses (CREATED, RUNNING, SUCCEEDED, etc.)
+            pipeline_run_ids: Comma-separated pipeline run IDs
+
+        Returns:
+            Paginated response with pipeline runs
+        """
+        params = self._build_query_params(
+            time_from=time_from,
+            time_to=time_to,
+            status=status,
+            pipeline_run_ids=pipeline_run_ids,
+        )
+        response = await self._client.get("/pipeline_runs", params=params)
+        self._raise_for_status(response)
+        return PaginatedResponse(**response.json())
+
+    async def list_task_runs(
+        self,
+        time_from: datetime | None = None,
+        time_to: datetime | None = None,
+        status: str | None = None,
+        pipeline_ids: str | None = None,
+        integration: str | None = None,
+        task_run_ids: str | None = None,
+    ) -> PaginatedResponse:
+        """List task runs.
+
+        Args:
+            time_from: Start time for filtering (ISO 8601)
+            time_to: End time for filtering (ISO 8601)
+            status: Comma-separated statuses
+            pipeline_ids: Comma-separated pipeline IDs
+            integration: Comma-separated integrations
+            task_run_ids: Comma-separated task run IDs
+
+        Returns:
+            Paginated response with task runs
+        """
+        params = self._build_query_params(
+            time_from=time_from,
+            time_to=time_to,
+            status=status,
+            pipeline_ids=pipeline_ids,
+            integration=integration,
+            task_run_ids=task_run_ids,
+        )
+        response = await self._client.get("/task_runs", params=params)
+        self._raise_for_status(response)
+        return PaginatedResponse(**response.json())
+
+    async def list_operations(
+        self,
+        time_from: datetime | None = None,
+        time_to: datetime | None = None,
+        operation_type: str | None = None,
+        external_id: str | None = None,
+        task_run_id: str | None = None,
+        status: str | None = None,
+    ) -> PaginatedResponse:
+        """List operations.
+
+        Args:
+            time_from: Start time for filtering (ISO 8601)
+            time_to: End time for filtering (ISO 8601)
+            operation_type: Comma-separated operation types
+            external_id: External ID to filter on
+            task_run_id: Task run ID to filter on
+            status: Operation status
+
+        Returns:
+            Paginated response with operations
+        """
+        params = self._build_query_params(
+            time_from=time_from,
+            time_to=time_to,
+            operation_type=operation_type,
+            external_id=external_id,
+            task_run_id=task_run_id,
+            status=status,
+        )
+        response = await self._client.get("/operations", params=params)
+        self._raise_for_status(response)
+        return PaginatedResponse(**response.json())
+
+    async def list_assets(
+        self,
+        asset_type: str | None = None,
+        integration: str | None = None,
+    ) -> PaginatedResponse:
+        """List assets.
+
+        Args:
+            asset_type: Asset type filter
+            integration: Integration filter
+
+        Returns:
+            Paginated response with assets
+        """
+        params: dict[str, Any] = {}
+        if asset_type:
+            params["asset_type"] = asset_type
+        if integration:
+            params["integration"] = integration
+
+        response = await self._client.get("/assets", params=params)
+        self._raise_for_status(response)
+        return PaginatedResponse(**response.json())
+
+    async def import_pipeline(
+        self,
+        storage_provider: str,
+        repository: str,
+        default_branch: str,
+        yaml_path: str,
+        alias: str,
+        working_branch: str | None = None,
+    ) -> PipelineImportResponse:
+        """Import a pipeline from Git.
+
+        Args:
+            storage_provider: Storage provider (e.g., GITHUB)
+            repository: Repository slug or URL
+            default_branch: Default branch name
+            yaml_path: Path to pipeline YAML file
+            alias: Pipeline alias
+            working_branch: Optional working branch
+
+        Returns:
+            Pipeline import response
+        """
+        payload: dict[str, Any] = {
+            "storage_provider": storage_provider,
+            "repository": repository,
+            "default_branch": default_branch,
+            "yaml_path": yaml_path,
+            "alias": alias,
+        }
+        if working_branch:
+            payload["working_branch"] = working_branch
+
+        response = await self._client.post("/pipelines/import", json=payload)
+        self._raise_for_status(response)
+        return PipelineImportResponse(**response.json())
+
+    async def start_pipeline(
+        self,
+        alias: str,
+        branch: str | None = None,
+        commit: str | None = None,
+    ) -> PipelineStartResponse:
+        """Start a pipeline run.
+
+        Args:
+            alias: Pipeline alias
+            branch: Optional branch name
+            commit: Optional commit SHA
+
+        Returns:
+            Pipeline start response with run ID
+        """
+        payload: dict[str, Any] = {}
+        if branch:
+            payload["branch"] = branch
+        if commit:
+            payload["commit"] = commit
+
+        response = await self._client.post(f"/pipelines/{alias}/start", json=payload)
+        self._raise_for_status(response)
+        return PipelineStartResponse(**response.json())
+
+    async def get_pipeline_run_status(self, pipeline_run_id: str) -> PipelineRunStatus:
+        """Get pipeline run status.
+
+        Args:
+            pipeline_run_id: Pipeline run ID
+
+        Returns:
+            Pipeline run status
+        """
+        response = await self._client.get(f"/pipeline_runs/{pipeline_run_id}/status")
+        self._raise_for_status(response)
+        return PipelineRunStatus(**response.json())
+
+    async def cancel_pipeline_run(self, pipeline_run_id: str) -> None:
+        """Cancel a pipeline run.
+
+        Args:
+            pipeline_run_id: Pipeline run ID
+        """
+        response = await self._client.post(f"/pipeline_runs/{pipeline_run_id}/cancel")
+        self._raise_for_status(response)
+
+    async def list_task_run_logs(
+        self,
+        pipeline_run_id: str,
+        task_run_id: str,
+    ) -> dict[str, list[str]]:
+        """List log filenames for a task run.
+
+        Args:
+            pipeline_run_id: Pipeline run ID
+            task_run_id: Task run ID
+
+        Returns:
+            Dictionary with filenames list
+        """
+        response = await self._client.get(
+            f"/pipeline_runs/{pipeline_run_id}/task_runs/{task_run_id}/logs"
+        )
+        self._raise_for_status(response)
+        return response.json()
+
+    async def download_task_run_log(
+        self,
+        pipeline_run_id: str,
+        task_run_id: str,
+        filename: str,
+    ) -> bytes:
+        """Download a task run log file.
+
+        Args:
+            pipeline_run_id: Pipeline run ID
+            task_run_id: Task run ID
+            filename: Log filename
+
+        Returns:
+            Log file contents as bytes
+        """
+        response = await self._client.get(
+            f"/pipeline_runs/{pipeline_run_id}/task_runs/{task_run_id}/logs/download",
+            params={"filename": filename},
+        )
+        self._raise_for_status(response)
+        return response.content
+
+    async def list_task_run_artifacts(
+        self,
+        pipeline_run_id: str,
+        task_run_id: str,
+    ) -> dict[str, list[str]]:
+        """List artifact filenames for a task run.
+
+        Args:
+            pipeline_run_id: Pipeline run ID
+            task_run_id: Task run ID
+
+        Returns:
+            Dictionary with filenames list
+        """
+        response = await self._client.get(
+            f"/pipeline_runs/{pipeline_run_id}/task_runs/{task_run_id}/artifacts"
+        )
+        self._raise_for_status(response)
+        return response.json()
+
+    async def download_task_run_artifact(
+        self,
+        pipeline_run_id: str,
+        task_run_id: str,
+        filename: str,
+    ) -> bytes:
+        """Download a task run artifact file.
+
+        Args:
+            pipeline_run_id: Pipeline run ID
+            task_run_id: Task run ID
+            filename: Artifact filename
+
+        Returns:
+            Artifact file contents as bytes
+        """
+        response = await self._client.get(
+            f"/pipeline_runs/{pipeline_run_id}/task_runs/{task_run_id}/artifacts/download",
+            params={"filename": filename},
+        )
+        self._raise_for_status(response)
+        return response.content

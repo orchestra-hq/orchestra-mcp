@@ -1,2 +1,98 @@
-# orchestra-mcp
-Orchestra MCP Server
+# Orchestra MCP Server
+
+A Model Context Protocol (MCP) server for the [Orchestra API](https://docs.getorchestra.io/docs/api/). This server enables data engineers and technical implementers to interact with Orchestra pipelines, runs, tasks, and assets through MCP-compatible clients like Cursor, Claude Desktop, or custom agents.
+
+## Features
+
+- **Pipeline Management**: List pipeline runs, start pipelines, check status, and cancel runs
+- **Task & Operation Monitoring**: Query task runs and operations with flexible filtering
+- **Asset Discovery**: List and filter data assets across integrations
+- **Pipeline Import**: Import pipelines from Git repositories
+- **Logs & Artifacts**: Download task run logs and artifacts (e.g., dbt manifest files)
+
+## Installation
+
+### Prerequisites
+
+- Python 3.10 or higher
+- [uv](https://github.com/astral-sh/uv) package manager
+- Orchestra API key (available in [Orchestra UI settings](https://app.getorchestra.io/settings/workspace))
+
+### Install Dependencies
+
+```bash
+# Install uv if you haven't already
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# Install project dependencies
+uv sync
+```
+
+## Configuration
+
+Set your Orchestra API key as an environment variable:
+
+```bash
+export ORCHESTRA_API_KEY="your-api-key-here"
+```
+
+### Environment Selection
+
+By default, the server connects to the production environment (`app.getorchestra.io`). You can override this by setting the `ORCHESTRA_ENV` environment variable:
+
+```bash
+export ORCHESTRA_ENV="dev"
+```
+
+This will construct the URL as `https://{env}.getorchestra.io/api/engine/public`. Valid environment values are:
+
+- `app` (default)
+- `stage`
+- `dev`
+
+## Usage
+
+### Running the Server
+
+```bash
+python -m orchestramcp.server
+```
+
+The server can also be run using the FastMCP CLI:
+
+```bash
+uv run fastmcp run orchestramcp/server.py:mcp
+```
+
+### Connecting from MCP Clients
+
+#### Cursor
+
+The below config can be added directly to your Cursor settings. Or, run `fastmcp install cursor orchestramcp/server.py`.
+
+```json
+{
+  "mcpServers": {
+    "Orchestra MCP Server": {
+      "command": "uv",
+      "args": [
+        "run",
+        "--with",
+        "fastmcp",
+        "fastmcp",
+        "run",
+        "/Users/bob/code/orchestra-mcp/orchestramcp/server.py" // change accordingly
+      ],
+      "env": {
+        "ORCHESTRA_API_KEY": "your-api-key-here"
+      },
+      "transport": "stdio"
+    }
+  }
+}
+```
+
+## Development
+
+- Run `uv run pytest` to run tests.
+- Run `uv run ruff check .` and `uv run ruff format .` to check and format code.
