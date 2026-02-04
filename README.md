@@ -92,6 +92,29 @@ The below config can be added directly to your Cursor settings. Or, run `fastmcp
 }
 ```
 
+#### Claude Desktop
+
+```json
+{
+  "mcpServers": {
+    "Orchestra MCP Server": {
+      "command": "uv",
+      "args": [
+        "run",
+        "--with",
+        "fastmcp",
+        "fastmcp",
+        "run",
+        "/Users/bob/code/orchestra-mcp/orchestramcp/server.py" // change accordingly
+      ],
+      "env": {
+        "ORCHESTRA_API_KEY": "your-api-key-here"
+      },
+    }
+  }
+}
+```
+
 ## Development
 
 - Run `uv run pytest` to run tests.
