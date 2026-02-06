@@ -193,7 +193,7 @@ class OrchestraClient:
         repository: str,
         default_branch: str,
         yaml_path: str,
-        alias: str,
+        alias: str | None = None,
         working_branch: str | None = None,
     ) -> PipelineImportResponse:
         """Import a pipeline from Git.
@@ -203,7 +203,7 @@ class OrchestraClient:
             repository: Repository slug or URL
             default_branch: Default branch name
             yaml_path: Path to pipeline YAML file
-            alias: Pipeline alias
+            alias: Optional pipeline alias
             working_branch: Optional working branch
 
         Returns:
@@ -214,8 +214,9 @@ class OrchestraClient:
             "repository": repository,
             "default_branch": default_branch,
             "yaml_path": yaml_path,
-            "alias": alias,
         }
+        if alias:
+            payload["alias"] = alias
         if working_branch:
             payload["working_branch"] = working_branch
 
@@ -225,16 +226,20 @@ class OrchestraClient:
 
     async def start_pipeline(
         self,
-        alias: str,
+        alias_or_pipeline_id: str,
         branch: str | None = None,
         commit: str | None = None,
+        environment: str | None = None,
+        run_inputs: dict[str, Any] | None = None,
     ) -> PipelineStartResponse:
         """Start a pipeline run.
 
         Args:
-            alias: Pipeline alias
+            alias_or_pipeline_id: Pipeline alias or pipeline ID (UUID)
             branch: Optional branch name
             commit: Optional commit SHA
+            environment: Optional environment name
+            run_inputs: Optional run inputs
 
         Returns:
             Pipeline start response with run ID
@@ -244,8 +249,12 @@ class OrchestraClient:
             payload["branch"] = branch
         if commit:
             payload["commit"] = commit
+        if environment:
+            payload["environment"] = environment
+        if run_inputs:
+            payload["runInputs"] = run_inputs
 
-        response = await self._client.post(f"/pipelines/{alias}/start", json=payload)
+        response = await self._client.post(f"/pipelines/{alias_or_pipeline_id}/start", json=payload)
         self._raise_for_status(response)
         return PipelineStartResponse(**response.json())
 

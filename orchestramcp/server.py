@@ -3,6 +3,7 @@ import sys
 from datetime import datetime
 from functools import lru_cache
 from pathlib import Path
+from typing import Any
 
 # Allow running server.py directly (e.g. via fastmcp run); project root must be on path
 _project_root = Path(__file__).resolve().parent.parent
@@ -160,7 +161,7 @@ async def import_pipeline(
     repository: str,
     default_branch: str,
     yaml_path: str,
-    alias: str,
+    alias: str | None = None,
     working_branch: str | None = None,
 ) -> dict:
     """Import a pipeline from a Git repository.
@@ -190,22 +191,32 @@ async def import_pipeline(
 
 @mcp.tool()
 async def start_pipeline(
-    alias: str,
+    alias_or_pipeline_id: str,
     branch: str | None = None,
     commit: str | None = None,
+    environment: str | None = None,
+    run_inputs: dict[str, Any] | None = None,
 ) -> dict:
     """Start a pipeline run.
 
     Args:
-        alias: Pipeline alias
+        alias_or_pipeline_id: Pipeline alias or pipeline ID (UUID)
         branch: Optional branch name to run from
         commit: Optional commit SHA to run from
+        environment: Optional environment name
+        run_inputs: Optional run inputs
 
     Returns:
         Pipeline start response with pipeline run ID
     """
     async with get_client() as client:
-        response = await client.start_pipeline(alias=alias, branch=branch, commit=commit)
+        response = await client.start_pipeline(
+            alias_or_pipeline_id=alias_or_pipeline_id,
+            branch=branch,
+            commit=commit,
+            environment=environment,
+            run_inputs=run_inputs,
+        )
         return response.model_dump()
 
 

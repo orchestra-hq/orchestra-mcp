@@ -86,7 +86,7 @@ async def test_start_pipeline(client):
 
     client._client.post = AsyncMock(return_value=mock_response)
 
-    result = await client.start_pipeline(alias="test-pipeline", branch="main")
+    result = await client.start_pipeline(alias_or_pipeline_id="test-pipeline", branch="main")
     assert result.pipeline_run_id == mock_pipeline_run_id
     assert result.message == "Pipeline run created successfully"
 
@@ -170,7 +170,7 @@ async def test_start_pipeline_parses_json_error(client):
     client._client.post = AsyncMock(return_value=mock_response)
 
     with pytest.raises(OrchestraAPIError) as exc_info:
-        await client.start_pipeline(alias="test-pipeline")
+        await client.start_pipeline(alias_or_pipeline_id="test-pipeline")
 
     assert exc_info.value.status_code == 400
     assert "Missing required pipeline input: command" in str(exc_info.value)
