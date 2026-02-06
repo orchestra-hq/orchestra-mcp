@@ -277,6 +277,7 @@ async def download_task_run_log(
     pipeline_run_id: str,
     task_run_id: str,
     filename: str,
+    range_header: str | None = None,
 ) -> dict:
     """Download a task run log file.
 
@@ -284,6 +285,7 @@ async def download_task_run_log(
         pipeline_run_id: Pipeline run ID
         task_run_id: Task run ID
         filename: Log filename to download
+        range_header: Optional range header for selectively downloading parts of the file.
 
     Returns:
         Dictionary with log content (base64 encoded for binary safety)
@@ -295,6 +297,7 @@ async def download_task_run_log(
             pipeline_run_id=pipeline_run_id,
             task_run_id=task_run_id,
             filename=filename,
+            range_header=range_header,
         )
         return {
             "filename": filename,

@@ -305,6 +305,7 @@ class OrchestraClient:
         pipeline_run_id: str,
         task_run_id: str,
         filename: str,
+        range_header: str | None = None,
     ) -> bytes:
         """Download a task run log file.
 
@@ -316,8 +317,12 @@ class OrchestraClient:
         Returns:
             Log file contents as bytes
         """
+        headers = {}
+        if range_header:
+            headers["Range"] = range_header
         response = await self._client.get(
             f"/pipeline_runs/{pipeline_run_id}/task_runs/{task_run_id}/logs/download",
+            headers=range_header,
             params={"filename": filename},
         )
         self._raise_for_status(response)
