@@ -12,6 +12,13 @@ if str(_project_root) not in sys.path:
 from fastmcp import FastMCP  # noqa: E402
 
 from orchestramcp.client import OrchestraClient  # noqa: E402
+from orchestramcp.models import (  # noqa: E402
+    AssetType,
+    OperationStatus,
+    OperationType,
+    PipelineRunStatus,
+    TaskRunStatus,
+)
 
 
 def parse_iso_datetime(dt_str: str) -> datetime:
@@ -36,7 +43,7 @@ def get_client() -> OrchestraClient:
 async def list_pipeline_runs(
     time_from: str | None = None,
     time_to: str | None = None,
-    status: str | None = None,
+    status: PipelineRunStatus | None = None,
     pipeline_run_ids: str | None = None,
 ) -> dict:
     """List pipeline runs with optional filters.
@@ -64,7 +71,7 @@ async def list_pipeline_runs(
 async def list_task_runs(
     time_from: str | None = None,
     time_to: str | None = None,
-    status: str | None = None,
+    status: TaskRunStatus | None = None,
     pipeline_ids: str | None = None,
     integration: str | None = None,
     task_run_ids: str | None = None,
@@ -98,10 +105,10 @@ async def list_task_runs(
 async def list_operations(
     time_from: str | None = None,
     time_to: str | None = None,
-    operation_type: str | None = None,
+    operation_type: OperationType | None = None,
     external_id: str | None = None,
     task_run_id: str | None = None,
-    status: str | None = None,
+    status: OperationStatus | None = None,
 ) -> dict:
     """List operations with optional filters.
 
@@ -130,7 +137,7 @@ async def list_operations(
 
 @mcp.tool()
 async def list_assets(
-    asset_type: str | None = None,
+    asset_type: AssetType | None = None,
     integration: str | None = None,
 ) -> dict:
     """List data assets.
@@ -336,6 +343,13 @@ async def download_task_run_artifact(
             "content": base64.b64encode(content).decode("utf-8"),
             "encoding": "base64",
         }
+
+
+@mcp.tool()
+def get_pipeline_run_lineage_url(pipeline_run_id: str) -> str:
+    """Get the URL of a pipeline run lineage graph."""
+    env = os.getenv("ORCHESTRA_ENV", "app").lower().strip()
+    return f"https://{env}.getorchestra.io/pipeline-runs/{pipeline_run_id}/lineage"
 
 
 if __name__ == "__main__":

@@ -6,10 +6,15 @@ import httpx
 
 from orchestramcp.errors import OrchestraAPIError, parse_error_response
 from orchestramcp.models import (
+    AssetType,
+    OperationStatus,
+    OperationType,
     PaginatedResponse,
     PipelineImportResponse,
+    PipelineRunProgress,
     PipelineRunStatus,
     PipelineStartResponse,
+    TaskRunStatus,
 )
 
 
@@ -46,11 +51,10 @@ class OrchestraClient:
         **kwargs: Any,
     ) -> dict[str, Any]:
         params: dict[str, Any] = {}
-        if time_from and time_to:
+        if time_from:
             params["time_from"] = time_from.isoformat()
+        if time_to:
             params["time_to"] = time_to.isoformat()
-        elif time_from or time_to:
-            raise ValueError("Both time_from and time_to must be provided together")
 
         for key, value in kwargs.items():
             if value is not None:
@@ -61,15 +65,13 @@ class OrchestraClient:
     def _raise_for_status(self, response: httpx.Response) -> None:
         if response.is_success:
             return
-        raise OrchestraAPIError(
-            response.status_code, parse_error_response(response)
-        )
+        raise OrchestraAPIError(response.status_code, parse_error_response(response))
 
     async def list_pipeline_runs(
         self,
         time_from: datetime | None = None,
         time_to: datetime | None = None,
-        status: str | None = None,
+        status: PipelineRunStatus | None = None,
         pipeline_run_ids: str | None = None,
     ) -> PaginatedResponse:
         """List pipeline runs.
@@ -78,7 +80,7 @@ class OrchestraClient:
             time_from: Start time for filtering (ISO 8601)
             time_to: End time for filtering (ISO 8601)
             status: Comma-separated statuses (CREATED, RUNNING, SUCCEEDED, etc.)
-            pipeline_run_ids: Comma-separated pipeline run IDs
+            pipeline_run_ids: Comma-separated pipeline run UUIDs
 
         Returns:
             Paginated response with pipeline runs
@@ -97,7 +99,7 @@ class OrchestraClient:
         self,
         time_from: datetime | None = None,
         time_to: datetime | None = None,
-        status: str | None = None,
+        status: TaskRunStatus | None = None,
         pipeline_ids: str | None = None,
         integration: str | None = None,
         task_run_ids: str | None = None,
@@ -108,9 +110,9 @@ class OrchestraClient:
             time_from: Start time for filtering (ISO 8601)
             time_to: End time for filtering (ISO 8601)
             status: Comma-separated statuses
-            pipeline_ids: Comma-separated pipeline IDs
+            pipeline_ids: Comma-separated pipeline UUIDs
             integration: Comma-separated integrations
-            task_run_ids: Comma-separated task run IDs
+            task_run_ids: Comma-separated task run UUIDs
 
         Returns:
             Paginated response with task runs
@@ -131,10 +133,10 @@ class OrchestraClient:
         self,
         time_from: datetime | None = None,
         time_to: datetime | None = None,
-        operation_type: str | None = None,
+        operation_type: OperationType | None = None,
         external_id: str | None = None,
         task_run_id: str | None = None,
-        status: str | None = None,
+        status: OperationStatus | None = None,
     ) -> PaginatedResponse:
         """List operations.
 
@@ -143,7 +145,7 @@ class OrchestraClient:
             time_to: End time for filtering (ISO 8601)
             operation_type: Comma-separated operation types
             external_id: External ID to filter on
-            task_run_id: Task run ID to filter on
+            task_run_id: Task run UUID to filter on
             status: Operation status
 
         Returns:
@@ -163,7 +165,7 @@ class OrchestraClient:
 
     async def list_assets(
         self,
-        asset_type: str | None = None,
+        asset_type: AssetType | None = None,
         integration: str | None = None,
     ) -> PaginatedResponse:
         """List assets.
@@ -247,24 +249,24 @@ class OrchestraClient:
         self._raise_for_status(response)
         return PipelineStartResponse(**response.json())
 
-    async def get_pipeline_run_status(self, pipeline_run_id: str) -> PipelineRunStatus:
+    async def get_pipeline_run_status(self, pipeline_run_id: str) -> PipelineRunProgress:
         """Get pipeline run status.
 
         Args:
-            pipeline_run_id: Pipeline run ID
+            pipeline_run_id: Pipeline run UUID
 
         Returns:
             Pipeline run status
         """
         response = await self._client.get(f"/pipeline_runs/{pipeline_run_id}/status")
         self._raise_for_status(response)
-        return PipelineRunStatus(**response.json())
+        return PipelineRunProgress(**response.json())
 
     async def cancel_pipeline_run(self, pipeline_run_id: str) -> None:
         """Cancel a pipeline run.
 
         Args:
-            pipeline_run_id: Pipeline run ID
+            pipeline_run_id: Pipeline run UUID
         """
         response = await self._client.post(f"/pipeline_runs/{pipeline_run_id}/cancel")
         self._raise_for_status(response)
