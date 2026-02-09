@@ -1,3 +1,4 @@
+import uuid
 from datetime import datetime
 from unittest.mock import AsyncMock, Mock, patch
 
@@ -75,26 +76,28 @@ async def test_list_pipeline_runs_with_filters(client):
 @pytest.mark.asyncio
 async def test_start_pipeline(client):
     mock_response = Mock()
+    mock_pipeline_run_id = uuid.uuid4()
     mock_response.json.return_value = {
-        "id": "pipeline-id",
-        "pipelineRunId": "run-id",
+        "id": uuid.uuid4(),
+        "pipelineRunId": mock_pipeline_run_id,
         "message": "Pipeline run created successfully",
     }
     mock_response.raise_for_status = Mock()
 
     client._client.post = AsyncMock(return_value=mock_response)
 
-    result = await client.start_pipeline(alias="test-pipeline", branch="main")
-    assert result.pipeline_run_id == "run-id"
+    result = await client.start_pipeline(alias_or_pipeline_id="test-pipeline", branch="main")
+    assert result.pipeline_run_id == mock_pipeline_run_id
     assert result.message == "Pipeline run created successfully"
 
 
 @pytest.mark.asyncio
 async def test_get_pipeline_run_status(client):
     mock_response = Mock()
+    mock_pipeline_run_id = uuid.uuid4()
     mock_response.json.return_value = {
-        "id": "run-id",
-        "pipelineId": "pipeline-id",
+        "id": mock_pipeline_run_id,
+        "pipelineId": uuid.uuid4(),
         "pipelineName": "Test Pipeline",
         "runStatus": "RUNNING",
     }
@@ -102,9 +105,9 @@ async def test_get_pipeline_run_status(client):
 
     client._client.get = AsyncMock(return_value=mock_response)
 
-    result = await client.get_pipeline_run_status("run-id")
+    result = await client.get_pipeline_run_status(str(mock_pipeline_run_id))
     assert result.run_status == "RUNNING"
-    assert result.id == "run-id"
+    assert result.id == mock_pipeline_run_id
 
 
 @pytest.mark.asyncio
@@ -146,11 +149,6 @@ async def test_list_assets(client):
     assert len(result.results) == 1
 
 
-@pytest.mark.asyncio
-async def test_time_range_validation(client):
-    with pytest.raises(ValueError, match="Both time_from and time_to must be provided"):
-        await client.list_pipeline_runs(time_from=datetime(2025, 1, 1))
-
 
 @pytest.mark.asyncio
 async def test_client_context_manager():
@@ -172,7 +170,7 @@ async def test_start_pipeline_parses_json_error(client):
     client._client.post = AsyncMock(return_value=mock_response)
 
     with pytest.raises(OrchestraAPIError) as exc_info:
-        await client.start_pipeline(alias="test-pipeline")
+        await client.start_pipeline(alias_or_pipeline_id="test-pipeline")
 
     assert exc_info.value.status_code == 400
     assert "Missing required pipeline input: command" in str(exc_info.value)

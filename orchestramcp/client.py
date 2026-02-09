@@ -6,10 +6,15 @@ import httpx
 
 from orchestramcp.errors import OrchestraAPIError, parse_error_response
 from orchestramcp.models import (
+    AssetType,
+    OperationStatus,
+    OperationType,
     PaginatedResponse,
     PipelineImportResponse,
+    PipelineRunProgress,
     PipelineRunStatus,
     PipelineStartResponse,
+    TaskRunStatus,
 )
 
 
@@ -46,11 +51,10 @@ class OrchestraClient:
         **kwargs: Any,
     ) -> dict[str, Any]:
         params: dict[str, Any] = {}
-        if time_from and time_to:
+        if time_from:
             params["time_from"] = time_from.isoformat()
+        if time_to:
             params["time_to"] = time_to.isoformat()
-        elif time_from or time_to:
-            raise ValueError("Both time_from and time_to must be provided together")
 
         for key, value in kwargs.items():
             if value is not None:
@@ -61,15 +65,13 @@ class OrchestraClient:
     def _raise_for_status(self, response: httpx.Response) -> None:
         if response.is_success:
             return
-        raise OrchestraAPIError(
-            response.status_code, parse_error_response(response)
-        )
+        raise OrchestraAPIError(response.status_code, parse_error_response(response))
 
     async def list_pipeline_runs(
         self,
         time_from: datetime | None = None,
         time_to: datetime | None = None,
-        status: str | None = None,
+        status: PipelineRunStatus | None = None,
         pipeline_run_ids: str | None = None,
     ) -> PaginatedResponse:
         """List pipeline runs.
@@ -78,7 +80,7 @@ class OrchestraClient:
             time_from: Start time for filtering (ISO 8601)
             time_to: End time for filtering (ISO 8601)
             status: Comma-separated statuses (CREATED, RUNNING, SUCCEEDED, etc.)
-            pipeline_run_ids: Comma-separated pipeline run IDs
+            pipeline_run_ids: Comma-separated pipeline run UUIDs
 
         Returns:
             Paginated response with pipeline runs
@@ -97,7 +99,7 @@ class OrchestraClient:
         self,
         time_from: datetime | None = None,
         time_to: datetime | None = None,
-        status: str | None = None,
+        status: TaskRunStatus | None = None,
         pipeline_ids: str | None = None,
         integration: str | None = None,
         task_run_ids: str | None = None,
@@ -108,9 +110,9 @@ class OrchestraClient:
             time_from: Start time for filtering (ISO 8601)
             time_to: End time for filtering (ISO 8601)
             status: Comma-separated statuses
-            pipeline_ids: Comma-separated pipeline IDs
+            pipeline_ids: Comma-separated pipeline UUIDs
             integration: Comma-separated integrations
-            task_run_ids: Comma-separated task run IDs
+            task_run_ids: Comma-separated task run UUIDs
 
         Returns:
             Paginated response with task runs
@@ -131,10 +133,10 @@ class OrchestraClient:
         self,
         time_from: datetime | None = None,
         time_to: datetime | None = None,
-        operation_type: str | None = None,
+        operation_type: OperationType | None = None,
         external_id: str | None = None,
         task_run_id: str | None = None,
-        status: str | None = None,
+        status: OperationStatus | None = None,
     ) -> PaginatedResponse:
         """List operations.
 
@@ -143,7 +145,7 @@ class OrchestraClient:
             time_to: End time for filtering (ISO 8601)
             operation_type: Comma-separated operation types
             external_id: External ID to filter on
-            task_run_id: Task run ID to filter on
+            task_run_id: Task run UUID to filter on
             status: Operation status
 
         Returns:
@@ -163,7 +165,7 @@ class OrchestraClient:
 
     async def list_assets(
         self,
-        asset_type: str | None = None,
+        asset_type: AssetType | None = None,
         integration: str | None = None,
     ) -> PaginatedResponse:
         """List assets.
@@ -191,7 +193,7 @@ class OrchestraClient:
         repository: str,
         default_branch: str,
         yaml_path: str,
-        alias: str,
+        alias: str | None = None,
         working_branch: str | None = None,
     ) -> PipelineImportResponse:
         """Import a pipeline from Git.
@@ -201,7 +203,7 @@ class OrchestraClient:
             repository: Repository slug or URL
             default_branch: Default branch name
             yaml_path: Path to pipeline YAML file
-            alias: Pipeline alias
+            alias: Optional pipeline alias
             working_branch: Optional working branch
 
         Returns:
@@ -212,8 +214,9 @@ class OrchestraClient:
             "repository": repository,
             "default_branch": default_branch,
             "yaml_path": yaml_path,
-            "alias": alias,
         }
+        if alias:
+            payload["alias"] = alias
         if working_branch:
             payload["working_branch"] = working_branch
 
@@ -223,16 +226,20 @@ class OrchestraClient:
 
     async def start_pipeline(
         self,
-        alias: str,
+        alias_or_pipeline_id: str,
         branch: str | None = None,
         commit: str | None = None,
+        environment: str | None = None,
+        run_inputs: dict[str, Any] | None = None,
     ) -> PipelineStartResponse:
         """Start a pipeline run.
 
         Args:
-            alias: Pipeline alias
+            alias_or_pipeline_id: Pipeline alias or pipeline ID (UUID)
             branch: Optional branch name
             commit: Optional commit SHA
+            environment: Optional environment name
+            run_inputs: Optional run inputs
 
         Returns:
             Pipeline start response with run ID
@@ -242,29 +249,33 @@ class OrchestraClient:
             payload["branch"] = branch
         if commit:
             payload["commit"] = commit
+        if environment:
+            payload["environment"] = environment
+        if run_inputs:
+            payload["runInputs"] = run_inputs
 
-        response = await self._client.post(f"/pipelines/{alias}/start", json=payload)
+        response = await self._client.post(f"/pipelines/{alias_or_pipeline_id}/start", json=payload)
         self._raise_for_status(response)
         return PipelineStartResponse(**response.json())
 
-    async def get_pipeline_run_status(self, pipeline_run_id: str) -> PipelineRunStatus:
+    async def get_pipeline_run_status(self, pipeline_run_id: str) -> PipelineRunProgress:
         """Get pipeline run status.
 
         Args:
-            pipeline_run_id: Pipeline run ID
+            pipeline_run_id: Pipeline run UUID
 
         Returns:
             Pipeline run status
         """
         response = await self._client.get(f"/pipeline_runs/{pipeline_run_id}/status")
         self._raise_for_status(response)
-        return PipelineRunStatus(**response.json())
+        return PipelineRunProgress(**response.json())
 
     async def cancel_pipeline_run(self, pipeline_run_id: str) -> None:
         """Cancel a pipeline run.
 
         Args:
-            pipeline_run_id: Pipeline run ID
+            pipeline_run_id: Pipeline run UUID
         """
         response = await self._client.post(f"/pipeline_runs/{pipeline_run_id}/cancel")
         self._raise_for_status(response)
@@ -294,6 +305,7 @@ class OrchestraClient:
         pipeline_run_id: str,
         task_run_id: str,
         filename: str,
+        range_header: str | None = None,
     ) -> bytes:
         """Download a task run log file.
 
@@ -301,12 +313,18 @@ class OrchestraClient:
             pipeline_run_id: Pipeline run ID
             task_run_id: Task run ID
             filename: Log filename
+            range_header: Optional Range header for selectively downloading parts of the file
+                          (e.g., "bytes=-262144" for last 256kB)
 
         Returns:
             Log file contents as bytes
         """
+        headers = {}
+        if range_header:
+            headers["Range"] = range_header
         response = await self._client.get(
             f"/pipeline_runs/{pipeline_run_id}/task_runs/{task_run_id}/logs/download",
+            headers=headers,
             params={"filename": filename},
         )
         self._raise_for_status(response)

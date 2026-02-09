@@ -3,6 +3,7 @@ import sys
 from datetime import datetime
 from functools import lru_cache
 from pathlib import Path
+from typing import Any
 
 # Allow running server.py directly (e.g. via fastmcp run); project root must be on path
 _project_root = Path(__file__).resolve().parent.parent
@@ -12,6 +13,13 @@ if str(_project_root) not in sys.path:
 from fastmcp import FastMCP  # noqa: E402
 
 from orchestramcp.client import OrchestraClient  # noqa: E402
+from orchestramcp.models import (  # noqa: E402
+    AssetType,
+    OperationStatus,
+    OperationType,
+    PipelineRunStatus,
+    TaskRunStatus,
+)
 
 
 def parse_iso_datetime(dt_str: str) -> datetime:
@@ -36,7 +44,7 @@ def get_client() -> OrchestraClient:
 async def list_pipeline_runs(
     time_from: str | None = None,
     time_to: str | None = None,
-    status: str | None = None,
+    status: PipelineRunStatus | None = None,
     pipeline_run_ids: str | None = None,
 ) -> dict:
     """List pipeline runs with optional filters.
@@ -64,7 +72,7 @@ async def list_pipeline_runs(
 async def list_task_runs(
     time_from: str | None = None,
     time_to: str | None = None,
-    status: str | None = None,
+    status: TaskRunStatus | None = None,
     pipeline_ids: str | None = None,
     integration: str | None = None,
     task_run_ids: str | None = None,
@@ -98,10 +106,10 @@ async def list_task_runs(
 async def list_operations(
     time_from: str | None = None,
     time_to: str | None = None,
-    operation_type: str | None = None,
+    operation_type: OperationType | None = None,
     external_id: str | None = None,
     task_run_id: str | None = None,
-    status: str | None = None,
+    status: OperationStatus | None = None,
 ) -> dict:
     """List operations with optional filters.
 
@@ -130,7 +138,7 @@ async def list_operations(
 
 @mcp.tool()
 async def list_assets(
-    asset_type: str | None = None,
+    asset_type: AssetType | None = None,
     integration: str | None = None,
 ) -> dict:
     """List data assets.
@@ -153,7 +161,7 @@ async def import_pipeline(
     repository: str,
     default_branch: str,
     yaml_path: str,
-    alias: str,
+    alias: str | None = None,
     working_branch: str | None = None,
 ) -> dict:
     """Import a pipeline from a Git repository.
@@ -183,22 +191,32 @@ async def import_pipeline(
 
 @mcp.tool()
 async def start_pipeline(
-    alias: str,
+    alias_or_pipeline_id: str,
     branch: str | None = None,
     commit: str | None = None,
+    environment: str | None = None,
+    run_inputs: dict[str, Any] | None = None,
 ) -> dict:
     """Start a pipeline run.
 
     Args:
-        alias: Pipeline alias
+        alias_or_pipeline_id: Pipeline alias or pipeline ID (UUID)
         branch: Optional branch name to run from
         commit: Optional commit SHA to run from
+        environment: Optional environment name
+        run_inputs: Optional run inputs
 
     Returns:
         Pipeline start response with pipeline run ID
     """
     async with get_client() as client:
-        response = await client.start_pipeline(alias=alias, branch=branch, commit=commit)
+        response = await client.start_pipeline(
+            alias_or_pipeline_id=alias_or_pipeline_id,
+            branch=branch,
+            commit=commit,
+            environment=environment,
+            run_inputs=run_inputs,
+        )
         return response.model_dump()
 
 
@@ -259,6 +277,7 @@ async def download_task_run_log(
     pipeline_run_id: str,
     task_run_id: str,
     filename: str,
+    range_header: str | None = None,
 ) -> dict:
     """Download a task run log file.
 
@@ -266,6 +285,7 @@ async def download_task_run_log(
         pipeline_run_id: Pipeline run ID
         task_run_id: Task run ID
         filename: Log filename to download
+        range_header: Optional range header for selectively downloading parts of the file.
 
     Returns:
         Dictionary with log content (base64 encoded for binary safety)
@@ -277,6 +297,7 @@ async def download_task_run_log(
             pipeline_run_id=pipeline_run_id,
             task_run_id=task_run_id,
             filename=filename,
+            range_header=range_header,
         )
         return {
             "filename": filename,
@@ -336,6 +357,13 @@ async def download_task_run_artifact(
             "content": base64.b64encode(content).decode("utf-8"),
             "encoding": "base64",
         }
+
+
+@mcp.tool()
+def get_pipeline_run_lineage_url(pipeline_run_id: str) -> str:
+    """Get the URL of a pipeline run lineage graph."""
+    env = os.getenv("ORCHESTRA_ENV", "app").lower().strip()
+    return f"https://{env}.getorchestra.io/pipeline-runs/{pipeline_run_id}/lineage"
 
 
 if __name__ == "__main__":
