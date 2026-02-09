@@ -313,6 +313,8 @@ class OrchestraClient:
             pipeline_run_id: Pipeline run ID
             task_run_id: Task run ID
             filename: Log filename
+            range_header: Optional Range header for selectively downloading parts of the file
+                          (e.g., "bytes=-262144" for last 256kB)
 
         Returns:
             Log file contents as bytes
@@ -322,7 +324,7 @@ class OrchestraClient:
             headers["Range"] = range_header
         response = await self._client.get(
             f"/pipeline_runs/{pipeline_run_id}/task_runs/{task_run_id}/logs/download",
-            headers=range_header,
+            headers=headers,
             params={"filename": filename},
         )
         self._raise_for_status(response)
