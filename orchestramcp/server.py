@@ -1,7 +1,6 @@
 import os
 import sys
 from datetime import datetime
-from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
@@ -25,7 +24,6 @@ def parse_iso_datetime(dt_str: str) -> datetime:
 mcp = FastMCP("Orchestra MCP Server")
 
 
-@lru_cache
 def get_client() -> OrchestraClient:
     api_key = os.getenv("ORCHESTRA_API_KEY")
     if not api_key:

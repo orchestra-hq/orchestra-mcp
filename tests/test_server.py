@@ -7,22 +7,16 @@ from orchestramcp.server import get_client, mcp
 
 @pytest.fixture
 def set_api_key():
-    get_client.cache_clear()
     os.environ["ORCHESTRA_API_KEY"] = "test-api-key"
     yield
     os.environ.pop("ORCHESTRA_API_KEY", None)
-    get_client.cache_clear()
 
 
 def test_get_client_missing_api_key():
-    get_client.cache_clear()
     if "ORCHESTRA_API_KEY" in os.environ:
         del os.environ["ORCHESTRA_API_KEY"]
-    try:
-        with pytest.raises(ValueError, match="ORCHESTRA_API_KEY"):
-            get_client()
-    finally:
-        get_client.cache_clear()
+    with pytest.raises(ValueError, match="ORCHESTRA_API_KEY"):
+        get_client()
 
 
 def test_get_client_with_api_key(set_api_key):

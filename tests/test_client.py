@@ -157,7 +157,7 @@ async def test_list_assets(client):
 async def test_client_context_manager():
     async with OrchestraClient(api_key="test-key") as client:
         assert client.api_key == "test-key"
-    # __aexit__ is a no-op so cached client (e.g. from lru_cache get_client) is not closed
+    # __aexit__ is a no-op so the client is not closed
     assert client._client.is_closed is False
 
 
