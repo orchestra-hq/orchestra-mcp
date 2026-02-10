@@ -29,8 +29,10 @@ pipeline:
           statement: "SELECT\n    user_id,\n    created_at::date AS day,\n    COUNT(*)\
             \ AS events\nFROM user_events\nWHERE created_at::date >= '2026-02-01'\n\
             GROUP BY user_id, day\nORDER BY day;"
+          set_outputs: false
         depends_on: []
         name: Tricky SQL
+        connection: python_connector_user_35098
     depends_on: []
     name: ''
 webhook:
