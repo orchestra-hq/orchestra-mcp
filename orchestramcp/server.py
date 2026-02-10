@@ -47,7 +47,6 @@ async def list_pipeline_runs(
             Valid values: CREATED, RUNNING, SUCCEEDED, WARNING, FAILED, CANCELLING, CANCELLED
             Example: "SUCCEEDED,FAILED" or "RUNNING"
         pipeline_run_ids: Comma-separated list of pipeline run UUIDs to filter by.
-            Example: "uuid1,uuid2" or "uuid1"
 
     Returns:
         Paginated list of pipeline runs
@@ -80,11 +79,9 @@ async def list_task_runs(
             Valid values: CREATED, SKIPPED, QUEUED, RUNNING, SUCCEEDED, WARNING, FAILED, CANCELLING, CANCELLED
             Example: "SUCCEEDED,FAILED" or "RUNNING"
         pipeline_ids: Comma-separated list of pipeline UUIDs to filter by.
-            Example: "uuid1,uuid2" or "uuid1"
         integration: Comma-separated list of integration names to filter by.
             Example: "HTTP,SNOWFLAKE" or "PYTHON"
         task_run_ids: Comma-separated list of task run UUIDs to filter by.
-            Example: "uuid1,uuid2" or "uuid1"
 
     Returns:
         Paginated list of task runs
