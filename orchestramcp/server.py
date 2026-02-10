@@ -5,8 +5,6 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
-from pydantic import UUID4
-
 # Allow running server.py directly (e.g. via fastmcp run); project root must be on path
 _project_root = Path(__file__).resolve().parent.parent
 if str(_project_root) not in sys.path:
@@ -15,13 +13,6 @@ if str(_project_root) not in sys.path:
 from fastmcp import FastMCP  # noqa: E402
 
 from orchestramcp.client import OrchestraClient  # noqa: E402
-from orchestramcp.models import (  # noqa: E402
-    AssetType,
-    OperationStatus,
-    OperationType,
-    PipelineRunStatus,
-    TaskRunStatus,
-)
 
 
 def parse_iso_datetime(dt_str: str) -> datetime:
@@ -46,16 +37,19 @@ def get_client() -> OrchestraClient:
 async def list_pipeline_runs(
     time_from: str | None = None,
     time_to: str | None = None,
-    statuses: list[PipelineRunStatus] | None = None,
-    pipeline_run_ids: list[UUID4] | None = None,
+    statuses: str | None = None,
+    pipeline_run_ids: str | None = None,
 ) -> dict:
     """List pipeline runs with optional filters.
 
     Args:
         time_from: Start time in ISO 8601 format (e.g., 2025-04-01T00:00:00Z)
         time_to: End time in ISO 8601 format (e.g., 2025-04-05T00:00:00Z)
-        statuses: List of statuses (CREATED, RUNNING, SUCCEEDED, WARNING, FAILED, CANCELLING, CANCELLED) to filter by
-        pipeline_run_ids: Pipeline run UUIDs to filter by
+        statuses: Comma-separated list of pipeline run statuses to filter by.
+            Valid values: CREATED, RUNNING, SUCCEEDED, WARNING, FAILED, CANCELLING, CANCELLED
+            Example: "SUCCEEDED,FAILED" or "RUNNING"
+        pipeline_run_ids: Comma-separated list of pipeline run UUIDs to filter by.
+            Example: "uuid1,uuid2" or "uuid1"
 
     Returns:
         Paginated list of pipeline runs
@@ -74,20 +68,25 @@ async def list_pipeline_runs(
 async def list_task_runs(
     time_from: str | None = None,
     time_to: str | None = None,
-    statuses: list[TaskRunStatus] | None = None,
-    pipeline_ids: list[UUID4] | None = None,
-    integration: list[str] | None = None,
-    task_run_ids: list[UUID4] | None = None,
+    statuses: str | None = None,
+    pipeline_ids: str | None = None,
+    integration: str | None = None,
+    task_run_ids: str | None = None,
 ) -> dict:
     """List task runs with optional filters.
 
     Args:
-        time_from: Start time in ISO 8601 format
-        time_to: End time in ISO 8601 format
-        statuses: List of statuses (CREATED, SKIPPED, QUEUED, RUNNING, SUCCEEDED, WARNING, FAILED, etc.) to filter by
-        pipeline_ids: List of pipeline UUIDs to filter by
-        integration: List of integrations (e.g., HTTP, SNOWFLAKE) to filter by
-        task_run_ids: List of task run UUIDs to filter by
+        time_from: Start time in ISO 8601 format (e.g., 2025-04-01T00:00:00Z)
+        time_to: End time in ISO 8601 format (e.g., 2025-04-05T00:00:00Z)
+        statuses: Comma-separated list of task run statuses to filter by.
+            Valid values: CREATED, SKIPPED, QUEUED, RUNNING, SUCCEEDED, WARNING, FAILED, CANCELLING, CANCELLED
+            Example: "SUCCEEDED,FAILED" or "RUNNING"
+        pipeline_ids: Comma-separated list of pipeline UUIDs to filter by.
+            Example: "uuid1,uuid2" or "uuid1"
+        integration: Comma-separated list of integration names to filter by.
+            Example: "HTTP,SNOWFLAKE" or "PYTHON"
+        task_run_ids: Comma-separated list of task run UUIDs to filter by.
+            Example: "uuid1,uuid2" or "uuid1"
 
     Returns:
         Paginated list of task runs
@@ -108,20 +107,26 @@ async def list_task_runs(
 async def list_operations(
     time_from: str | None = None,
     time_to: str | None = None,
-    operation_types: list[OperationType] | None = None,
+    operation_types: str | None = None,
     external_id: str | None = None,
     task_run_id: str | None = None,
-    status: OperationStatus | None = None,
+    statuses: str | None = None,
 ) -> dict:
     """List operations with optional filters.
 
     Args:
-        time_from: Start time in ISO 8601 format
-        time_to: End time in ISO 8601 format
-        operation_type: Comma-separated operation types (AGGREGATION, ANALYSIS, DEPLOY, INGESTION, etc.)
+        time_from: Start time in ISO 8601 format (e.g., 2025-04-01T00:00:00Z)
+        time_to: End time in ISO 8601 format (e.g., 2025-04-05T00:00:00Z)
+        operation_types: Comma-separated list of operation types to filter by.
+            Valid values: AGGREGATION, ANALYSIS, DEPLOY, INGESTION, ITERATOR, MATERIALISATION,
+            OPERATION, QUERY, REFRESH, REVERSE_ETL, SEED, SNAPSHOT, SOURCE, TEST, TEST_GROUP,
+            TRIGGER, UNKNOWN
+            Example: "QUERY,INGESTION" or "QUERY"
         external_id: External ID to filter on
-        task_run_id: Task run ID to filter on
-        status: Operation status (SUCCEEDED, FAILED, SKIPPED, UNKNOWN, WARNING, CANCELLED)
+        task_run_id: Task run ID (UUID) to filter on
+        statuses: Comma-separated list of operation statuses to filter by.
+            Valid values: SUCCEEDED, FAILED, SKIPPED, UNKNOWN, WARNING, CANCELLED
+            Example: "SUCCEEDED,FAILED" or "SUCCEEDED"
 
     Returns:
         Paginated list of operations
@@ -133,21 +138,24 @@ async def list_operations(
             operation_types=operation_types,
             external_id=external_id,
             task_run_id=task_run_id,
-            status=status,
+            statuses=statuses,
         )
         return response.model_dump()
 
 
 @mcp.tool()
 async def list_assets(
-    asset_type: AssetType | None = None,
+    asset_type: str | None = None,
     integration: str | None = None,
 ) -> dict:
     """List data assets.
 
     Args:
-        asset_type: Asset type filter (DASHBOARD, DASHBOARD_VIEWS, DATASET, QUERIES, TABLE, VIEW, WORKBOOK, UNKNOWN)
-        integration: Integration filter
+        asset_type: Asset type filter.
+            Valid values: DASHBOARD, DASHBOARD_VIEWS, DATASET, QUERIES, TABLE, VIEW, WORKBOOK, UNKNOWN
+            Example: "TABLE" or "DASHBOARD"
+        integration: Integration name to filter by.
+            Example: "SNOWFLAKE" or "HTTP"
 
     Returns:
         Paginated list of assets

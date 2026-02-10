@@ -5,13 +5,6 @@ from unittest.mock import AsyncMock, Mock, patch
 import pytest
 
 from orchestramcp.client import OrchestraAPIError, OrchestraClient
-from orchestramcp.models import (
-    AssetType,
-    OperationStatus,
-    OperationType,
-    PipelineRunStatus,
-    TaskRunStatus,
-)
 
 
 @pytest.fixture
@@ -75,7 +68,7 @@ async def test_list_pipeline_runs_with_filters(client):
     await client.list_pipeline_runs(
         time_from=time_from,
         time_to=time_to,
-        statuses=[PipelineRunStatus.SUCCEEDED, PipelineRunStatus.RUNNING],
+        statuses="SUCCEEDED,RUNNING",
     )
 
     call_args = client._client.get.call_args
@@ -155,7 +148,7 @@ async def test_list_assets(client):
 
     client._client.get = AsyncMock(return_value=mock_response)
 
-    result = await client.list_assets(asset_type=AssetType.TABLE)
+    result = await client.list_assets(asset_type="TABLE")
     assert result.total == 1
     assert len(result.results) == 1
 
@@ -185,88 +178,3 @@ async def test_start_pipeline_parses_json_error(client):
     assert exc_info.value.status_code == 400
     assert "Missing required pipeline input: command" in str(exc_info.value)
     assert exc_info.value.message == "Missing required pipeline input: command"
-
-
-@pytest.mark.asyncio
-async def test_list_pipeline_runs_enum_conversion(client):
-    mock_response = Mock()
-    mock_response.json.return_value = {
-        "page": 1,
-        "pageSize": 50,
-        "total": 0,
-        "results": [],
-    }
-    mock_response.raise_for_status = Mock()
-    client._client.get = AsyncMock(return_value=mock_response)
-
-    await client.list_pipeline_runs(
-        statuses=[PipelineRunStatus.SUCCEEDED, PipelineRunStatus.FAILED]
-    )
-
-    call_args = client._client.get.call_args
-    assert call_args.kwargs["params"]["status"] == "SUCCEEDED,FAILED"
-
-
-@pytest.mark.asyncio
-async def test_list_task_runs_enum_conversion(client):
-    mock_response = Mock()
-    mock_response.json.return_value = {
-        "page": 1,
-        "pageSize": 50,
-        "total": 0,
-        "results": [],
-    }
-    mock_response.raise_for_status = Mock()
-    client._client.get = AsyncMock(return_value=mock_response)
-
-    await client.list_task_runs(
-        statuses=[TaskRunStatus.RUNNING, TaskRunStatus.SUCCEEDED],
-        integration=["SNOWFLAKE", "HTTP"],
-    )
-
-    call_args = client._client.get.call_args
-    assert call_args.kwargs["params"]["status"] == "RUNNING,SUCCEEDED"
-    assert call_args.kwargs["params"]["integration"] == "SNOWFLAKE,HTTP"
-
-
-@pytest.mark.asyncio
-async def test_list_operations_enum_conversion(client):
-    mock_response = Mock()
-    mock_response.json.return_value = {
-        "page": 1,
-        "pageSize": 50,
-        "total": 0,
-        "results": [],
-    }
-    mock_response.raise_for_status = Mock()
-    client._client.get = AsyncMock(return_value=mock_response)
-
-    await client.list_operations(
-        operation_types=[OperationType.INGESTION, OperationType.QUERY],
-        status=OperationStatus.SUCCEEDED,
-    )
-
-    call_args = client._client.get.call_args
-    assert call_args.kwargs["params"]["operation_type"] == "INGESTION,QUERY"
-    assert call_args.kwargs["params"]["status"] == "SUCCEEDED"
-
-
-@pytest.mark.asyncio
-async def test_list_operations_with_none_status(client):
-    mock_response = Mock()
-    mock_response.json.return_value = {
-        "page": 1,
-        "pageSize": 50,
-        "total": 0,
-        "results": [],
-    }
-    mock_response.raise_for_status = Mock()
-    client._client.get = AsyncMock(return_value=mock_response)
-
-    await client.list_operations(operation_types=[OperationType.QUERY], status=None)
-
-    call_args = client._client.get.call_args
-    assert (
-        "status" not in call_args.kwargs["params"]
-        or call_args.kwargs["params"].get("status") is None
-    )

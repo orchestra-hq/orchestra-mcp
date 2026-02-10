@@ -3,19 +3,13 @@ from datetime import datetime
 from typing import Any
 
 import httpx
-from pydantic import UUID4
 
 from orchestramcp.errors import OrchestraAPIError, parse_error_response
 from orchestramcp.models import (
-    AssetType,
-    OperationStatus,
-    OperationType,
     PaginatedResponse,
     PipelineImportResponse,
     PipelineRunProgress,
-    PipelineRunStatus,
     PipelineStartResponse,
-    TaskRunStatus,
 )
 
 
@@ -72,16 +66,16 @@ class OrchestraClient:
         self,
         time_from: datetime | None = None,
         time_to: datetime | None = None,
-        statuses: list[PipelineRunStatus] | None = None,
-        pipeline_run_ids: list[UUID4] | None = None,
+        statuses: str | None = None,
+        pipeline_run_ids: str | None = None,
     ) -> PaginatedResponse:
         """List pipeline runs.
 
         Args:
             time_from: Start time for filtering (ISO 8601)
             time_to: End time for filtering (ISO 8601)
-            statuses: List of statuses (CREATED, RUNNING, SUCCEEDED, etc.) to filter by
-            pipeline_run_ids: Comma-separated pipeline run UUIDs
+            statuses: Comma-separated status values to filter by
+            pipeline_run_ids: Comma-separated pipeline run UUIDs to filter by
 
         Returns:
             Paginated response with pipeline runs
@@ -89,10 +83,8 @@ class OrchestraClient:
         params = self._build_query_params(
             time_from=time_from,
             time_to=time_to,
-            status=",".join([status.value for status in statuses]) if statuses else None,
-            pipeline_run_ids=(
-                ",".join([str(_id) for _id in pipeline_run_ids]) if pipeline_run_ids else None
-            ),
+            status=statuses,
+            pipeline_run_ids=pipeline_run_ids,
         )
         response = await self._client.get("/pipeline_runs", params=params)
         self._raise_for_status(response)
@@ -102,20 +94,20 @@ class OrchestraClient:
         self,
         time_from: datetime | None = None,
         time_to: datetime | None = None,
-        statuses: list[TaskRunStatus] | None = None,
-        pipeline_ids: list[UUID4] | None = None,
-        integration: list[str] | None = None,
-        task_run_ids: list[UUID4] | None = None,
+        statuses: str | None = None,
+        pipeline_ids: str | None = None,
+        integration: str | None = None,
+        task_run_ids: str | None = None,
     ) -> PaginatedResponse:
         """List task runs.
 
         Args:
             time_from: Start time for filtering (ISO 8601)
             time_to: End time for filtering (ISO 8601)
-            statuses: List of statuses to filter by
-            pipeline_ids: List of pipeline UUIDs to filter by
-            integration: Integration to filter by
-            task_run_ids: List of task run UUIDs to filter by
+            statuses: Comma-separated status values to filter by
+            pipeline_ids: Comma-separated pipeline UUIDs to filter by
+            integration: Comma-separated integration values to filter by
+            task_run_ids: Comma-separated task run UUIDs to filter by
 
         Returns:
             Paginated response with task runs
@@ -123,10 +115,10 @@ class OrchestraClient:
         params = self._build_query_params(
             time_from=time_from,
             time_to=time_to,
-            status=",".join([s.value for s in statuses]) if statuses else None,
-            pipeline_ids=",".join([str(_id) for _id in pipeline_ids]) if pipeline_ids else None,
-            integration=",".join(integration) if integration else None,
-            task_run_ids=",".join([str(_id) for _id in task_run_ids]) if task_run_ids else None,
+            status=statuses,
+            pipeline_ids=pipeline_ids,
+            integration=integration,
+            task_run_ids=task_run_ids,
         )
         response = await self._client.get("/task_runs", params=params)
         self._raise_for_status(response)
@@ -136,20 +128,20 @@ class OrchestraClient:
         self,
         time_from: datetime | None = None,
         time_to: datetime | None = None,
-        operation_types: list[OperationType] | None = None,
+        operation_types: str | None = None,
         external_id: str | None = None,
         task_run_id: str | None = None,
-        status: OperationStatus | None = None,
+        statuses: str | None = None,
     ) -> PaginatedResponse:
         """List operations.
 
         Args:
             time_from: Start time for filtering (ISO 8601)
             time_to: End time for filtering (ISO 8601)
-            operation_types: List of operation types to filter by
+            operation_types: Comma-separated operation type values to filter by
             external_id: External ID to filter on
             task_run_id: Task run UUID to filter on
-            status: Operation status
+            statuses: Comma-separated operation status values to filter by
 
         Returns:
             Paginated response with operations
@@ -157,10 +149,10 @@ class OrchestraClient:
         params = self._build_query_params(
             time_from=time_from,
             time_to=time_to,
-            operation_type=",".join([o.value for o in operation_types]) if operation_types else None,
+            operation_type=operation_types,
             external_id=external_id,
             task_run_id=task_run_id,
-            status=status.value if status else None,
+            status=statuses,
         )
         response = await self._client.get("/operations", params=params)
         self._raise_for_status(response)
@@ -168,21 +160,21 @@ class OrchestraClient:
 
     async def list_assets(
         self,
-        asset_type: AssetType | None = None,
+        asset_type: str | None = None,
         integration: str | None = None,
     ) -> PaginatedResponse:
         """List assets.
 
         Args:
-            asset_type: Asset type filter
-            integration: Integration filter
+            asset_type: Asset type filter string
+            integration: Integration filter string
 
         Returns:
             Paginated response with assets
         """
         params: dict[str, Any] = {}
         if asset_type:
-            params["asset_type"] = asset_type.value
+            params["asset_type"] = asset_type
         if integration:
             params["integration"] = integration
 
