@@ -3,6 +3,7 @@ from datetime import datetime
 from typing import Any
 
 import httpx
+from pydantic import UUID4
 
 from orchestramcp.errors import OrchestraAPIError, parse_error_response
 from orchestramcp.models import (
@@ -71,15 +72,15 @@ class OrchestraClient:
         self,
         time_from: datetime | None = None,
         time_to: datetime | None = None,
-        status: PipelineRunStatus | None = None,
-        pipeline_run_ids: str | None = None,
+        statuses: list[PipelineRunStatus] | None = None,
+        pipeline_run_ids: list[UUID4] | None = None,
     ) -> PaginatedResponse:
         """List pipeline runs.
 
         Args:
             time_from: Start time for filtering (ISO 8601)
             time_to: End time for filtering (ISO 8601)
-            status: Comma-separated statuses (CREATED, RUNNING, SUCCEEDED, etc.)
+            statuses: List of statuses (CREATED, RUNNING, SUCCEEDED, etc.) to filter by
             pipeline_run_ids: Comma-separated pipeline run UUIDs
 
         Returns:
@@ -88,8 +89,10 @@ class OrchestraClient:
         params = self._build_query_params(
             time_from=time_from,
             time_to=time_to,
-            status=status,
-            pipeline_run_ids=pipeline_run_ids,
+            status=",".join([status.value for status in statuses]) if statuses else None,
+            pipeline_run_ids=(
+                ",".join([str(_id) for _id in pipeline_run_ids]) if pipeline_run_ids else None
+            ),
         )
         response = await self._client.get("/pipeline_runs", params=params)
         self._raise_for_status(response)
@@ -99,20 +102,20 @@ class OrchestraClient:
         self,
         time_from: datetime | None = None,
         time_to: datetime | None = None,
-        status: TaskRunStatus | None = None,
-        pipeline_ids: str | None = None,
-        integration: str | None = None,
-        task_run_ids: str | None = None,
+        statuses: list[TaskRunStatus] | None = None,
+        pipeline_ids: list[UUID4] | None = None,
+        integration: list[str] | None = None,
+        task_run_ids: list[UUID4] | None = None,
     ) -> PaginatedResponse:
         """List task runs.
 
         Args:
             time_from: Start time for filtering (ISO 8601)
             time_to: End time for filtering (ISO 8601)
-            status: Comma-separated statuses
-            pipeline_ids: Comma-separated pipeline UUIDs
-            integration: Comma-separated integrations
-            task_run_ids: Comma-separated task run UUIDs
+            statuses: List of statuses to filter by
+            pipeline_ids: List of pipeline UUIDs to filter by
+            integration: Integration to filter by
+            task_run_ids: List of task run UUIDs to filter by
 
         Returns:
             Paginated response with task runs
@@ -120,10 +123,10 @@ class OrchestraClient:
         params = self._build_query_params(
             time_from=time_from,
             time_to=time_to,
-            status=status,
-            pipeline_ids=pipeline_ids,
-            integration=integration,
-            task_run_ids=task_run_ids,
+            status=",".join([s.value for s in statuses]) if statuses else None,
+            pipeline_ids=",".join([str(_id) for _id in pipeline_ids]) if pipeline_ids else None,
+            integration=",".join(integration) if integration else None,
+            task_run_ids=",".join([str(_id) for _id in task_run_ids]) if task_run_ids else None,
         )
         response = await self._client.get("/task_runs", params=params)
         self._raise_for_status(response)
@@ -133,7 +136,7 @@ class OrchestraClient:
         self,
         time_from: datetime | None = None,
         time_to: datetime | None = None,
-        operation_type: OperationType | None = None,
+        operation_types: list[OperationType] | None = None,
         external_id: str | None = None,
         task_run_id: str | None = None,
         status: OperationStatus | None = None,
@@ -143,7 +146,7 @@ class OrchestraClient:
         Args:
             time_from: Start time for filtering (ISO 8601)
             time_to: End time for filtering (ISO 8601)
-            operation_type: Comma-separated operation types
+            operation_types: List of operation types to filter by
             external_id: External ID to filter on
             task_run_id: Task run UUID to filter on
             status: Operation status
@@ -154,10 +157,10 @@ class OrchestraClient:
         params = self._build_query_params(
             time_from=time_from,
             time_to=time_to,
-            operation_type=operation_type,
+            operation_type=",".join([o.value for o in operation_types]) if operation_types else None,
             external_id=external_id,
             task_run_id=task_run_id,
-            status=status,
+            status=status.value if status else None,
         )
         response = await self._client.get("/operations", params=params)
         self._raise_for_status(response)
@@ -179,7 +182,7 @@ class OrchestraClient:
         """
         params: dict[str, Any] = {}
         if asset_type:
-            params["asset_type"] = asset_type
+            params["asset_type"] = asset_type.value
         if integration:
             params["integration"] = integration
 

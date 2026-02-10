@@ -5,6 +5,8 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
+from pydantic import UUID4
+
 # Allow running server.py directly (e.g. via fastmcp run); project root must be on path
 _project_root = Path(__file__).resolve().parent.parent
 if str(_project_root) not in sys.path:
@@ -44,16 +46,16 @@ def get_client() -> OrchestraClient:
 async def list_pipeline_runs(
     time_from: str | None = None,
     time_to: str | None = None,
-    status: PipelineRunStatus | None = None,
-    pipeline_run_ids: str | None = None,
+    statuses: list[PipelineRunStatus] | None = None,
+    pipeline_run_ids: list[UUID4] | None = None,
 ) -> dict:
     """List pipeline runs with optional filters.
 
     Args:
         time_from: Start time in ISO 8601 format (e.g., 2025-04-01T00:00:00Z)
         time_to: End time in ISO 8601 format (e.g., 2025-04-05T00:00:00Z)
-        status: Comma-separated statuses (CREATED, RUNNING, SUCCEEDED, WARNING, FAILED, CANCELLING, CANCELLED)
-        pipeline_run_ids: Comma-separated pipeline run IDs
+        statuses: List of statuses (CREATED, RUNNING, SUCCEEDED, WARNING, FAILED, CANCELLING, CANCELLED) to filter by
+        pipeline_run_ids: Pipeline run UUIDs to filter by
 
     Returns:
         Paginated list of pipeline runs
@@ -62,7 +64,7 @@ async def list_pipeline_runs(
         response = await client.list_pipeline_runs(
             time_from=parse_iso_datetime(time_from) if time_from else None,
             time_to=parse_iso_datetime(time_to) if time_to else None,
-            status=status,
+            statuses=statuses,
             pipeline_run_ids=pipeline_run_ids,
         )
         return response.model_dump()
@@ -72,20 +74,20 @@ async def list_pipeline_runs(
 async def list_task_runs(
     time_from: str | None = None,
     time_to: str | None = None,
-    status: TaskRunStatus | None = None,
-    pipeline_ids: str | None = None,
-    integration: str | None = None,
-    task_run_ids: str | None = None,
+    statuses: list[TaskRunStatus] | None = None,
+    pipeline_ids: list[UUID4] | None = None,
+    integration: list[str] | None = None,
+    task_run_ids: list[UUID4] | None = None,
 ) -> dict:
     """List task runs with optional filters.
 
     Args:
         time_from: Start time in ISO 8601 format
         time_to: End time in ISO 8601 format
-        status: Comma-separated statuses (CREATED, SKIPPED, QUEUED, RUNNING, SUCCEEDED, WARNING, FAILED, etc.)
-        pipeline_ids: Comma-separated pipeline IDs
-        integration: Comma-separated integrations (e.g., HTTP, SNOWFLAKE)
-        task_run_ids: Comma-separated task run IDs
+        statuses: List of statuses (CREATED, SKIPPED, QUEUED, RUNNING, SUCCEEDED, WARNING, FAILED, etc.) to filter by
+        pipeline_ids: List of pipeline UUIDs to filter by
+        integration: List of integrations (e.g., HTTP, SNOWFLAKE) to filter by
+        task_run_ids: List of task run UUIDs to filter by
 
     Returns:
         Paginated list of task runs
@@ -94,7 +96,7 @@ async def list_task_runs(
         response = await client.list_task_runs(
             time_from=parse_iso_datetime(time_from) if time_from else None,
             time_to=parse_iso_datetime(time_to) if time_to else None,
-            status=status,
+            statuses=statuses,
             pipeline_ids=pipeline_ids,
             integration=integration,
             task_run_ids=task_run_ids,
@@ -106,7 +108,7 @@ async def list_task_runs(
 async def list_operations(
     time_from: str | None = None,
     time_to: str | None = None,
-    operation_type: OperationType | None = None,
+    operation_types: list[OperationType] | None = None,
     external_id: str | None = None,
     task_run_id: str | None = None,
     status: OperationStatus | None = None,
@@ -128,7 +130,7 @@ async def list_operations(
         response = await client.list_operations(
             time_from=parse_iso_datetime(time_from) if time_from else None,
             time_to=parse_iso_datetime(time_to) if time_to else None,
-            operation_type=operation_type,
+            operation_types=operation_types,
             external_id=external_id,
             task_run_id=task_run_id,
             status=status,
