@@ -26,9 +26,9 @@ pipeline:
         integration: SNOWFLAKE
         integration_job: SNOWFLAKE_RUN_QUERY
         parameters:
-          statement: "SELECT\n    user_id,\n    created_at::date AS day,\n    COUNT(*)\
-            \ AS events\nFROM test_2\nWHERE created_at::date >= '2026-02-01'\n\
-            GROUP BY user_id, day\nORDER BY day;"
+          statement: "SELECT\n    CC_CALL_CENTER_ID,\n    CC_REC_START_DATE::date AS day,\n    COUNT(*)\
+            \ AS events\nFROM test_2\nWHERE CC_REC_START_DATE::date >= '2000-02-01'\n\
+            GROUP BY CC_CALL_CENTER_ID, day\nORDER BY day;"
           set_outputs: false
         depends_on: []
         name: Tricky SQL
