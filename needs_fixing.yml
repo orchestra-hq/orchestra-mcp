@@ -27,7 +27,7 @@ pipeline:
         integration_job: SNOWFLAKE_RUN_QUERY
         parameters:
           statement: "SELECT\n    user_id,\n    created_at::date AS day,\n    COUNT(*)\
-            \ AS events\nFROM user_events\nWHERE created_at::date >= '2026-02-01'\n\
+            \ AS events\nFROM test_2\nWHERE created_at::date >= '2026-02-01'\n\
             GROUP BY user_id, day\nORDER BY day;"
           set_outputs: false
         depends_on: []
