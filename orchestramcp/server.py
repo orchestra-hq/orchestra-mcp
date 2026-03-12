@@ -107,6 +107,7 @@ async def list_operations(
     time_from: str | None = None,
     time_to: str | None = None,
     operation_type: OperationType | None = None,
+    integration: str | None = None,
     external_id: str | None = None,
     task_run_id: str | None = None,
     status: OperationStatus | None = None,
@@ -117,6 +118,7 @@ async def list_operations(
         time_from: Start time in ISO 8601 format
         time_to: End time in ISO 8601 format
         operation_type: Comma-separated operation types (AGGREGATION, ANALYSIS, DEPLOY, INGESTION, etc.)
+        integration: Integration filter
         external_id: External ID to filter on
         task_run_id: Task run ID to filter on
         status: Operation status (SUCCEEDED, FAILED, SKIPPED, UNKNOWN, WARNING, CANCELLED)
@@ -129,6 +131,7 @@ async def list_operations(
             time_from=parse_iso_datetime(time_from) if time_from else None,
             time_to=parse_iso_datetime(time_to) if time_to else None,
             operation_type=operation_type,
+            integration=integration,
             external_id=external_id,
             task_run_id=task_run_id,
             status=status,

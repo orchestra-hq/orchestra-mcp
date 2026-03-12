@@ -134,6 +134,7 @@ class OrchestraClient:
         time_from: datetime | None = None,
         time_to: datetime | None = None,
         operation_type: OperationType | None = None,
+        integration: str | None = None,
         external_id: str | None = None,
         task_run_id: str | None = None,
         status: OperationStatus | None = None,
@@ -144,6 +145,7 @@ class OrchestraClient:
             time_from: Start time for filtering (ISO 8601)
             time_to: End time for filtering (ISO 8601)
             operation_type: Comma-separated operation types
+            integration: Integration filter
             external_id: External ID to filter on
             task_run_id: Task run UUID to filter on
             status: Operation status
@@ -155,6 +157,7 @@ class OrchestraClient:
             time_from=time_from,
             time_to=time_to,
             operation_type=operation_type,
+            integration=integration,
             external_id=external_id,
             task_run_id=task_run_id,
             status=status,
