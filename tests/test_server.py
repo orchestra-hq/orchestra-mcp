@@ -47,3 +47,10 @@ async def test_tool_registration():
         "start_pipeline",
     }
     assert expected_tools.issubset(tool_names)
+
+
+@pytest.mark.asyncio
+async def test_list_operations_tool_exposes_integration_filter():
+    tool = (await mcp.get_tools())["list_operations"]
+
+    assert "integration" in tool.parameters["properties"]

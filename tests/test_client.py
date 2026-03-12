@@ -149,6 +149,27 @@ async def test_list_assets(client):
     assert len(result.results) == 1
 
 
+@pytest.mark.asyncio
+async def test_list_operations_with_integration_filter(client):
+    mock_response = Mock()
+    mock_response.json.return_value = {
+        "page": 1,
+        "pageSize": 50,
+        "total": 0,
+        "results": [],
+    }
+    mock_response.raise_for_status = Mock()
+
+    client._client.get = AsyncMock(return_value=mock_response)
+
+    result = await client.list_operations(integration="SNOWFLAKE")
+
+    assert result.total == 0
+    client._client.get.assert_called_once_with(
+        "/operations",
+        params={"integration": "SNOWFLAKE"},
+    )
+
 
 @pytest.mark.asyncio
 async def test_client_context_manager():

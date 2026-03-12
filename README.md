@@ -5,7 +5,7 @@ A Model Context Protocol (MCP) server for the [Orchestra API](https://docs.getor
 ## Features
 
 - **Pipeline Management**: List pipeline runs, start pipelines, check status, and cancel runs
-- **Task & Operation Monitoring**: Query task runs and operations with flexible filtering
+- **Task & Operation Monitoring**: Query task runs and operations with flexible filtering, including integration filters
 - **Asset Discovery**: List and filter data assets across integrations
 - **Pipeline Import**: Import pipelines from Git repositories
 - **Logs & Artifacts**: Download task run logs and artifacts (e.g., dbt manifest files)
