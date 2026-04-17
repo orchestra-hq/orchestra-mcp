@@ -28,7 +28,6 @@ def parse_iso_datetime(dt_str: str) -> datetime:
         dt_str = dt_str[:-1] + "+00:00"
     return datetime.fromisoformat(dt_str)
 
-
 mcp = FastMCP("Orchestra MCP Server")
 
 
@@ -44,16 +43,16 @@ def get_client() -> OrchestraClient:
 async def list_pipeline_runs(
     time_from: str | None = None,
     time_to: str | None = None,
-    status: PipelineRunStatus | None = None,
-    pipeline_run_ids: str | None = None,
+    status: list[PipelineRunStatus] | None = None,
+    pipeline_run_ids: list[str] | None = None,
 ) -> dict:
     """List pipeline runs with optional filters.
 
     Args:
         time_from: Start time in ISO 8601 format (e.g., 2025-04-01T00:00:00Z)
         time_to: End time in ISO 8601 format (e.g., 2025-04-05T00:00:00Z)
-        status: Comma-separated statuses (CREATED, RUNNING, SUCCEEDED, WARNING, FAILED, CANCELLING, CANCELLED)
-        pipeline_run_ids: Comma-separated pipeline run IDs
+        status: Optional list of statuses (CREATED, RUNNING, SUCCEEDED, WARNING, FAILED, CANCELLING, CANCELLED)
+        pipeline_run_ids: Optional list of pipeline run IDs
 
     Returns:
         Paginated list of pipeline runs
@@ -72,20 +71,20 @@ async def list_pipeline_runs(
 async def list_task_runs(
     time_from: str | None = None,
     time_to: str | None = None,
-    status: TaskRunStatus | None = None,
-    pipeline_ids: str | None = None,
-    integration: str | None = None,
-    task_run_ids: str | None = None,
+    status: list[TaskRunStatus] | None = None,
+    pipeline_ids: list[str] | None = None,
+    integration: list[str] | None = None,
+    task_run_ids: list[str] | None = None,
 ) -> dict:
     """List task runs with optional filters.
 
     Args:
         time_from: Start time in ISO 8601 format
         time_to: End time in ISO 8601 format
-        status: Comma-separated statuses (CREATED, SKIPPED, QUEUED, RUNNING, SUCCEEDED, WARNING, FAILED, etc.)
-        pipeline_ids: Comma-separated pipeline IDs
-        integration: Comma-separated integrations (e.g., HTTP, SNOWFLAKE)
-        task_run_ids: Comma-separated task run IDs
+        status: Optional list of statuses (CREATED, SKIPPED, QUEUED, RUNNING, SUCCEEDED, WARNING, FAILED, etc.)
+        pipeline_ids: Optional list of pipeline IDs
+        integration: Optional list of integrations (e.g., HTTP, SNOWFLAKE)
+        task_run_ids: Optional list of task run IDs
 
     Returns:
         Paginated list of task runs
@@ -106,22 +105,22 @@ async def list_task_runs(
 async def list_operations(
     time_from: str | None = None,
     time_to: str | None = None,
-    operation_type: OperationType | None = None,
-    integration: str | None = None,
+    operation_type: list[OperationType] | None = None,
+    integration: list[str] | None = None,
     external_id: str | None = None,
     task_run_id: str | None = None,
-    status: OperationStatus | None = None,
+    status: list[OperationStatus] | None = None,
 ) -> dict:
     """List operations with optional filters.
 
     Args:
         time_from: Start time in ISO 8601 format
         time_to: End time in ISO 8601 format
-        operation_type: Comma-separated operation types (AGGREGATION, ANALYSIS, DEPLOY, INGESTION, etc.)
-        integration: Integration filter
+        operation_type: Optional list of operation types (AGGREGATION, ANALYSIS, DEPLOY, INGESTION, etc.)
+        integration: Optional list of integrations
         external_id: External ID to filter on
         task_run_id: Task run ID to filter on
-        status: Operation status (SUCCEEDED, FAILED, SKIPPED, UNKNOWN, WARNING, CANCELLED)
+        status: Optional list of operation statuses (SUCCEEDED, FAILED, SKIPPED, UNKNOWN, WARNING, CANCELLED)
 
     Returns:
         Paginated list of operations
@@ -141,14 +140,14 @@ async def list_operations(
 
 @mcp.tool()
 async def list_assets(
-    asset_type: AssetType | None = None,
-    integration: str | None = None,
+    asset_type: list[AssetType] | None = None,
+    integration: list[str] | None = None,
 ) -> dict:
     """List data assets.
 
     Args:
-        asset_type: Asset type filter (DASHBOARD, DASHBOARD_VIEWS, DATASET, QUERIES, TABLE, VIEW, WORKBOOK, UNKNOWN)
-        integration: Integration filter
+        asset_type: Optional list of asset types (DASHBOARD, DASHBOARD_VIEWS, DATASET, QUERIES, TABLE, VIEW, WORKBOOK, UNKNOWN)
+        integration: Optional list of integrations
 
     Returns:
         Paginated list of assets
@@ -190,6 +189,105 @@ async def import_pipeline(
             working_branch=working_branch,
         )
         return response.model_dump()
+
+
+@mcp.tool()
+async def validate_pipeline(pipeline_definition: dict[str, Any]) -> dict:
+    """Validate a pipeline definition (JSON object) against the Orchestra API schema without persisting it.
+
+    Supply the same structure as in pipeline YAML (version, name, pipeline tasks, etc.), as parsed JSON.
+    Equivalent to the Orchestra CLI ``validate`` command after converting YAML to JSON. See
+    https://docs.getorchestra.io/api/pipelines/validate-pipeline-schema
+
+    Args:
+        pipeline_definition: Pipeline definition object (e.g. from YAML converted to JSON).
+
+    Returns:
+        Success payload (e.g. validation message) or the API error is surfaced as a tool error.
+    """
+    client = OrchestraClient(api_key=os.getenv("ORCHESTRA_API_KEY"))
+    try:
+        return await client.validate_pipeline_schema(pipeline_definition=pipeline_definition)
+    finally:
+        await client.close()
+
+
+@mcp.tool()
+async def list_pipelines() -> list:
+    """List all pipelines for the workspace, including latest run metadata per pipeline.
+
+    Equivalent to the Orchestra CLI ``fetch-pipelines`` command.
+    """
+    async with get_client() as client:
+        return await client.list_pipelines()
+
+
+@mcp.tool()
+async def create_pipeline(
+    alias: str,
+    data: dict[str, Any],
+    published: bool = False,
+    storage_provider: str = "ORCHESTRA",
+) -> dict:
+    """Create an Orchestra-backed pipeline from a pipeline definition (JSON).
+
+    Only Orchestra-stored pipelines can be created this way; use ``import_pipeline`` for Git-backed YAML.
+    Equivalent to the Orchestra CLI ``create-pipeline`` command.
+
+    Args:
+        alias: Unique pipeline alias (letters, numbers, underscores; max 255).
+        data: Pipeline definition object per the pipeline YAML schema.
+        published: Whether the pipeline is published and can be triggered (CLI defaults to --no-publish).
+        storage_provider: Must be ORCHESTRA for API-created pipelines.
+    """
+    async with get_client() as client:
+        return await client.create_pipeline(
+            alias=alias,
+            data=data,
+            published=published,
+            storage_provider=storage_provider,
+        )
+
+
+@mcp.tool()
+async def update_pipeline(
+    alias: str,
+    data: dict[str, Any],
+    published: bool = False,
+    storage_provider: str = "ORCHESTRA",
+) -> dict:
+    """Update an existing Orchestra-backed pipeline by alias.
+
+    Git-backed pipelines cannot be updated via this endpoint. Equivalent to the Orchestra CLI
+    ``update-pipeline`` command.
+
+    Args:
+        alias: Pipeline alias to update.
+        data: Pipeline definition object.
+        published: Whether the pipeline is published.
+        storage_provider: Must be ORCHESTRA.
+    """
+    async with get_client() as client:
+        return await client.update_pipeline(
+            alias=alias,
+            data=data,
+            published=published,
+            storage_provider=storage_provider,
+        )
+
+
+@mcp.tool()
+async def delete_pipeline(alias: str) -> dict:
+    """Delete a pipeline by alias.
+
+    Equivalent to the Orchestra CLI ``delete-pipeline`` command.
+
+    Args:
+        alias: Pipeline alias to delete.
+    """
+    async with get_client() as client:
+        await client.delete_pipeline(alias=alias)
+        return {"message": f"Pipeline {alias!r} deleted"}
 
 
 @mcp.tool()

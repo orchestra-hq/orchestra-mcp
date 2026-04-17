@@ -18,6 +18,20 @@ def client():
     return OrchestraClient(api_key="test-api-key")
 
 
+def test_client_without_api_key_has_no_auth_header():
+    client = OrchestraClient()
+
+    assert client.api_key is None
+    assert "Authorization" not in client._client.headers
+
+
+def test_client_with_api_key_sets_auth_header():
+    client = OrchestraClient(api_key="test-api-key")
+
+    assert client.api_key == "test-api-key"
+    assert client._client.headers["Authorization"] == "Bearer test-api-key"
+
+
 @pytest.mark.asyncio
 async def test_list_pipeline_runs(client):
     mock_response = Mock()
@@ -65,12 +79,18 @@ async def test_list_pipeline_runs_with_filters(client):
 
     client._client.get = AsyncMock(return_value=mock_response)
 
-    await client.list_pipeline_runs(time_from=time_from, time_to=time_to, status="SUCCEEDED")
+    await client.list_pipeline_runs(
+        time_from=time_from,
+        time_to=time_to,
+        status=["SUCCEEDED"],
+        pipeline_run_ids=["run-1", "run-2"],
+    )
 
     call_args = client._client.get.call_args
     assert "time_from" in call_args.kwargs["params"]
     assert "time_to" in call_args.kwargs["params"]
     assert call_args.kwargs["params"]["status"] == "SUCCEEDED"
+    assert call_args.kwargs["params"]["pipeline_run_ids"] == "run-1,run-2"
 
 
 @pytest.mark.asyncio
@@ -144,9 +164,13 @@ async def test_list_assets(client):
 
     client._client.get = AsyncMock(return_value=mock_response)
 
-    result = await client.list_assets(asset_type="TABLE")
+    result = await client.list_assets(asset_type=["TABLE"], integration=["SNOWFLAKE"])
     assert result.total == 1
     assert len(result.results) == 1
+    client._client.get.assert_called_once_with(
+        "/assets",
+        params={"asset_type": "TABLE", "integration": "SNOWFLAKE"},
+    )
 
 
 @pytest.mark.asyncio
@@ -162,12 +186,20 @@ async def test_list_operations_with_integration_filter(client):
 
     client._client.get = AsyncMock(return_value=mock_response)
 
-    result = await client.list_operations(integration="SNOWFLAKE")
+    result = await client.list_operations(
+        integration=["SNOWFLAKE", "BIGQUERY"],
+        operation_type=["QUERY", "TEST"],
+        status=["SUCCEEDED", "FAILED"],
+    )
 
     assert result.total == 0
     client._client.get.assert_called_once_with(
         "/operations",
-        params={"integration": "SNOWFLAKE"},
+        params={
+            "integration": "SNOWFLAKE,BIGQUERY",
+            "operation_type": "QUERY,TEST",
+            "status": "SUCCEEDED,FAILED",
+        },
     )
 
 
@@ -175,7 +207,6 @@ async def test_list_operations_with_integration_filter(client):
 async def test_client_context_manager():
     async with OrchestraClient(api_key="test-key") as client:
         assert client.api_key == "test-key"
-    # __aexit__ is a no-op so cached client (e.g. from lru_cache get_client) is not closed
     assert client._client.is_closed is False
 
 
@@ -196,3 +227,69 @@ async def test_start_pipeline_parses_json_error(client):
     assert exc_info.value.status_code == 400
     assert "Missing required pipeline input: command" in str(exc_info.value)
     assert exc_info.value.message == "Missing required pipeline input: command"
+
+
+@pytest.mark.asyncio
+async def test_validate_pipeline_schema(client):
+    mock_response = Mock()
+    mock_response.json.return_value = {"message": "Pipeline schema is valid"}
+    mock_response.raise_for_status = Mock()
+
+    client._client.post = AsyncMock(return_value=mock_response)
+
+    result = await client.validate_pipeline_schema({"version": "v1", "name": "x"})
+    assert result["message"] == "Pipeline schema is valid"
+    client._client.post.assert_called_once_with("/pipelines/schema", json={"version": "v1", "name": "x"})
+
+
+@pytest.mark.asyncio
+async def test_list_pipelines(client):
+    mock_response = Mock()
+    mock_response.json.return_value = [{"alias": "a", "id": str(uuid.uuid4())}]
+    mock_response.raise_for_status = Mock()
+
+    client._client.get = AsyncMock(return_value=mock_response)
+
+    result = await client.list_pipelines()
+    assert len(result) == 1
+    assert result[0]["alias"] == "a"
+
+
+@pytest.mark.asyncio
+async def test_create_pipeline(client):
+    mock_response = Mock()
+    mock_response.json.return_value = {"alias": "my_pipeline", "id": str(uuid.uuid4())}
+    mock_response.raise_for_status = Mock()
+
+    client._client.post = AsyncMock(return_value=mock_response)
+
+    result = await client.create_pipeline("my_pipeline", {"version": "v1", "name": "n"})
+    assert result["alias"] == "my_pipeline"
+    call = client._client.post.call_args
+    assert call[0][0] == "/pipelines"
+    assert call[1]["json"]["published"] is False
+    assert call[1]["json"]["storage_provider"] == "ORCHESTRA"
+
+
+@pytest.mark.asyncio
+async def test_update_pipeline(client):
+    mock_response = Mock()
+    mock_response.json.return_value = {"alias": "my_pipeline"}
+    mock_response.raise_for_status = Mock()
+
+    client._client.put = AsyncMock(return_value=mock_response)
+
+    await client.update_pipeline("my_pipeline", {"version": "v1", "name": "n"})
+    client._client.put.assert_called_once()
+    assert client._client.put.call_args[0][0] == "/pipelines/my_pipeline"
+
+
+@pytest.mark.asyncio
+async def test_delete_pipeline(client):
+    mock_response = Mock()
+    mock_response.raise_for_status = Mock()
+
+    client._client.delete = AsyncMock(return_value=mock_response)
+
+    await client.delete_pipeline("my_pipeline")
+    client._client.delete.assert_called_once_with("/pipelines/my_pipeline")

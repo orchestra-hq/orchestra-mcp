@@ -1,5 +1,6 @@
 import os
 from datetime import datetime
+from enum import Enum
 from typing import Any
 
 import httpx
@@ -26,12 +27,15 @@ class OrchestraClient:
             raise ValueError(f"Invalid environment: {env}. Must be one of: app, stage, dev")
         return f"https://{env}.getorchestra.io/api/engine/public"
 
-    def __init__(self, api_key: str):
+    def __init__(self, api_key: str | None = None):
         self.api_key = api_key
         self.base_url = self._build_base_url()
+        headers: dict[str, str] = {}
+        if api_key:
+            headers["Authorization"] = f"Bearer {api_key}"
         self._client = httpx.AsyncClient(
             base_url=self.base_url,
-            headers={"Authorization": f"Bearer {api_key}"},
+            headers=headers,
             timeout=30.0,
         )
 
@@ -57,8 +61,19 @@ class OrchestraClient:
             params["time_to"] = time_to.isoformat()
 
         for key, value in kwargs.items():
-            if value is not None:
-                params[key] = value
+            if isinstance(value, list):
+                if not value:
+                    continue
+                formatted_value = ",".join(
+                    item.value if isinstance(item, Enum) else str(item)
+                    for item in value
+                )
+            elif isinstance(value, Enum):
+                formatted_value = value.value
+            else:
+                formatted_value = value
+            if formatted_value is not None:
+                params[key] = formatted_value
 
         return params
 
@@ -71,16 +86,16 @@ class OrchestraClient:
         self,
         time_from: datetime | None = None,
         time_to: datetime | None = None,
-        status: PipelineRunStatus | None = None,
-        pipeline_run_ids: str | None = None,
+        status: list[PipelineRunStatus] | None = None,
+        pipeline_run_ids: list[str] | None = None,
     ) -> PaginatedResponse:
         """List pipeline runs.
 
         Args:
             time_from: Start time for filtering (ISO 8601)
             time_to: End time for filtering (ISO 8601)
-            status: Comma-separated statuses (CREATED, RUNNING, SUCCEEDED, etc.)
-            pipeline_run_ids: Comma-separated pipeline run UUIDs
+            status: Optional list of statuses (CREATED, RUNNING, SUCCEEDED, etc.)
+            pipeline_run_ids: Optional list of pipeline run UUIDs
 
         Returns:
             Paginated response with pipeline runs
@@ -99,20 +114,20 @@ class OrchestraClient:
         self,
         time_from: datetime | None = None,
         time_to: datetime | None = None,
-        status: TaskRunStatus | None = None,
-        pipeline_ids: str | None = None,
-        integration: str | None = None,
-        task_run_ids: str | None = None,
+        status: list[TaskRunStatus] | None = None,
+        pipeline_ids: list[str] | None = None,
+        integration: list[str] | None = None,
+        task_run_ids: list[str] | None = None,
     ) -> PaginatedResponse:
         """List task runs.
 
         Args:
             time_from: Start time for filtering (ISO 8601)
             time_to: End time for filtering (ISO 8601)
-            status: Comma-separated statuses
-            pipeline_ids: Comma-separated pipeline UUIDs
-            integration: Comma-separated integrations
-            task_run_ids: Comma-separated task run UUIDs
+            status: Optional list of statuses
+            pipeline_ids: Optional list of pipeline UUIDs
+            integration: Optional list of integrations
+            task_run_ids: Optional list of task run UUIDs
 
         Returns:
             Paginated response with task runs
@@ -133,22 +148,22 @@ class OrchestraClient:
         self,
         time_from: datetime | None = None,
         time_to: datetime | None = None,
-        operation_type: OperationType | None = None,
-        integration: str | None = None,
+        operation_type: list[OperationType] | None = None,
+        integration: list[str] | None = None,
         external_id: str | None = None,
         task_run_id: str | None = None,
-        status: OperationStatus | None = None,
+        status: list[OperationStatus] | None = None,
     ) -> PaginatedResponse:
         """List operations.
 
         Args:
             time_from: Start time for filtering (ISO 8601)
             time_to: End time for filtering (ISO 8601)
-            operation_type: Comma-separated operation types
-            integration: Integration filter
+            operation_type: Optional list of operation types
+            integration: Optional list of integrations
             external_id: External ID to filter on
             task_run_id: Task run UUID to filter on
-            status: Operation status
+            status: Optional list of operation statuses
 
         Returns:
             Paginated response with operations
@@ -168,24 +183,19 @@ class OrchestraClient:
 
     async def list_assets(
         self,
-        asset_type: AssetType | None = None,
-        integration: str | None = None,
+        asset_type: list[AssetType] | None = None,
+        integration: list[str] | None = None,
     ) -> PaginatedResponse:
         """List assets.
 
         Args:
-            asset_type: Asset type filter
-            integration: Integration filter
+            asset_type: Optional list of asset types
+            integration: Optional list of integrations
 
         Returns:
             Paginated response with assets
         """
-        params: dict[str, Any] = {}
-        if asset_type:
-            params["asset_type"] = asset_type
-        if integration:
-            params["integration"] = integration
-
+        params = self._build_query_params(asset_type=asset_type, integration=integration)
         response = await self._client.get("/assets", params=params)
         self._raise_for_status(response)
         return PaginatedResponse(**response.json())
@@ -226,6 +236,68 @@ class OrchestraClient:
         response = await self._client.post("/pipelines/import", json=payload)
         self._raise_for_status(response)
         return PipelineImportResponse(**response.json())
+
+    async def validate_pipeline_schema(self, pipeline_definition: dict[str, Any]) -> dict[str, Any]:
+        """Validate a pipeline definition (JSON) against the Orchestra schema (POST /pipelines/schema).
+
+        Does not create or update a pipeline. Matches Orchestra CLI ``validate`` (after YAML is converted
+        to JSON). This endpoint can be called without authentication.
+        """
+        response = await self._client.post("/pipelines/schema", json=pipeline_definition)
+        self._raise_for_status(response)
+        return response.json()
+
+    async def list_pipelines(self) -> list[dict[str, Any]]:
+        """List all pipelines for the workspace (GET /pipelines). Matches Orchestra CLI ``fetch-pipelines``."""
+        response = await self._client.get("/pipelines")
+        self._raise_for_status(response)
+        data = response.json()
+        if not isinstance(data, list):
+            raise OrchestraAPIError(
+                response.status_code,
+                "Expected JSON array from GET /pipelines",
+            )
+        return data
+
+    async def create_pipeline(
+        self,
+        alias: str,
+        data: dict[str, Any],
+        published: bool = False,
+        storage_provider: str = "ORCHESTRA",
+    ) -> dict[str, Any]:
+        """Create an Orchestra-backed pipeline (POST /pipelines). Matches Orchestra CLI ``create-pipeline``."""
+        payload: dict[str, Any] = {
+            "alias": alias,
+            "data": data,
+            "published": published,
+            "storage_provider": storage_provider,
+        }
+        response = await self._client.post("/pipelines", json=payload)
+        self._raise_for_status(response)
+        return response.json()
+
+    async def update_pipeline(
+        self,
+        alias: str,
+        data: dict[str, Any],
+        published: bool = False,
+        storage_provider: str = "ORCHESTRA",
+    ) -> dict[str, Any]:
+        """Update an Orchestra-backed pipeline by alias (PUT /pipelines/{alias}). Matches CLI ``update-pipeline``."""
+        payload: dict[str, Any] = {
+            "data": data,
+            "published": published,
+            "storage_provider": storage_provider,
+        }
+        response = await self._client.put(f"/pipelines/{alias}", json=payload)
+        self._raise_for_status(response)
+        return response.json()
+
+    async def delete_pipeline(self, alias: str) -> None:
+        """Delete a pipeline by alias (DELETE /pipelines/{alias}). Matches Orchestra CLI ``delete-pipeline``."""
+        response = await self._client.delete(f"/pipelines/{alias}")
+        self._raise_for_status(response)
 
     async def start_pipeline(
         self,
