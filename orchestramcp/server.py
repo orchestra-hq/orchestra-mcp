@@ -43,16 +43,16 @@ def get_client() -> OrchestraClient:
 async def list_pipeline_runs(
     time_from: str | None = None,
     time_to: str | None = None,
-    status: list[PipelineRunStatus] | None = None,
-    pipeline_run_ids: list[str] | None = None,
+    status: PipelineRunStatus | None = None,
+    pipeline_run_ids: str | None = None,
 ) -> dict:
     """List pipeline runs with optional filters.
 
     Args:
         time_from: Start time in ISO 8601 format (e.g., 2025-04-01T00:00:00Z)
         time_to: End time in ISO 8601 format (e.g., 2025-04-05T00:00:00Z)
-        status: Optional list of statuses (CREATED, RUNNING, SUCCEEDED, WARNING, FAILED, CANCELLING, CANCELLED)
-        pipeline_run_ids: Optional list of pipeline run IDs
+        status: Comma-separated statuses (CREATED, RUNNING, SUCCEEDED, WARNING, FAILED, CANCELLING, CANCELLED)
+        pipeline_run_ids: Comma-separated pipeline run IDs
 
     Returns:
         Paginated list of pipeline runs
@@ -71,20 +71,20 @@ async def list_pipeline_runs(
 async def list_task_runs(
     time_from: str | None = None,
     time_to: str | None = None,
-    status: list[TaskRunStatus] | None = None,
-    pipeline_ids: list[str] | None = None,
-    integration: list[str] | None = None,
-    task_run_ids: list[str] | None = None,
+    status: TaskRunStatus | None = None,
+    pipeline_ids: str | None = None,
+    integration: str | None = None,
+    task_run_ids: str | None = None,
 ) -> dict:
     """List task runs with optional filters.
 
     Args:
         time_from: Start time in ISO 8601 format
         time_to: End time in ISO 8601 format
-        status: Optional list of statuses (CREATED, SKIPPED, QUEUED, RUNNING, SUCCEEDED, WARNING, FAILED, etc.)
-        pipeline_ids: Optional list of pipeline IDs
-        integration: Optional list of integrations (e.g., HTTP, SNOWFLAKE)
-        task_run_ids: Optional list of task run IDs
+        status: Comma-separated statuses (CREATED, SKIPPED, QUEUED, RUNNING, SUCCEEDED, WARNING, FAILED, etc.)
+        pipeline_ids: Comma-separated pipeline IDs
+        integration: Comma-separated integrations (e.g., HTTP, SNOWFLAKE)
+        task_run_ids: Comma-separated task run IDs
 
     Returns:
         Paginated list of task runs
@@ -105,22 +105,22 @@ async def list_task_runs(
 async def list_operations(
     time_from: str | None = None,
     time_to: str | None = None,
-    operation_type: list[OperationType] | None = None,
-    integration: list[str] | None = None,
+    operation_type: OperationType | None = None,
+    integration: str | None = None,
     external_id: str | None = None,
     task_run_id: str | None = None,
-    status: list[OperationStatus] | None = None,
+    status: OperationStatus | None = None,
 ) -> dict:
     """List operations with optional filters.
 
     Args:
         time_from: Start time in ISO 8601 format
         time_to: End time in ISO 8601 format
-        operation_type: Optional list of operation types (AGGREGATION, ANALYSIS, DEPLOY, INGESTION, etc.)
-        integration: Optional list of integrations
+        operation_type: Comma-separated operation types (AGGREGATION, ANALYSIS, DEPLOY, INGESTION, etc.)
+        integration: Integration filter
         external_id: External ID to filter on
         task_run_id: Task run ID to filter on
-        status: Optional list of operation statuses (SUCCEEDED, FAILED, SKIPPED, UNKNOWN, WARNING, CANCELLED)
+        status: Operation status (SUCCEEDED, FAILED, SKIPPED, UNKNOWN, WARNING, CANCELLED)
 
     Returns:
         Paginated list of operations
@@ -140,14 +140,14 @@ async def list_operations(
 
 @mcp.tool()
 async def list_assets(
-    asset_type: list[AssetType] | None = None,
-    integration: list[str] | None = None,
+    asset_type: AssetType | None = None,
+    integration: str | None = None,
 ) -> dict:
     """List data assets.
 
     Args:
-        asset_type: Optional list of asset types (DASHBOARD, DASHBOARD_VIEWS, DATASET, QUERIES, TABLE, VIEW, WORKBOOK, UNKNOWN)
-        integration: Optional list of integrations
+        asset_type: Asset type filter (DASHBOARD, DASHBOARD_VIEWS, DATASET, QUERIES, TABLE, VIEW, WORKBOOK, UNKNOWN)
+        integration: Integration filter
 
     Returns:
         Paginated list of assets

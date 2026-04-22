@@ -22,10 +22,10 @@ A Model Context Protocol (MCP) server for the [Orchestra API](https://docs.getor
 | `start_pipeline` | Yes | Start a run by alias or pipeline ID (`POST /pipelines/{alias_or_id}/start`). |
 | `get_pipeline_run_status` | Yes | Poll a single pipeline run’s status. |
 | `cancel_pipeline_run` | Yes | Request cancellation of a pipeline run. |
-| `list_pipeline_runs` | Yes | List runs with optional time range plus array-based status and ID filters. |
-| `list_task_runs` | Yes | List task runs with optional array-based filters (including integration). |
-| `list_operations` | Yes | List operations with optional array-based filters. |
-| `list_assets` | Yes | List data assets with optional array-based type and integration filters. |
+| `list_pipeline_runs` | Yes | List runs with optional time range plus comma-separated status and ID filters. |
+| `list_task_runs` | Yes | List task runs with optional comma-separated filters (including integration). |
+| `list_operations` | Yes | List operations with optional comma-separated filters. |
+| `list_assets` | Yes | List data assets with optional comma-separated type and integration filters. |
 | `list_task_run_logs` | Yes | List log filenames for a task run. |
 | `download_task_run_log` | Yes | Download a log file (optional HTTP Range); content is base64-encoded in the result. |
 | `list_task_run_artifacts` | Yes | List artifact filenames for a task run. |
@@ -34,34 +34,18 @@ A Model Context Protocol (MCP) server for the [Orchestra API](https://docs.getor
 
 Your MCP client typically lists each tool’s parameters in its UI or in the protocol manifest.
 
-### Orchestra CLI parity
-
-The [Orchestra CLI](https://docs.getorchestra.io/docs/git-control-and-ci-cd/orchestra-cli) (`orchestra` / `orchestra-cli`) wraps the same public API for many workflows. Rough mapping:
-
-| CLI command | MCP tool | Notes |
-|-------------|----------|--------|
-| `validate` | `validate_pipeline` | Pass the pipeline as a **JSON object** (same content as YAML after parsing). The CLI reads a file and posts JSON to the schema endpoint. This MCP tool also works without `ORCHESTRA_API_KEY`. |
-| `fetch-pipelines` | `list_pipelines` | |
-| `create-pipeline` | `create_pipeline` | Optional `published` / `storage_provider` arguments. |
-| `update-pipeline` | `update_pipeline` | Orchestra-stored pipelines only. |
-| `delete-pipeline` | `delete_pipeline` | |
-| `import` | `import_pipeline` | The CLI infers Git remote, default branch, and path from your repo; the MCP tool expects explicit `storage_provider`, `repository`, branches, and `yaml_path`. |
-| `run` | `start_pipeline` | Use `get_pipeline_run_status` (and optionally your client’s polling) where the CLI would wait; `get_pipeline_run_lineage_url` matches the CLI’s run link pattern. |
-
-For local validation with a YAML file on disk, installing and using the CLI is often simplest; this server focuses on API-equivalent operations from agents. Where the Orchestra API expects comma-separated query parameters, this MCP server exposes those filters as arrays so MCP clients and agents can pass structured values naturally.
-
 ## Example calls
 
-Pass JSON arguments as shown in your MCP client tool UI. For list filters, use arrays.
+Pass JSON arguments as shown in your MCP client tool UI. For multi-value list filters, pass comma-separated strings.
 
-### `list_pipeline_runs` (array filters)
+### `list_pipeline_runs` (comma-separated filters)
 
 ```json
 {
   "time_from": "2026-04-01T00:00:00Z",
   "time_to": "2026-04-07T00:00:00Z",
-  "status": ["RUNNING", "FAILED"],
-  "pipeline_run_ids": ["11111111-1111-1111-1111-111111111111"]
+  "status": "RUNNING,FAILED",
+  "pipeline_run_ids": "11111111-1111-1111-1111-111111111111"
 }
 ```
 

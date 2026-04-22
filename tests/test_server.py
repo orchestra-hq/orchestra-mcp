@@ -62,17 +62,17 @@ async def test_list_operations_tool_exposes_integration_filter():
     integration_schema = tool.parameters["properties"]["integration"]
 
     assert "integration" in tool.parameters["properties"]
-    assert integration_schema["anyOf"][0]["type"] == "array"
+    assert integration_schema["anyOf"][0]["type"] == "string"
 
 
 @pytest.mark.asyncio
-async def test_list_pipeline_runs_tool_uses_array_filters():
+async def test_list_pipeline_runs_tool_uses_string_filters():
     tool = (await mcp.get_tools())["list_pipeline_runs"]
     status_schema = tool.parameters["properties"]["status"]
     pipeline_run_ids_schema = tool.parameters["properties"]["pipeline_run_ids"]
 
-    assert status_schema["anyOf"][0]["type"] == "array"
-    assert pipeline_run_ids_schema["anyOf"][0]["type"] == "array"
+    assert status_schema["anyOf"][0]["$ref"] == "#/$defs/PipelineRunStatus"
+    assert pipeline_run_ids_schema["anyOf"][0]["type"] == "string"
 
 
 @pytest.mark.asyncio

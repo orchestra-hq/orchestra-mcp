@@ -1,6 +1,5 @@
 import os
 from datetime import datetime
-from enum import Enum
 from typing import Any
 
 import httpx
@@ -61,19 +60,8 @@ class OrchestraClient:
             params["time_to"] = time_to.isoformat()
 
         for key, value in kwargs.items():
-            if isinstance(value, list):
-                if not value:
-                    continue
-                formatted_value = ",".join(
-                    item.value if isinstance(item, Enum) else str(item)
-                    for item in value
-                )
-            elif isinstance(value, Enum):
-                formatted_value = value.value
-            else:
-                formatted_value = value
-            if formatted_value is not None:
-                params[key] = formatted_value
+            if value is not None:
+                params[key] = value
 
         return params
 
@@ -86,16 +74,16 @@ class OrchestraClient:
         self,
         time_from: datetime | None = None,
         time_to: datetime | None = None,
-        status: list[PipelineRunStatus] | None = None,
-        pipeline_run_ids: list[str] | None = None,
+        status: PipelineRunStatus | None = None,
+        pipeline_run_ids: str | None = None,
     ) -> PaginatedResponse:
         """List pipeline runs.
 
         Args:
             time_from: Start time for filtering (ISO 8601)
             time_to: End time for filtering (ISO 8601)
-            status: Optional list of statuses (CREATED, RUNNING, SUCCEEDED, etc.)
-            pipeline_run_ids: Optional list of pipeline run UUIDs
+            status: Comma-separated statuses (CREATED, RUNNING, SUCCEEDED, etc.)
+            pipeline_run_ids: Comma-separated pipeline run UUIDs
 
         Returns:
             Paginated response with pipeline runs
@@ -114,20 +102,20 @@ class OrchestraClient:
         self,
         time_from: datetime | None = None,
         time_to: datetime | None = None,
-        status: list[TaskRunStatus] | None = None,
-        pipeline_ids: list[str] | None = None,
-        integration: list[str] | None = None,
-        task_run_ids: list[str] | None = None,
+        status: TaskRunStatus | None = None,
+        pipeline_ids: str | None = None,
+        integration: str | None = None,
+        task_run_ids: str | None = None,
     ) -> PaginatedResponse:
         """List task runs.
 
         Args:
             time_from: Start time for filtering (ISO 8601)
             time_to: End time for filtering (ISO 8601)
-            status: Optional list of statuses
-            pipeline_ids: Optional list of pipeline UUIDs
-            integration: Optional list of integrations
-            task_run_ids: Optional list of task run UUIDs
+            status: Comma-separated statuses
+            pipeline_ids: Comma-separated pipeline UUIDs
+            integration: Comma-separated integrations
+            task_run_ids: Comma-separated task run UUIDs
 
         Returns:
             Paginated response with task runs
@@ -148,22 +136,22 @@ class OrchestraClient:
         self,
         time_from: datetime | None = None,
         time_to: datetime | None = None,
-        operation_type: list[OperationType] | None = None,
-        integration: list[str] | None = None,
+        operation_type: OperationType | None = None,
+        integration: str | None = None,
         external_id: str | None = None,
         task_run_id: str | None = None,
-        status: list[OperationStatus] | None = None,
+        status: OperationStatus | None = None,
     ) -> PaginatedResponse:
         """List operations.
 
         Args:
             time_from: Start time for filtering (ISO 8601)
             time_to: End time for filtering (ISO 8601)
-            operation_type: Optional list of operation types
-            integration: Optional list of integrations
+            operation_type: Comma-separated operation types
+            integration: Integration filter
             external_id: External ID to filter on
             task_run_id: Task run UUID to filter on
-            status: Optional list of operation statuses
+            status: Operation status
 
         Returns:
             Paginated response with operations
@@ -183,19 +171,23 @@ class OrchestraClient:
 
     async def list_assets(
         self,
-        asset_type: list[AssetType] | None = None,
-        integration: list[str] | None = None,
+        asset_type: AssetType | None = None,
+        integration: str | None = None,
     ) -> PaginatedResponse:
         """List assets.
 
         Args:
-            asset_type: Optional list of asset types
-            integration: Optional list of integrations
+            asset_type: Asset type filter
+            integration: Integration filter
 
         Returns:
             Paginated response with assets
         """
-        params = self._build_query_params(asset_type=asset_type, integration=integration)
+        params: dict[str, Any] = {}
+        if asset_type:
+            params["asset_type"] = asset_type
+        if integration:
+            params["integration"] = integration
         response = await self._client.get("/assets", params=params)
         self._raise_for_status(response)
         return PaginatedResponse(**response.json())

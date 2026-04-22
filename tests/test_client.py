@@ -82,8 +82,8 @@ async def test_list_pipeline_runs_with_filters(client):
     await client.list_pipeline_runs(
         time_from=time_from,
         time_to=time_to,
-        status=["SUCCEEDED"],
-        pipeline_run_ids=["run-1", "run-2"],
+        status="SUCCEEDED",
+        pipeline_run_ids="run-1,run-2",
     )
 
     call_args = client._client.get.call_args
@@ -164,7 +164,7 @@ async def test_list_assets(client):
 
     client._client.get = AsyncMock(return_value=mock_response)
 
-    result = await client.list_assets(asset_type=["TABLE"], integration=["SNOWFLAKE"])
+    result = await client.list_assets(asset_type="TABLE", integration="SNOWFLAKE")
     assert result.total == 1
     assert len(result.results) == 1
     client._client.get.assert_called_once_with(
@@ -187,18 +187,18 @@ async def test_list_operations_with_integration_filter(client):
     client._client.get = AsyncMock(return_value=mock_response)
 
     result = await client.list_operations(
-        integration=["SNOWFLAKE", "BIGQUERY"],
-        operation_type=["QUERY", "TEST"],
-        status=["SUCCEEDED", "FAILED"],
+        integration="SNOWFLAKE",
+        operation_type="QUERY",
+        status="SUCCEEDED",
     )
 
     assert result.total == 0
     client._client.get.assert_called_once_with(
         "/operations",
         params={
-            "integration": "SNOWFLAKE,BIGQUERY",
-            "operation_type": "QUERY,TEST",
-            "status": "SUCCEEDED,FAILED",
+            "integration": "SNOWFLAKE",
+            "operation_type": "QUERY",
+            "status": "SUCCEEDED",
         },
     )
 
