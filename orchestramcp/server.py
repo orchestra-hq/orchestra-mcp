@@ -196,8 +196,7 @@ async def validate_pipeline(pipeline_definition: dict[str, Any]) -> dict:
     """Validate a pipeline definition (JSON object) against the Orchestra API schema without persisting it.
 
     Supply the same structure as in pipeline YAML (version, name, pipeline tasks, etc.), as parsed JSON.
-    Equivalent to the Orchestra CLI ``validate`` command after converting YAML to JSON. See
-    https://docs.getorchestra.io/api/pipelines/validate-pipeline-schema
+    See https://docs.getorchestra.io/api/pipelines/validate-pipeline-schema
 
     Args:
         pipeline_definition: Pipeline definition object (e.g. from YAML converted to JSON).
@@ -215,8 +214,6 @@ async def validate_pipeline(pipeline_definition: dict[str, Any]) -> dict:
 @mcp.tool()
 async def list_pipelines() -> list:
     """List all pipelines for the workspace, including latest run metadata per pipeline.
-
-    Equivalent to the Orchestra CLI ``fetch-pipelines`` command.
     """
     async with get_client() as client:
         return await client.list_pipelines()
@@ -232,12 +229,11 @@ async def create_pipeline(
     """Create an Orchestra-backed pipeline from a pipeline definition (JSON).
 
     Only Orchestra-stored pipelines can be created this way; use ``import_pipeline`` for Git-backed YAML.
-    Equivalent to the Orchestra CLI ``create-pipeline`` command.
 
     Args:
         alias: Unique pipeline alias (letters, numbers, underscores; max 255).
         data: Pipeline definition object per the pipeline YAML schema.
-        published: Whether the pipeline is published and can be triggered (CLI defaults to --no-publish).
+        published: Whether the pipeline is published and can be triggered.
         storage_provider: Must be ORCHESTRA for API-created pipelines.
     """
     async with get_client() as client:
@@ -258,8 +254,7 @@ async def update_pipeline(
 ) -> dict:
     """Update an existing Orchestra-backed pipeline by alias.
 
-    Git-backed pipelines cannot be updated via this endpoint. Equivalent to the Orchestra CLI
-    ``update-pipeline`` command.
+    Git-backed pipelines cannot be updated via this endpoint.
 
     Args:
         alias: Pipeline alias to update.
@@ -279,8 +274,6 @@ async def update_pipeline(
 @mcp.tool()
 async def delete_pipeline(alias: str) -> dict:
     """Delete a pipeline by alias.
-
-    Equivalent to the Orchestra CLI ``delete-pipeline`` command.
 
     Args:
         alias: Pipeline alias to delete.

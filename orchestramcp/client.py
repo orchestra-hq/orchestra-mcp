@@ -232,15 +232,14 @@ class OrchestraClient:
     async def validate_pipeline_schema(self, pipeline_definition: dict[str, Any]) -> dict[str, Any]:
         """Validate a pipeline definition (JSON) against the Orchestra schema (POST /pipelines/schema).
 
-        Does not create or update a pipeline. Matches Orchestra CLI ``validate`` (after YAML is converted
-        to JSON). This endpoint can be called without authentication.
+        Does not create or update a pipeline. This endpoint can be called without authentication.
         """
         response = await self._client.post("/pipelines/schema", json=pipeline_definition)
         self._raise_for_status(response)
         return response.json()
 
     async def list_pipelines(self) -> list[dict[str, Any]]:
-        """List all pipelines for the workspace (GET /pipelines). Matches Orchestra CLI ``fetch-pipelines``."""
+        """List all pipelines for the workspace (GET /pipelines)."""
         response = await self._client.get("/pipelines")
         self._raise_for_status(response)
         data = response.json()
@@ -258,7 +257,7 @@ class OrchestraClient:
         published: bool = False,
         storage_provider: str = "ORCHESTRA",
     ) -> dict[str, Any]:
-        """Create an Orchestra-backed pipeline (POST /pipelines). Matches Orchestra CLI ``create-pipeline``."""
+        """Create an Orchestra-backed pipeline (POST /pipelines)."""
         payload: dict[str, Any] = {
             "alias": alias,
             "data": data,
@@ -276,7 +275,7 @@ class OrchestraClient:
         published: bool = False,
         storage_provider: str = "ORCHESTRA",
     ) -> dict[str, Any]:
-        """Update an Orchestra-backed pipeline by alias (PUT /pipelines/{alias}). Matches CLI ``update-pipeline``."""
+        """Update an Orchestra-backed pipeline by alias (PUT /pipelines/{alias})."""
         payload: dict[str, Any] = {
             "data": data,
             "published": published,
@@ -287,7 +286,7 @@ class OrchestraClient:
         return response.json()
 
     async def delete_pipeline(self, alias: str) -> None:
-        """Delete a pipeline by alias (DELETE /pipelines/{alias}). Matches Orchestra CLI ``delete-pipeline``."""
+        """Delete a pipeline by alias (DELETE /pipelines/{alias})."""
         response = await self._client.delete(f"/pipelines/{alias}")
         self._raise_for_status(response)
 
