@@ -282,14 +282,3 @@ async def test_update_pipeline(client):
     await client.update_pipeline("my_pipeline", {"version": "v1", "name": "n"})
     client._client.put.assert_called_once()
     assert client._client.put.call_args[0][0] == "/pipelines/my_pipeline"
-
-
-@pytest.mark.asyncio
-async def test_delete_pipeline(client):
-    mock_response = Mock()
-    mock_response.raise_for_status = Mock()
-
-    client._client.delete = AsyncMock(return_value=mock_response)
-
-    await client.delete_pipeline("my_pipeline")
-    client._client.delete.assert_called_once_with("/pipelines/my_pipeline")

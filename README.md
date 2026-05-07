@@ -17,7 +17,6 @@ A Model Context Protocol (MCP) server for the [Orchestra API](https://docs.getor
 | `list_pipelines` | Yes | List all pipelines for the workspace with latest run metadata (`GET /pipelines`). |
 | `create_pipeline` | Yes | Create an Orchestra-backed pipeline from a definition object (`POST /pipelines`). |
 | `update_pipeline` | Yes | Update an Orchestra-backed pipeline by alias (`PUT /pipelines/{alias}`). Git-backed pipelines cannot be updated here. |
-| `delete_pipeline` | Yes | Delete a pipeline by alias (`DELETE /pipelines/{alias}`). |
 | `import_pipeline` | Yes | Import a pipeline whose YAML lives in a Git repository (`POST /pipelines/import`). |
 | `start_pipeline` | Yes | Start a run by alias or pipeline ID (`POST /pipelines/{alias_or_id}/start`). |
 | `get_pipeline_run_status` | Yes | Poll a single pipeline run’s status. |

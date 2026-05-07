@@ -285,11 +285,6 @@ class OrchestraClient:
         self._raise_for_status(response)
         return response.json()
 
-    async def delete_pipeline(self, alias: str) -> None:
-        """Delete a pipeline by alias (DELETE /pipelines/{alias})."""
-        response = await self._client.delete(f"/pipelines/{alias}")
-        self._raise_for_status(response)
-
     async def start_pipeline(
         self,
         alias_or_pipeline_id: str,

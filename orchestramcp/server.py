@@ -272,18 +272,6 @@ async def update_pipeline(
 
 
 @mcp.tool()
-async def delete_pipeline(alias: str) -> dict:
-    """Delete a pipeline by alias.
-
-    Args:
-        alias: Pipeline alias to delete.
-    """
-    async with get_client() as client:
-        await client.delete_pipeline(alias=alias)
-        return {"message": f"Pipeline {alias!r} deleted"}
-
-
-@mcp.tool()
 async def start_pipeline(
     alias_or_pipeline_id: str,
     branch: str | None = None,
