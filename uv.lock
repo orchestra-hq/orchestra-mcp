@@ -1217,6 +1217,14 @@ dependencies = [
     { name = "pydantic" },
 ]
 
+[package.optional-dependencies]
+dev = [
+    { name = "pytest" },
+    { name = "pytest-asyncio" },
+    { name = "pytest-mock" },
+    { name = "ruff" },
+]
+
 [package.dev-dependencies]
 dev = [
     { name = "pytest" },
@@ -1234,7 +1242,12 @@ requires-dist = [
     { name = "fastmcp", specifier = ">=3.3.1,<4" },
     { name = "httpx", specifier = ">=0.27.0" },
     { name = "pydantic", specifier = ">=2.0.0" },
+    { name = "pytest", marker = "extra == 'dev'", specifier = ">=7.4.0" },
+    { name = "pytest-asyncio", marker = "extra == 'dev'", specifier = ">=0.21.0" },
+    { name = "pytest-mock", marker = "extra == 'dev'", specifier = ">=3.12.0" },
+    { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.8.0" },
 ]
+provides-extras = ["dev"]
 
 [package.metadata.requires-dev]
 dev = [
