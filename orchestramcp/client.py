@@ -191,7 +191,7 @@ class OrchestraClient:
         self._raise_for_status(response)
         return PaginatedResponse(**response.json())
 
-    async def get_an_asset(self, asset_id: str) -> AssetResponse:
+    async def get_asset(self, asset_id: str) -> AssetResponse:
         """Get a single asset by Orchestra asset ID or external ID."""
         response = await self._client.get(f"/assets/{asset_id}")
         self._raise_for_status(response)

@@ -150,7 +150,7 @@ async def test_list_assets(client):
 
 
 @pytest.mark.asyncio
-async def test_get_an_asset(client):
+async def test_get_asset(client):
     mock_response = Mock()
     mock_response.json.return_value = {
         "assetId": str(uuid.uuid4()),
@@ -168,7 +168,7 @@ async def test_get_an_asset(client):
 
     client._client.get = AsyncMock(return_value=mock_response)
 
-    result = await client.get_an_asset(asset_id="asset-or-external-id")
+    result = await client.get_asset(asset_id="asset-or-external-id")
     assert result.asset_name == "Test Asset"
     assert result.asset_type.value == "TABLE"
     client._client.get.assert_called_once_with("/assets/asset-or-external-id")

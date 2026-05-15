@@ -159,10 +159,10 @@ async def list_assets(
 
 
 @mcp.tool()
-async def get_an_asset(asset_id: str) -> dict:
+async def get_asset(asset_id: str) -> dict:
     """Get a single asset by Orchestra asset ID or external ID."""
     async with get_client() as client:
-        response = await client.get_an_asset(asset_id=asset_id)
+        response = await client.get_asset(asset_id=asset_id)
         return response.model_dump()
 
 
