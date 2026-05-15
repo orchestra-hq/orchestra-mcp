@@ -144,14 +144,50 @@ async def list_assets(
     asset_type: AssetType | None = None,
     integration: str | None = None,
 ) -> dict:
-    """List data assets.
+    """
+    Retrieve a paginated list of Orchestra data assets.
 
-    Args:
-        asset_type: Asset type filter (DASHBOARD, DASHBOARD_VIEWS, DATASET, QUERIES, TABLE, VIEW, WORKBOOK, UNKNOWN)
-        integration: Integration filter
+    FILTERING STRATEGY — always filter server-side before reasoning locally:
+    - For integration questions ("show snowflake tables"): set integration=
+    - For health/status questions ("what's broken"): set status=
+    - For schema questions ("what's in the PUBLIC schema"): set database_name= and schema_name=
+    - For multi-value filters, pass comma-separated values: status="HEALTHY,UNHEALTHY"
+    - Combine filters freely: integration="SNOWFLAKE", status="UNHEALTHY" is valid
 
-    Returns:
-        Paginated list of assets
+    NEVER call with no filters to fetch everything and reason locally — always use
+    at least one filter when the user's question implies one.
+
+    PAGINATION: check `total` in the response. If total > page_size, call again
+    with page=2, page=3 etc. Max page_size is 100.
+
+    integration options (use exact string):
+      Data warehouses: SNOWFLAKE, GCP_BIG_QUERY, AWS_REDSHIFT, DATABRICKS, DUCKDB,
+                       MOTHERDUCK, SQL_SERVER, POSTGRES, AWS_RDS, FABRIC_SYNAPSE
+      Transformation:  DBT, DBT_CORE, SQL_MESH, COALESCE, DATAFORM, GCP_DATAFORM
+      Orchestration:   AIRFLOW, PREFECT_CLOUD, AZURE_DATA_FACTORY, AWS_GLUE,
+                       GITHUB_ACTIONS, DAGSTER (via ORCHESTRA)
+      Ingestion:       FIVETRAN, AIRBYTE_CLOUD, AIRBYTE_SERVER, STITCH, HEVO,
+                       CENSUS, HIGHTOUCH, RUDDERSTACK
+      BI/Reporting:    SIGMA, TABLEAU_CLOUD, POWER_BI, LOOKER (GCP_LOOKER),
+                       LIGHTDASH, OMNI, HEX, METAPLANE
+      Storage:         AWS_S3, GCP_CLOUD_STORAGE, AZURE_DATA_LAKE_STORAGE
+
+    status options: HEALTHY, UNHEALTHY, UNKNOWN
+      - Use UNHEALTHY to find broken/failing assets
+      - Use UNKNOWN for assets with no recent run data
+
+    sort_column options: asset_name, asset_type, status, integration,
+                         created_in_integration, last_updated_in_integration
+
+    Response fields per asset:
+      assetId, assetName, assetType, integration, status,
+      databaseName, schemaName, externalId, connection,
+      upstreamDependencies[], downstreamDependencies[],
+      createdAt, updatedAt, owner, rowCount, bytes
+
+    LINEAGE QUERIES: upstreamDependencies and downstreamDependencies contain
+    externalIds. To trace impact of a broken asset, fetch it then match its
+    externalId against other assets' dependency arrays.
     """
     async with get_client() as client:
         response = await client.list_assets(asset_type=asset_type, integration=integration)
