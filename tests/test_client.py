@@ -150,6 +150,31 @@ async def test_list_assets(client):
 
 
 @pytest.mark.asyncio
+async def test_get_an_asset(client):
+    mock_response = Mock()
+    mock_response.json.return_value = {
+        "assetId": str(uuid.uuid4()),
+        "integration": "SNOWFLAKE",
+        "accountId": str(uuid.uuid4()),
+        "assetName": "Test Asset",
+        "assetType": "TABLE",
+        "integrationAccountId": "integration-account-id",
+        "externalId": "SNOWFLAKE.PUBLIC.USERS",
+        "status": "HEALTHY",
+        "createdAt": "2025-01-01T00:00:00Z",
+        "updatedAt": "2025-01-02T00:00:00Z",
+    }
+    mock_response.raise_for_status = Mock()
+
+    client._client.get = AsyncMock(return_value=mock_response)
+
+    result = await client.get_an_asset(asset_id="asset-or-external-id")
+    assert result.asset_name == "Test Asset"
+    assert result.asset_type.value == "TABLE"
+    client._client.get.assert_called_once_with("/assets/asset-or-external-id")
+
+
+@pytest.mark.asyncio
 async def test_list_operations_with_integration_filter(client):
     mock_response = Mock()
     mock_response.json.return_value = {

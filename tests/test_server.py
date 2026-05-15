@@ -37,6 +37,7 @@ async def test_tool_registration():
         "download_task_run_artifact",
         "download_task_run_log",
         "get_pipeline_run_status",
+        "get_an_asset",
         "import_pipeline",
         "list_assets",
         "list_operations",
@@ -54,3 +55,9 @@ async def test_list_operations_tool_exposes_integration_filter():
     tool = (await mcp.get_tools())["list_operations"]
 
     assert "integration" in tool.parameters["properties"]
+
+
+@pytest.mark.asyncio
+async def test_get_an_asset_tool_exposes_asset_id():
+    tool = (await mcp.get_tools())["get_an_asset"]
+    assert "asset_id" in tool.parameters["properties"]

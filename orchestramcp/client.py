@@ -7,6 +7,7 @@ import httpx
 from orchestramcp.errors import OrchestraAPIError, parse_error_response
 from orchestramcp.models import (
     AssetType,
+    AssetResponse,
     OperationStatus,
     OperationType,
     PaginatedResponse,
@@ -189,6 +190,12 @@ class OrchestraClient:
         response = await self._client.get("/assets", params=params)
         self._raise_for_status(response)
         return PaginatedResponse(**response.json())
+
+    async def get_an_asset(self, asset_id: str) -> AssetResponse:
+        """Get a single asset by Orchestra asset ID or external ID."""
+        response = await self._client.get(f"/assets/{asset_id}")
+        self._raise_for_status(response)
+        return AssetResponse(**response.json())
 
     async def import_pipeline(
         self,
