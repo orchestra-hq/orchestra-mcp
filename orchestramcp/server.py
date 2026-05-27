@@ -28,6 +28,7 @@ def parse_iso_datetime(dt_str: str) -> datetime:
         dt_str = dt_str[:-1] + "+00:00"
     return datetime.fromisoformat(dt_str)
 
+
 mcp = FastMCP("Orchestra MCP Server")
 
 
@@ -213,10 +214,39 @@ async def validate_pipeline(pipeline_definition: dict[str, Any]) -> dict:
 
 @mcp.tool()
 async def list_pipelines() -> list:
-    """List all pipelines for the workspace, including latest run metadata per pipeline.
-    """
+    """List all pipelines for the workspace, including latest run metadata per pipeline."""
     async with get_client() as client:
         return await client.list_pipelines()
+
+
+@mcp.tool()
+async def get_pipeline(
+    pipeline_id: str | None = None,
+    alias: str | None = None,
+    repository: str | None = None,
+    yaml_path: str | None = None,
+    version: int | None = None,
+    branch: str | None = None,
+    commit: str | None = None,
+) -> dict:
+    """Fetch a single pipeline by selector.
+
+    Provide one of:
+    - pipeline_id
+    - alias
+    - repository + yaml_path (optionally with version/branch/commit)
+    """
+    async with get_client() as client:
+        response = await client.get_pipeline(
+            pipeline_id=pipeline_id,
+            alias=alias,
+            repository=repository,
+            yaml_path=yaml_path,
+            version=version,
+            branch=branch,
+            commit=commit,
+        )
+        return response
 
 
 @mcp.tool()

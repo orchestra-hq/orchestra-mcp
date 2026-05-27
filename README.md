@@ -15,6 +15,7 @@ A Model Context Protocol (MCP) server for the [Orchestra API](https://docs.getor
 |------|---------------|---------|
 | `validate_pipeline` | No | Check a pipeline definition (JSON object) against the Orchestra schema (`POST /pipelines/schema`). Does not persist anything. |
 | `list_pipelines` | Yes | List all pipelines for the workspace with latest run metadata (`GET /pipelines`). |
+| `get_pipeline` | Yes | Fetch a single pipeline by selector (`GET /pipeline`). |
 | `create_pipeline` | Yes | Create an Orchestra-backed pipeline from a definition object (`POST /pipelines`). |
 | `update_pipeline` | Yes | Update an Orchestra-backed pipeline by alias (`PUT /pipelines/{alias}`). Git-backed pipelines cannot be updated here. |
 | `import_pipeline` | Yes | Import a pipeline whose YAML lives in a Git repository (`POST /pipelines/import`). |

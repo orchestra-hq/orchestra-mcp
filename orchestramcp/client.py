@@ -285,6 +285,45 @@ class OrchestraClient:
         self._raise_for_status(response)
         return response.json()
 
+    async def get_pipeline(
+        self,
+        pipeline_id: str | None = None,
+        alias: str | None = None,
+        repository: str | None = None,
+        yaml_path: str | None = None,
+        version: int | None = None,
+        branch: str | None = None,
+        commit: str | None = None,
+    ) -> dict[str, Any]:
+        """Fetch a single pipeline by selector (GET /pipeline).
+
+        The API supports multiple selectors:
+        - pipeline_id
+        - alias
+        - repository + yaml_path (optionally with version/branch/commit)
+        """
+        if (repository is None) ^ (yaml_path is None):
+            raise ValueError("repository and yaml_path must be provided together")
+
+        params = self._build_query_params(
+            pipeline_id=pipeline_id,
+            alias=alias,
+            repository=repository,
+            yaml_path=yaml_path,
+            version=version,
+            branch=branch,
+            commit=commit,
+        )
+        response = await self._client.get("/pipeline", params=params)
+        self._raise_for_status(response)
+        data = response.json()
+        if not isinstance(data, dict):
+            raise OrchestraAPIError(
+                response.status_code,
+                "Expected JSON object from GET /pipeline",
+            )
+        return data
+
     async def start_pipeline(
         self,
         alias_or_pipeline_id: str,

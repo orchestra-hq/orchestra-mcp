@@ -38,6 +38,7 @@ async def test_tool_registration():
         "create_pipeline",
         "download_task_run_artifact",
         "download_task_run_log",
+        "get_pipeline",
         "get_pipeline_run_lineage_url",
         "get_pipeline_run_status",
         "import_pipeline",
@@ -53,6 +54,20 @@ async def test_tool_registration():
         "validate_pipeline",
     }
     assert expected_tools.issubset(tool_names)
+
+
+@pytest.mark.asyncio
+async def test_get_pipeline_tool_exposes_selectors():
+    tool = (await mcp.get_tools())["get_pipeline"]
+    props = tool.parameters["properties"]
+
+    assert "pipeline_id" in props
+    assert "alias" in props
+    assert "repository" in props
+    assert "yaml_path" in props
+    assert "version" in props
+    assert "branch" in props
+    assert "commit" in props
 
 
 @pytest.mark.asyncio
@@ -80,7 +95,9 @@ async def test_validate_pipeline_does_not_require_api_key(monkeypatch):
     monkeypatch.delenv("ORCHESTRA_API_KEY", raising=False)
     mock_validate = AsyncMock(return_value={"message": "Pipeline schema is valid"})
     mock_close = AsyncMock()
-    monkeypatch.setattr("orchestramcp.client.OrchestraClient.validate_pipeline_schema", mock_validate)
+    monkeypatch.setattr(
+        "orchestramcp.client.OrchestraClient.validate_pipeline_schema", mock_validate
+    )
     monkeypatch.setattr("orchestramcp.client.OrchestraClient.close", mock_close)
     tool = (await mcp.get_tools())["validate_pipeline"]
 
@@ -97,7 +114,9 @@ async def test_validate_pipeline_uses_api_key_when_present(monkeypatch):
     monkeypatch.setenv("ORCHESTRA_API_KEY", "test-api-key")
     mock_validate = AsyncMock(return_value={"message": "Pipeline schema is valid"})
     mock_close = AsyncMock()
-    monkeypatch.setattr("orchestramcp.client.OrchestraClient.validate_pipeline_schema", mock_validate)
+    monkeypatch.setattr(
+        "orchestramcp.client.OrchestraClient.validate_pipeline_schema", mock_validate
+    )
     monkeypatch.setattr("orchestramcp.client.OrchestraClient.close", mock_close)
     tool = (await mcp.get_tools())["validate_pipeline"]
 

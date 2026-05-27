@@ -239,7 +239,9 @@ async def test_validate_pipeline_schema(client):
 
     result = await client.validate_pipeline_schema({"version": "v1", "name": "x"})
     assert result["message"] == "Pipeline schema is valid"
-    client._client.post.assert_called_once_with("/pipelines/schema", json={"version": "v1", "name": "x"})
+    client._client.post.assert_called_once_with(
+        "/pipelines/schema", json={"version": "v1", "name": "x"}
+    )
 
 
 @pytest.mark.asyncio
@@ -282,3 +284,16 @@ async def test_update_pipeline(client):
     await client.update_pipeline("my_pipeline", {"version": "v1", "name": "n"})
     client._client.put.assert_called_once()
     assert client._client.put.call_args[0][0] == "/pipelines/my_pipeline"
+
+
+@pytest.mark.asyncio
+async def test_get_pipeline(client):
+    mock_response = Mock()
+    mock_response.json.return_value = {"id": str(uuid.uuid4()), "alias": "my_pipeline"}
+    mock_response.raise_for_status = Mock()
+
+    client._client.get = AsyncMock(return_value=mock_response)
+
+    result = await client.get_pipeline(alias="my_pipeline")
+    assert result["alias"] == "my_pipeline"
+    client._client.get.assert_called_once_with("/pipeline", params={"alias": "my_pipeline"})
