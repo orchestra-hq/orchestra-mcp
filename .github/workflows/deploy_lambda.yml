@@ -1,0 +1,132 @@
+name: Build and Deploy Lambda
+run-name: Build and deploy orchestra-mcp lambda
+
+on:
+  push:
+    branches:
+      - main
+  release:
+    types:
+      - published
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  setup:
+    name: Resolve deployment targets
+    runs-on: blacksmith-2vcpu-ubuntu-2404
+    outputs:
+      environments: ${{ steps.targets.outputs.environments }}
+    steps:
+      - id: targets
+        run: |
+          if [[ "${{ github.event_name }}" == "release" ]]; then
+            echo 'environments=["production"]' >> "$GITHUB_OUTPUT"
+          else
+            echo 'environments=["development","staging"]' >> "$GITHUB_OUTPUT"
+          fi
+
+  change_detection:
+    name: Detect deploy-relevant changes
+    runs-on: blacksmith-2vcpu-ubuntu-2404
+    outputs:
+      should_deploy: ${{ steps.resolve.outputs.should_deploy }}
+    steps:
+      - name: Checkout
+        if: ${{ github.event_name == 'push' }}
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 20
+      - name: Check changed files for push events
+        if: ${{ github.event_name == 'push' }}
+        id: push_filter
+        uses: dorny/paths-filter@v4
+        with:
+          filters: |
+            deploy_lambda:
+              - '.github/workflows/deploy_lambda.yml'
+              - 'orchestramcp/**'
+              - 'pyproject.toml'
+              - 'uv.lock'
+      - name: Resolve deploy decision
+        id: resolve
+        run: |
+          if [[ "${{ github.event_name }}" == "release" ]]; then
+            echo "should_deploy=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "should_deploy=${{ steps.push_filter.outputs.deploy_lambda }}" >> "$GITHUB_OUTPUT"
+          fi
+
+  deploy:
+    name: Deploy lambda (${{ matrix.environment }})
+    needs:
+      - setup
+      - change_detection
+    if: ${{ needs.change_detection.outputs.should_deploy == 'true' }}
+    runs-on: blacksmith-2vcpu-ubuntu-2404
+    strategy:
+      fail-fast: false
+      matrix:
+        environment: ${{ fromJSON(needs.setup.outputs.environments) }}
+    environment: ${{ matrix.environment }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Build lambda zip
+        run: |
+          python -m pip install --upgrade pip
+          rm -rf build
+          mkdir -p build/package
+          python -m pip install ".[lambda]" --target build/package
+          cd build/package
+          zip -qr ../orchestra-mcp-lambda.zip .
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE }}
+          role-session-name: gha-orchestra-mcp-lambda-${{ matrix.environment }}
+          aws-region: eu-west-2
+
+      - name: Resolve S3 keys
+        id: s3_keys
+        run: |
+          BUILD_IDENTIFIER="${{ github.event_name == 'release' && github.event.release.tag_name || github.sha }}"
+
+          ARTIFACT_KEY="lambda/mcps/orchestra/${{ matrix.environment }}/${BUILD_IDENTIFIER}.zip"
+          FALLBACK_KEY="lambda/mcps/orchestra/${{ matrix.environment }}/orchestra-mcp.zip"
+
+          echo "artifact_key=${ARTIFACT_KEY}" >> "$GITHUB_OUTPUT"
+          echo "fallback_key=${FALLBACK_KEY}" >> "$GITHUB_OUTPUT"
+
+      - name: Upload lambda zip to S3 artifact key
+        run: |
+          aws s3 cp \
+            "build/orchestra-mcp-lambda.zip" \
+            "s3://orchestra-build/${{ steps.s3_keys.outputs.artifact_key }}"
+
+      - name: Overwrite fallback S3 key
+        run: |
+          aws s3 cp \
+            "s3://orchestra-build/${{ steps.s3_keys.outputs.artifact_key }}" \
+            "s3://orchestra-build/${{ steps.s3_keys.outputs.fallback_key }}"
+
+      - name: Update lambda to use key
+        run: |
+          aws lambda update-function-code \
+            --function-name "orchestra-mcp" \
+            --s3-bucket "orchestra-build" \
+            --s3-key "${{ steps.s3_keys.outputs.artifact_key }}" \
+            --publish
