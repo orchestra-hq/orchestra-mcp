@@ -126,7 +126,7 @@ jobs:
       - name: Update lambda to use key
         run: |
           aws lambda update-function-code \
-            --function-name "orchestra-mcp" \
+            --function-name "orchestra_mcp" \
             --s3-bucket "orchestra-build" \
             --s3-key "${{ steps.s3_keys.outputs.artifact_key }}" \
             --publish
