@@ -14,24 +14,8 @@ if not ORCHESTRA_ENV:
 SERVER_ARGS = ["-m", "orchestramcp.server"]
 
 
-def _get_api_key_from_event(event: dict[str, Any]) -> str | None:
-    header_name = "x-api-key"
-
-    headers = event.get("headers") or {}
-    for key, value in headers.items():
-        if isinstance(key, str) and key.lower() == header_name:
-            return value
-
-    multi_value_headers = event.get("multiValueHeaders") or {}
-    for key, values in multi_value_headers.items():
-        if isinstance(key, str) and key.lower() == header_name and values:
-            return values[0]
-
-    return None
-
-
 def handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
-    api_key = _get_api_key_from_event(event)
+    api_key = (event.get("headers") or {}).get("x-api-key")
     if not api_key:
         return {
             "statusCode": 401,
@@ -48,5 +32,7 @@ def handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
         },
     )
 
-    event_handler = APIGatewayProxyEventHandler(StdioServerAdapterRequestHandler(server_params))
+    event_handler = APIGatewayProxyEventHandler(
+        StdioServerAdapterRequestHandler(server_params)
+    )
     return event_handler.handle(event, context)
