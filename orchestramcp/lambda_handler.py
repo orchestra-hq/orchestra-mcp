@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 import logging
 import os
 import sys
@@ -8,7 +7,6 @@ from datetime import UTC, datetime
 from typing import Any
 
 from mcp.client.stdio import StdioServerParameters
-from mcp.types import INTERNAL_ERROR
 from mcp_lambda import APIGatewayProxyEventHandler, StdioServerAdapterRequestHandler
 
 logger = logging.getLogger("orchestramcp.lambda_handler")
