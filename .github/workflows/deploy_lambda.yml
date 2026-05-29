@@ -32,9 +32,43 @@ jobs:
             echo 'environments=["development","staging"]' >> "$GITHUB_OUTPUT"
           fi
 
+  change_detection:
+    name: Detect deploy-relevant changes
+    runs-on: blacksmith-2vcpu-ubuntu-2404
+    outputs:
+      should_deploy: ${{ steps.resolve.outputs.should_deploy }}
+    steps:
+      - name: Checkout
+        if: ${{ github.event_name == 'push' }}
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 20
+      - name: Check changed files for push events
+        if: ${{ github.event_name == 'push' }}
+        id: push_filter
+        uses: dorny/paths-filter@v4
+        with:
+          filters: |
+            deploy_lambda:
+              - '.github/workflows/deploy_lambda.yml'
+              - 'orchestramcp/**'
+              - 'pyproject.toml'
+              - 'uv.lock'
+      - name: Resolve deploy decision
+        id: resolve
+        run: |
+          if [[ "${{ github.event_name }}" == "release" ]]; then
+            echo "should_deploy=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "should_deploy=${{ steps.push_filter.outputs.deploy_lambda }}" >> "$GITHUB_OUTPUT"
+          fi
+
   deploy:
     name: Deploy lambda (${{ matrix.environment }})
-    needs: setup
+    needs:
+      - setup
+      - change_detection
+    if: ${{ needs.change_detection.outputs.should_deploy == 'true' }}
     runs-on: blacksmith-2vcpu-ubuntu-2404
     strategy:
       fail-fast: false
