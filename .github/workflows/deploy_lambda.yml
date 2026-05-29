@@ -69,31 +69,27 @@ jobs:
       - name: Resolve S3 keys
         id: s3_keys
         run: |
-          if [[ "${{ github.event_name }}" == "release" ]]; then
-            BUILD_IDENTIFIER="${{ github.event.release.tag_name }}"
-          else
-            BUILD_IDENTIFIER="${{ github.sha }}"
-          fi
+          BUILD_IDENTIFIER="${{ github.event_name == 'release' && github.event.release.tag_name || github.sha }}"
 
           ARTIFACT_KEY="lambda/mcps/orchestra/${{ matrix.environment }}/${BUILD_IDENTIFIER}.zip"
-          CURRENT_KEY="lambda/mcps/orchestra/${{ matrix.environment }}/orchestra-mcp.zip"
+          FALLBACK_KEY="lambda/mcps/orchestra/${{ matrix.environment }}/orchestra-mcp.zip"
 
           echo "artifact_key=${ARTIFACT_KEY}" >> "$GITHUB_OUTPUT"
-          echo "current_key=${CURRENT_KEY}" >> "$GITHUB_OUTPUT"
+          echo "fallback_key=${FALLBACK_KEY}" >> "$GITHUB_OUTPUT"
 
-      - name: Upload lambda zip to S3 key Y
+      - name: Upload lambda zip to S3 artifact key
         run: |
           aws s3 cp \
             "build/orchestra-mcp-lambda.zip" \
             "s3://orchestra-build/${{ steps.s3_keys.outputs.artifact_key }}"
 
-      - name: Overwrite current S3 key Z
+      - name: Overwrite fallback S3 key
         run: |
           aws s3 cp \
             "s3://orchestra-build/${{ steps.s3_keys.outputs.artifact_key }}" \
-            "s3://orchestra-build/${{ steps.s3_keys.outputs.current_key }}"
+            "s3://orchestra-build/${{ steps.s3_keys.outputs.fallback_key }}"
 
-      - name: Update lambda to use key Y
+      - name: Update lambda to use key
         run: |
           aws lambda update-function-code \
             --function-name "orchestra-mcp" \
