@@ -31,7 +31,7 @@ def test_get_client_with_api_key(set_api_key):
 
 @pytest.mark.asyncio
 async def test_tool_registration():
-    tool_names = {tool for tool in await mcp.get_tools()}
+    tool_names = {tool.name for tool in await mcp.list_tools()}
     expected_tools = {
         "cancel_pipeline_run",
         "download_task_run_artifact",
@@ -51,6 +51,7 @@ async def test_tool_registration():
 
 @pytest.mark.asyncio
 async def test_list_operations_tool_exposes_integration_filter():
-    tool = (await mcp.get_tools())["list_operations"]
+    tools = {tool.name: tool for tool in await mcp.list_tools()}
+    tool = tools["list_operations"]
 
     assert "integration" in tool.parameters["properties"]
