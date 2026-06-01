@@ -61,7 +61,7 @@ python -m orchestramcp.server
 The server can also be run using the FastMCP CLI:
 
 ```bash
-uv run fastmcp run orchestramcp/server.py:mcp
+uv run fastmcp run orchestramcp/server.py
 ```
 
 ### Connecting from MCP Clients
