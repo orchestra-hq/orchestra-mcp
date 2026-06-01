@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import importlib
 
 mcp = importlib.import_module("orchestramcp.server").mcp
