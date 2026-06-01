@@ -7,7 +7,10 @@ from datetime import UTC, datetime
 from typing import Any
 
 from mcp.client.stdio import StdioServerParameters
-from mcp_lambda import APIGatewayProxyEventHandler, StdioServerAdapterRequestHandler
+from mcp_lambda import (
+    APIGatewayProxyEventV2Handler,
+    StdioServerAdapterRequestHandler,
+)
 
 logger = logging.getLogger("orchestramcp.lambda_handler")
 logger.setLevel(logging.ERROR)
@@ -58,28 +61,38 @@ def _log_mcp_internal_failure_if_present(response: dict[str, Any], context: Any)
     )
 
 
+def _get_header(event: dict[str, Any], header_name: str) -> str | None:
+    headers = {key.lower(): value for key, value in event.get("headers", {}).items()}
+    return headers.get(header_name.lower())
+
+
+def _get_http_method(event: dict[str, Any]) -> str:
+    return event["requestContext"]["http"]["method"].upper()
+
 def handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
     try:
         orchestra_env = _resolve_orchestra_env()
 
-        api_key = (event.get("headers") or {}).get("x-api-key")
-        if not api_key:
+        method = _get_http_method(event)
+        api_key = _get_header(event, "x-api-key")
+        if method == "POST" and not api_key:
             return {
                 "statusCode": 401,
                 "headers": {"content-type": "application/json"},
                 "body": '{"message":"Missing x-api-key header"}',
             }
 
+        mcp_env = {"ORCHESTRA_ENV": orchestra_env}
+        if api_key:
+            mcp_env["ORCHESTRA_API_KEY"] = api_key
+
         server_params = StdioServerParameters(
             command=sys.executable,
             args=["-m", "orchestramcp.server"],
-            env={
-                "ORCHESTRA_API_KEY": api_key,
-                "ORCHESTRA_ENV": orchestra_env,
-            },
+            env=mcp_env,
         )
 
-        event_handler = APIGatewayProxyEventHandler(
+        event_handler = APIGatewayProxyEventV2Handler(
             StdioServerAdapterRequestHandler(server_params)
         )
         response = event_handler.handle(event, context)
