@@ -82,13 +82,14 @@ def handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
                 "body": '{"message":"Missing x-api-key header"}',
             }
 
+        mcp_env = {"ORCHESTRA_ENV": orchestra_env}
+        if api_key:
+            mcp_env["ORCHESTRA_API_KEY"] = api_key
+
         server_params = StdioServerParameters(
             command=sys.executable,
             args=["-m", "orchestramcp.server"],
-            env={
-                "ORCHESTRA_API_KEY": api_key or "",
-                "ORCHESTRA_ENV": orchestra_env,
-            },
+            env=mcp_env,
         )
 
         event_handler = APIGatewayProxyEventV2Handler(
