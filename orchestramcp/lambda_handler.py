@@ -15,7 +15,6 @@ from mcp_lambda import (
 logger = logging.getLogger("orchestramcp.lambda_handler")
 logger.setLevel(logging.ERROR)
 
-
 class ConfigInvalidError(ValueError):
     pass
 
@@ -88,7 +87,7 @@ def handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
 
         server_params = StdioServerParameters(
             command=sys.executable,
-            args=["-m", "orchestramcp.server"],
+            args=["-m", "orchestramcp.server_lambda"],
             env=mcp_env,
         )
 
