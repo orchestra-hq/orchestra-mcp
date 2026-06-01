@@ -69,7 +69,7 @@ jobs:
       - setup
       - change_detection
     if: ${{ needs.change_detection.outputs.should_deploy == 'true' }}
-    runs-on: blacksmith-2vcpu-ubuntu-2404
+    runs-on: blacksmith-2vcpu-ubuntu-2404-arm
     strategy:
       fail-fast: false
       matrix:
@@ -82,7 +82,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v6
         with:
-          python-version: "3.12"
+          python-version: "3.14"
 
       - name: Build lambda zip
         run: |
@@ -106,7 +106,7 @@ jobs:
           BUILD_IDENTIFIER="${{ github.event_name == 'release' && github.event.release.tag_name || github.sha }}"
 
           ARTIFACT_KEY="lambda/mcps/orchestra/${{ matrix.environment }}/${BUILD_IDENTIFIER}.zip"
-          FALLBACK_KEY="lambda/mcps/orchestra/${{ matrix.environment }}/orchestra-mcp.zip"
+          FALLBACK_KEY="lambda/mcps/orchestra/${{ matrix.environment }}/orchestra_mcp.zip"
 
           echo "artifact_key=${ARTIFACT_KEY}" >> "$GITHUB_OUTPUT"
           echo "fallback_key=${FALLBACK_KEY}" >> "$GITHUB_OUTPUT"
