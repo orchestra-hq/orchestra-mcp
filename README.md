@@ -1,6 +1,6 @@
 # Orchestra MCP Server
 
-A Model Context Protocol (MCP) server for the [Orchestra API](https://docs.getorchestra.io/docs/api/). This server enables data engineers and technical implementers to interact with Orchestra pipelines, runs, tasks, and assets through MCP-compatible clients like Cursor, Claude Desktop, or custom agents.
+A Model Context Protocol (MCP) server for the [Orchestra API](https://docs.getorchestra.io/docs/api/). End users can connect directly to Orchestra's hosted MCP endpoint and authenticate with their Orchestra API key.
 
 ## Features
 
@@ -10,15 +10,92 @@ A Model Context Protocol (MCP) server for the [Orchestra API](https://docs.getor
 - **Pipeline Import**: Import pipelines from Git repositories
 - **Logs & Artifacts**: Download task run logs and artifacts (e.g., dbt manifest files)
 
-## Installation
+## Quick Start
+
+Use Orchestra's hosted MCP endpoint:
+
+- URL: `https://mcp.getorchestra.io/orchestra`
+- Required header: `x-api-key: <your-orchestra-api-key>`
+- API key location: [Orchestra workspace settings](https://app.getorchestra.io/settings/workspace)
+
+### Cursor
+
+Add this to `.cursor/mcp.json` (project) or `~/.cursor/mcp.json` (global):
+
+```json
+{
+  "mcpServers": {
+    "orchestra": {
+      "url": "https://mcp.getorchestra.io/orchestra",
+      "headers": {
+        "x-api-key": "YOUR_ORCHESTRA_API_KEY"
+      }
+    }
+  }
+}
+```
+
+### Claude Code
+
+Add the hosted server with:
+
+```bash
+claude mcp add --transport http --header "x-api-key: YOUR_ORCHESTRA_API_KEY" orchestra https://mcp.getorchestra.io/orchestra
+```
+
+### Other MCP clients
+
+Any MCP client that supports remote HTTP/SSE servers can connect with this shape:
+
+```json
+{
+  "mcpServers": {
+    "orchestra": {
+      "url": "https://mcp.getorchestra.io/orchestra",
+      "headers": {
+        "x-api-key": "YOUR_ORCHESTRA_API_KEY"
+      }
+    }
+  }
+}
+```
+
+
+
+## Managing Multiple Workspaces
+
+If you need to connect to multiple Orchestra workspaces, you can set up separate MCP server connections with workspace-specific API keys:
+
+```
+{
+  "mcpServers": {
+    "orchestra-data-quality-tests": {
+      "url": "https://mcp.getorchestra.io/orchestra",
+      "headers": {
+        "x-api-key": "DATA_QUALITY_WORKSPACE_API_KEY"
+      }
+    },
+    "orchestra-sales-integrations": {
+      "url": "https://mcp.getorchestra.io/orchestra",
+      "headers": {
+        "x-api-key": "SALES_WORKSPACE_API_KEY"
+      }
+    }
+  }
+}
+```
+
+## Run Locally
+
+This section discusses how to run the MCP server locally, and is mainly intended for contributors.
 
 ### Prerequisites
 
 - Python 3.10 or higher
 - [uv](https://github.com/astral-sh/uv) package manager
-- Orchestra API key (available in [Orchestra UI settings](https://app.getorchestra.io/settings/workspace))
+- Orchestra API key
 
-### Install Dependencies
+### Install dependencies
 
 ```bash
 # Install uv if you haven't already
@@ -28,126 +105,41 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 uv sync
 ```
 
-## Configuration
-
-Set your Orchestra API key as an environment variable:
+### Set API key
 
 ```bash
-export ORCHESTRA_API_KEY="your-api-key-here"
+export ORCHESTRA_API_KEY="your-orchestra-api-key"
 ```
 
-### Environment Selection
+### (Optional) Select environment for local runs
 
-By default, the server connects to the production environment (`app.getorchestra.io`). You can override this by setting the `ORCHESTRA_ENV` environment variable:
+For local development, the server defaults to `app`. You can override it with `ORCHESTRA_ENV`:
 
 ```bash
 export ORCHESTRA_ENV="dev"
 ```
 
-This will construct the URL as `https://{env}.getorchestra.io/api/engine/public`. Valid environment values are:
+Valid values:
 
 - `app` (default)
 - `stage`
 - `dev`
 
-## Usage
-
-### Running the Server
+### Run the server
 
 ```bash
 python -m orchestramcp.server
 ```
 
-The server can also be run using the FastMCP CLI:
+Or with FastMCP CLI:
 
 ```bash
 uv run fastmcp run orchestramcp/server.py
 ```
-
-### Connecting from MCP Clients
-
-#### Cursor
-
-The below config can be added directly to your Cursor settings. Or, run `fastmcp install cursor orchestramcp/server.py`.
-
-```json
-{
-  "mcpServers": {
-    "Orchestra MCP Server": {
-      "command": "uv",
-      "args": [
-        "run",
-        "--with",
-        "fastmcp",
-        "fastmcp",
-        "run",
-        "/Users/bob/code/orchestra-mcp/orchestramcp/server.py" // change accordingly
-      ],
-      "env": {
-        "ORCHESTRA_API_KEY": "your-api-key-here"
-      },
-      "transport": "stdio"
-    }
-  }
-}
-```
-
-#### Claude Desktop
-
-```json
-{
-  "mcpServers": {
-    "Orchestra MCP Server": {
-      "command": "uv",
-      "args": [
-        "run",
-        "--with",
-        "fastmcp",
-        "fastmcp",
-        "run",
-        "/Users/bob/code/orchestra-mcp/orchestramcp/server.py" // change accordingly
-      ],
-      "env": {
-        "ORCHESTRA_API_KEY": "your-api-key-here"
-      },
-    }
-  }
-}
-```
-
-#### Windows
-
-On Windows, you may need to change the command to run correctly. For example, if using Claude Code:
-
-```json
-{
-  "mcpServers": {
-    "orchestramcp": {
-      "type": "stdio",
-      "command": "uv",
-      "args": [
-        "run",
-        "--project",
-        "C:/repos/orchestra-mcp/orchestramcp",
-        "--with",
-        "fastmcp",
-        "fastmcp",
-        "run",
-        "server.py"
-      ],
-      "env": {
-        "ORCHESTRA_API_KEY": "your-api-key-here"
-      }
-    }
-  }
-}
-```
-
-An equivalent config should be generated by `claude mcp add orchestramcp --transport stdio -e ORCHESTRA_API_KEY=your-api-key-here --uv run --project C:repos/orchestra-mcp/orchestramcp --with fastmcp fastmcp run server.py`
 
 ## Development
 
 - Run `uv run pytest` to run tests.
 - Run `uv run ruff check .` and `uv run ruff format .` to check and format code.
 
-PRs to main will trigger CI checks in GitHub.
+PRs to main will trigger CI checks in GitHub, `main` branch merges release to the dev & stage environments, and Github releases relase to the production environment.
