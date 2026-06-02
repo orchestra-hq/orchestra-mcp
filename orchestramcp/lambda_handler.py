@@ -60,25 +60,35 @@ def _log_mcp_internal_failure_if_present(response: dict[str, Any], context: Any)
     )
 
 
-def _get_header(event: dict[str, Any], header_name: str) -> str | None:
-    headers = {key.lower(): value for key, value in event.get("headers", {}).items()}
-    return headers.get(header_name.lower())
-
-
 def _get_http_method(event: dict[str, Any]) -> str:
     return event["requestContext"]["http"]["method"].upper()
+
+
+def _extract_bearer_token(event: dict[str, Any]) -> str | None:
+    headers = {key.lower(): value for key, value in event.get("headers", {}).items()}
+    authorization = headers.get("authorization")
+    if not authorization:
+        return None
+
+    parts = authorization.strip().split(maxsplit=1)
+    if len(parts) != 2 or parts[0].lower() != "bearer":
+        return None
+
+    token = parts[1].strip()
+    return token or None
+
 
 def handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
     try:
         orchestra_env = _resolve_orchestra_env()
 
         method = _get_http_method(event)
-        api_key = _get_header(event, "x-api-key")
+        api_key = _extract_bearer_token(event)
         if method == "POST" and not api_key:
             return {
                 "statusCode": 401,
                 "headers": {"content-type": "application/json"},
-                "body": '{"message":"Missing x-api-key header"}',
+                "body": '{"message":"Missing or invalid Authorization header"}',
             }
 
         mcp_env = {"ORCHESTRA_ENV": orchestra_env}

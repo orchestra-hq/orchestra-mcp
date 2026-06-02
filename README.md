@@ -15,7 +15,7 @@ A Model Context Protocol (MCP) server for the [Orchestra API](https://docs.getor
 Use Orchestra's hosted MCP endpoint:
 
 - URL: `https://mcp.getorchestra.io/orchestra`
-- Required header: `x-api-key: <your-orchestra-api-key>`
+- Required header: `Authorization: Bearer <YOUR_ORCHESTRA_API_KEY>`
 - API key location: [Orchestra workspace settings](https://app.getorchestra.io/settings/workspace)
 
 ### Cursor
@@ -28,7 +28,7 @@ Add this to `.cursor/mcp.json` (project) or `~/.cursor/mcp.json` (global):
     "orchestra": {
       "url": "https://mcp.getorchestra.io/orchestra",
       "headers": {
-        "x-api-key": "YOUR_ORCHESTRA_API_KEY"
+        "Authorization": "Bearer <YOUR_ORCHESTRA_API_KEY>"
       }
     }
   }
@@ -40,7 +40,7 @@ Add this to `.cursor/mcp.json` (project) or `~/.cursor/mcp.json` (global):
 Add the hosted server with:
 
 ```bash
-claude mcp add --transport http --header "x-api-key: YOUR_ORCHESTRA_API_KEY" orchestra https://mcp.getorchestra.io/orchestra
+claude mcp add --transport http --header "Authorization: Bearer <YOUR_ORCHESTRA_API_KEY>" orchestra https://mcp.getorchestra.io/orchestra
 ```
 
 ### Other MCP clients
@@ -53,7 +53,7 @@ Any MCP client that supports remote HTTP/SSE servers can connect with this shape
     "orchestra": {
       "url": "https://mcp.getorchestra.io/orchestra",
       "headers": {
-        "x-api-key": "YOUR_ORCHESTRA_API_KEY"
+        "Authorization": "Bearer <YOUR_ORCHESTRA_API_KEY>"
       }
     }
   }
@@ -72,13 +72,13 @@ If you need to connect to multiple Orchestra workspaces, you can set up separate
     "orchestra-data-quality-tests": {
       "url": "https://mcp.getorchestra.io/orchestra",
       "headers": {
-        "x-api-key": "DATA_QUALITY_WORKSPACE_API_KEY"
+        "Authorization": "Bearer <DATA_QUALITY_WORKSPACE_API_KEY>"
       }
     },
     "orchestra-sales-integrations": {
       "url": "https://mcp.getorchestra.io/orchestra",
       "headers": {
-        "x-api-key": "SALES_WORKSPACE_API_KEY"
+        "Authorization": "Bearer <SALES_WORKSPACE_API_KEY>"
       }
     }
   }
