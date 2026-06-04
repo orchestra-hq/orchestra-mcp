@@ -1224,6 +1224,10 @@ dev = [
     { name = "pytest-mock" },
     { name = "ruff" },
 ]
+lambda = [
+    { name = "mcp", marker = "python_full_version >= '3.11'" },
+    { name = "run-mcp-servers-with-aws-lambda", marker = "python_full_version >= '3.11'" },
+]
 
 [package.dev-dependencies]
 dev = [
@@ -1232,22 +1236,20 @@ dev = [
     { name = "pytest-mock" },
     { name = "ruff" },
 ]
-lambda = [
-    { name = "mcp", marker = "python_full_version >= '3.11'" },
-    { name = "run-mcp-servers-with-aws-lambda", marker = "python_full_version >= '3.11'" },
-]
 
 [package.metadata]
 requires-dist = [
     { name = "fastmcp", specifier = ">=3.3.1,<4" },
     { name = "httpx", specifier = ">=0.27.0" },
+    { name = "mcp", marker = "python_full_version >= '3.11' and extra == 'lambda'", specifier = ">=1.20.0" },
     { name = "pydantic", specifier = ">=2.0.0" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=7.4.0" },
     { name = "pytest-asyncio", marker = "extra == 'dev'", specifier = ">=0.21.0" },
     { name = "pytest-mock", marker = "extra == 'dev'", specifier = ">=3.12.0" },
     { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.8.0" },
+    { name = "run-mcp-servers-with-aws-lambda", marker = "python_full_version >= '3.11' and extra == 'lambda'", specifier = ">=0.4.8,<0.5.0" },
 ]
-provides-extras = ["dev"]
+provides-extras = ["dev", "lambda"]
 
 [package.metadata.requires-dev]
 dev = [
@@ -1255,10 +1257,6 @@ dev = [
     { name = "pytest-asyncio", specifier = ">=0.21.0" },
     { name = "pytest-mock", specifier = ">=3.12.0" },
     { name = "ruff", specifier = ">=0.8.0" },
-]
-lambda = [
-    { name = "mcp", marker = "python_full_version >= '3.11'", specifier = ">=1.20.0" },
-    { name = "run-mcp-servers-with-aws-lambda", marker = "python_full_version >= '3.11'", specifier = ">=0.4.8,<0.5.0" },
 ]
 
 [[package]]

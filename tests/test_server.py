@@ -58,7 +58,7 @@ async def test_tool_registration():
 
 @pytest.mark.asyncio
 async def test_get_pipeline_tool_exposes_selectors():
-    tool = (await mcp.get_tools())["get_pipeline"]
+    tool = await mcp.get_tool("get_pipeline")
     props = tool.parameters["properties"]
 
     assert "pipeline_id" in props
@@ -72,7 +72,7 @@ async def test_get_pipeline_tool_exposes_selectors():
 
 @pytest.mark.asyncio
 async def test_list_operations_tool_exposes_integration_filter():
-    tool = (await mcp.get_tools())["list_operations"]
+    tool = await mcp.get_tool("list_operations")
     integration_schema = tool.parameters["properties"]["integration"]
 
     assert "integration" in tool.parameters["properties"]
@@ -81,7 +81,7 @@ async def test_list_operations_tool_exposes_integration_filter():
 
 @pytest.mark.asyncio
 async def test_list_pipeline_runs_tool_uses_string_filters():
-    tool = (await mcp.get_tools())["list_pipeline_runs"]
+    tool = await mcp.get_tool("list_pipeline_runs")
     status_schema = tool.parameters["properties"]["status"]
     pipeline_run_ids_schema = tool.parameters["properties"]["pipeline_run_ids"]
 
@@ -99,7 +99,7 @@ async def test_validate_pipeline_does_not_require_api_key(monkeypatch):
         "orchestramcp.client.OrchestraClient.validate_pipeline_schema", mock_validate
     )
     monkeypatch.setattr("orchestramcp.client.OrchestraClient.close", mock_close)
-    tool = (await mcp.get_tools())["validate_pipeline"]
+    tool = await mcp.get_tool("validate_pipeline")
 
     result = await tool.fn({"version": "v1", "name": "test"})
 
@@ -118,7 +118,7 @@ async def test_validate_pipeline_uses_api_key_when_present(monkeypatch):
         "orchestramcp.client.OrchestraClient.validate_pipeline_schema", mock_validate
     )
     monkeypatch.setattr("orchestramcp.client.OrchestraClient.close", mock_close)
-    tool = (await mcp.get_tools())["validate_pipeline"]
+    tool = await mcp.get_tool("validate_pipeline")
 
     result = await tool.fn({"version": "v1", "name": "test"})
 
