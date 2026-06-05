@@ -1,22 +1,27 @@
 from __future__ import annotations
 
 import logging
-import os
-import sys
 from datetime import UTC, datetime
 from typing import Any
 
-from mcp.client.stdio import StdioServerParameters
-from mcp_lambda import (
-    APIGatewayProxyEventV2Handler,
-    StdioServerAdapterRequestHandler,
-)
+from mangum import Mangum
+
+from orchestramcp.auth import get_mcp_path
+from orchestramcp.server import mcp
 
 logger = logging.getLogger("orchestramcp.lambda_handler")
 logger.setLevel(logging.ERROR)
 
-class ConfigInvalidError(ValueError):
-    pass
+# Public path the MCP endpoint is served on. Must match the route forwarded by
+# API Gateway (e.g. the custom-domain mapping for https://mcp.getorchestra.io/orchestra).
+_MCP_PATH = get_mcp_path()
+
+# Run FastMCP's streamable-HTTP ASGI app. This serves the MCP endpoint AND, when
+# OAuth is configured, the RFC 9728 Protected Resource Metadata at
+# /.well-known/oauth-protected-resource plus the WWW-Authenticate 401 challenge.
+# Each Lambda invocation is independent, so the transport is stateless.
+_app = mcp.http_app(path=_MCP_PATH, transport="http", stateless_http=True)
+_mangum = Mangum(_app, lifespan="auto")
 
 
 def _timestamp_utc() -> str:
@@ -42,77 +47,9 @@ def _log_error_event(event_name: str, context: Any, error: BaseException) -> Non
     )
 
 
-def _resolve_orchestra_env() -> str:
-    env = os.getenv("ORCHESTRA_ENV", "").strip()
-    if env:
-        return env
-    raise ConfigInvalidError("Missing ORCHESTRA_ENV environment variable")
-
-
-def _log_mcp_internal_failure_if_present(response: dict[str, Any], context: Any) -> None:
-    body = response.get("body")
-    if not isinstance(body, str) or "Internal failure, please check Lambda function logs" not in body:
-        return
-    _log_error_event(
-        "mcp_subprocess_nonzero_exit",
-        context,
-        RuntimeError("MCP subprocess returned internal failure"),
-    )
-
-
-def _get_http_method(event: dict[str, Any]) -> str:
-    return event["requestContext"]["http"]["method"].upper()
-
-
-def _extract_bearer_token(event: dict[str, Any]) -> str | None:
-    headers = {key.lower(): value for key, value in event.get("headers", {}).items()}
-    authorization = headers.get("authorization")
-    if not authorization:
-        return None
-
-    parts = authorization.strip().split(maxsplit=1)
-    if len(parts) != 2 or parts[0].lower() != "bearer":
-        return None
-
-    token = parts[1].strip()
-    return token or None
-
-
 def handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
     try:
-        orchestra_env = _resolve_orchestra_env()
-
-        method = _get_http_method(event)
-        api_key = _extract_bearer_token(event)
-        if method == "POST" and not api_key:
-            return {
-                "statusCode": 401,
-                "headers": {"content-type": "application/json"},
-                "body": '{"message":"Missing or invalid Authorization header"}',
-            }
-
-        mcp_env = {"ORCHESTRA_ENV": orchestra_env}
-        if api_key:
-            mcp_env["ORCHESTRA_API_KEY"] = api_key
-
-        server_params = StdioServerParameters(
-            command=sys.executable,
-            args=["-m", "orchestramcp.server_lambda"],
-            env=mcp_env,
-        )
-
-        event_handler = APIGatewayProxyEventV2Handler(
-            StdioServerAdapterRequestHandler(server_params)
-        )
-        response = event_handler.handle(event, context)
-        _log_mcp_internal_failure_if_present(response, context)
-        return response
+        return _mangum(event, context)
     except Exception as exc:
-        if isinstance(exc, ConfigInvalidError):
-            event_name = "config_invalid"
-        elif isinstance(exc, OSError):
-            event_name = "mcp_subprocess_start_failed"
-        else:
-            event_name = "lambda_handler_unhandled_exception"
-        _log_error_event(event_name, context, exc)
+        _log_error_event("lambda_handler_unhandled_exception", context, exc)
         raise

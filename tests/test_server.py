@@ -1,32 +1,25 @@
-import os
-
 import pytest
 
 from orchestramcp.server import get_client, mcp
 
 
-@pytest.fixture
-def set_api_key():
-    get_client.cache_clear()
-    os.environ["ORCHESTRA_API_KEY"] = "test-api-key"
-    yield
-    os.environ.pop("ORCHESTRA_API_KEY", None)
-    get_client.cache_clear()
-
-
-def test_get_client_missing_api_key():
-    get_client.cache_clear()
-    if "ORCHESTRA_API_KEY" in os.environ:
-        del os.environ["ORCHESTRA_API_KEY"]
+@pytest.mark.asyncio
+async def test_get_client_falls_back_to_env(monkeypatch):
+    """With no authenticated request context (local stdio dev), the upstream
+    credential comes from the ORCHESTRA_API_KEY environment variable."""
+    monkeypatch.setenv("ORCHESTRA_API_KEY", "test-api-key")
+    client = await get_client()
     try:
-        with pytest.raises(ValueError, match="ORCHESTRA_API_KEY"):
-            get_client()
+        assert client.api_key == "test-api-key"
     finally:
-        get_client.cache_clear()
+        await client.close()
 
 
-def test_get_client_with_api_key(set_api_key):
-    assert get_client().api_key == "test-api-key"
+@pytest.mark.asyncio
+async def test_get_client_missing_api_key(monkeypatch):
+    monkeypatch.delenv("ORCHESTRA_API_KEY", raising=False)
+    with pytest.raises(ValueError, match="ORCHESTRA_API_KEY"):
+        await get_client()
 
 
 @pytest.mark.asyncio
@@ -37,6 +30,7 @@ async def test_tool_registration():
         "download_task_run_artifact",
         "download_task_run_log",
         "get_pipeline_run_status",
+        "get_pipeline_run_lineage_url",
         "import_pipeline",
         "list_assets",
         "list_operations",
@@ -47,6 +41,23 @@ async def test_tool_registration():
         "start_pipeline",
     }
     assert expected_tools.issubset(tool_names)
+
+
+@pytest.mark.asyncio
+async def test_all_tools_have_directory_annotations():
+    """Claude Directory review requires every tool to declare a title and the
+    applicable readOnlyHint / destructiveHint."""
+    destructive = {"cancel_pipeline_run"}
+    writes = {"import_pipeline", "start_pipeline"}
+    for tool in await mcp.list_tools():
+        ann = tool.annotations
+        assert ann is not None, f"{tool.name} missing annotations"
+        assert ann.title, f"{tool.name} missing title"
+        assert ann.readOnlyHint is not None, f"{tool.name} missing readOnlyHint"
+        assert ann.destructiveHint is not None, f"{tool.name} missing destructiveHint"
+        expected_read_only = tool.name not in destructive and tool.name not in writes
+        assert ann.readOnlyHint is expected_read_only, tool.name
+        assert ann.destructiveHint is (tool.name in destructive), tool.name
 
 
 @pytest.mark.asyncio

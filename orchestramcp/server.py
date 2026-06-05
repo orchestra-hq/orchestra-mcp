@@ -1,7 +1,6 @@
 import os
 import sys
 from datetime import datetime
-from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
@@ -11,7 +10,9 @@ if str(_project_root) not in sys.path:
     sys.path.insert(0, str(_project_root))
 
 from fastmcp import FastMCP  # noqa: E402
+from fastmcp.server.dependencies import get_access_token  # noqa: E402
 
+from orchestramcp.auth import build_auth, resolve_orchestra_credential  # noqa: E402
 from orchestramcp.client import OrchestraClient  # noqa: E402
 from orchestramcp.models import (  # noqa: E402
     AssetType,
@@ -29,18 +30,27 @@ def parse_iso_datetime(dt_str: str) -> datetime:
     return datetime.fromisoformat(dt_str)
 
 
-mcp = FastMCP("Orchestra MCP Server")
+mcp = FastMCP("Orchestra MCP Server", auth=build_auth())
 
 
-@lru_cache
-def get_client() -> OrchestraClient:
-    api_key = os.getenv("ORCHESTRA_API_KEY")
-    if not api_key:
-        raise ValueError("ORCHESTRA_API_KEY environment variable is required")
+async def get_client() -> OrchestraClient:
+    """Build an Orchestra client for the current request.
+
+    The upstream credential is resolved per request from the authenticated
+    access token (API key or OAuth identity), so this must not be cached across
+    requests — a single server process serves many users concurrently.
+    """
+    api_key = await resolve_orchestra_credential(get_access_token())
     return OrchestraClient(api_key=api_key)
 
 
-@mcp.tool()
+@mcp.tool(
+    annotations={
+        "title": "List Pipeline Runs",
+        "readOnlyHint": True,
+        "destructiveHint": False,
+    }
+)
 async def list_pipeline_runs(
     time_from: str | None = None,
     time_to: str | None = None,
@@ -58,7 +68,7 @@ async def list_pipeline_runs(
     Returns:
         Paginated list of pipeline runs
     """
-    async with get_client() as client:
+    async with await get_client() as client:
         response = await client.list_pipeline_runs(
             time_from=parse_iso_datetime(time_from) if time_from else None,
             time_to=parse_iso_datetime(time_to) if time_to else None,
@@ -68,7 +78,13 @@ async def list_pipeline_runs(
         return response.model_dump()
 
 
-@mcp.tool()
+@mcp.tool(
+    annotations={
+        "title": "List Task Runs",
+        "readOnlyHint": True,
+        "destructiveHint": False,
+    }
+)
 async def list_task_runs(
     time_from: str | None = None,
     time_to: str | None = None,
@@ -90,7 +106,7 @@ async def list_task_runs(
     Returns:
         Paginated list of task runs
     """
-    async with get_client() as client:
+    async with await get_client() as client:
         response = await client.list_task_runs(
             time_from=parse_iso_datetime(time_from) if time_from else None,
             time_to=parse_iso_datetime(time_to) if time_to else None,
@@ -102,7 +118,13 @@ async def list_task_runs(
         return response.model_dump()
 
 
-@mcp.tool()
+@mcp.tool(
+    annotations={
+        "title": "List Operations",
+        "readOnlyHint": True,
+        "destructiveHint": False,
+    }
+)
 async def list_operations(
     time_from: str | None = None,
     time_to: str | None = None,
@@ -126,7 +148,7 @@ async def list_operations(
     Returns:
         Paginated list of operations
     """
-    async with get_client() as client:
+    async with await get_client() as client:
         response = await client.list_operations(
             time_from=parse_iso_datetime(time_from) if time_from else None,
             time_to=parse_iso_datetime(time_to) if time_to else None,
@@ -139,7 +161,13 @@ async def list_operations(
         return response.model_dump()
 
 
-@mcp.tool()
+@mcp.tool(
+    annotations={
+        "title": "List Assets",
+        "readOnlyHint": True,
+        "destructiveHint": False,
+    }
+)
 async def list_assets(
     asset_type: AssetType | None = None,
     integration: str | None = None,
@@ -153,12 +181,18 @@ async def list_assets(
     Returns:
         Paginated list of assets
     """
-    async with get_client() as client:
+    async with await get_client() as client:
         response = await client.list_assets(asset_type=asset_type, integration=integration)
         return response.model_dump()
 
 
-@mcp.tool()
+@mcp.tool(
+    annotations={
+        "title": "Import Pipeline",
+        "readOnlyHint": False,
+        "destructiveHint": False,
+    }
+)
 async def import_pipeline(
     storage_provider: str,
     repository: str,
@@ -180,7 +214,7 @@ async def import_pipeline(
     Returns:
         Pipeline import response with metadata
     """
-    async with get_client() as client:
+    async with await get_client() as client:
         response = await client.import_pipeline(
             storage_provider=storage_provider,
             repository=repository,
@@ -192,7 +226,13 @@ async def import_pipeline(
         return response.model_dump()
 
 
-@mcp.tool()
+@mcp.tool(
+    annotations={
+        "title": "Start Pipeline Run",
+        "readOnlyHint": False,
+        "destructiveHint": False,
+    }
+)
 async def start_pipeline(
     alias_or_pipeline_id: str,
     branch: str | None = None,
@@ -212,7 +252,7 @@ async def start_pipeline(
     Returns:
         Pipeline start response with pipeline run ID
     """
-    async with get_client() as client:
+    async with await get_client() as client:
         response = await client.start_pipeline(
             alias_or_pipeline_id=alias_or_pipeline_id,
             branch=branch,
@@ -223,7 +263,13 @@ async def start_pipeline(
         return response.model_dump()
 
 
-@mcp.tool()
+@mcp.tool(
+    annotations={
+        "title": "Get Pipeline Run Status",
+        "readOnlyHint": True,
+        "destructiveHint": False,
+    }
+)
 async def get_pipeline_run_status(pipeline_run_id: str) -> dict:
     """Get the status of a pipeline run.
 
@@ -233,12 +279,18 @@ async def get_pipeline_run_status(pipeline_run_id: str) -> dict:
     Returns:
         Pipeline run status information
     """
-    async with get_client() as client:
+    async with await get_client() as client:
         response = await client.get_pipeline_run_status(pipeline_run_id=pipeline_run_id)
         return response.model_dump()
 
 
-@mcp.tool()
+@mcp.tool(
+    annotations={
+        "title": "Cancel Pipeline Run",
+        "readOnlyHint": False,
+        "destructiveHint": True,
+    }
+)
 async def cancel_pipeline_run(pipeline_run_id: str) -> dict:
     """Cancel a pipeline run.
 
@@ -248,12 +300,18 @@ async def cancel_pipeline_run(pipeline_run_id: str) -> dict:
     Returns:
         Confirmation message
     """
-    async with get_client() as client:
+    async with await get_client() as client:
         await client.cancel_pipeline_run(pipeline_run_id=pipeline_run_id)
         return {"message": f"Pipeline run {pipeline_run_id} cancellation requested"}
 
 
-@mcp.tool()
+@mcp.tool(
+    annotations={
+        "title": "List Task Run Logs",
+        "readOnlyHint": True,
+        "destructiveHint": False,
+    }
+)
 async def list_task_run_logs(
     pipeline_run_id: str,
     task_run_id: str,
@@ -267,7 +325,7 @@ async def list_task_run_logs(
     Returns:
         Dictionary with list of log filenames
     """
-    async with get_client() as client:
+    async with await get_client() as client:
         response = await client.list_task_run_logs(
             pipeline_run_id=pipeline_run_id,
             task_run_id=task_run_id,
@@ -275,7 +333,13 @@ async def list_task_run_logs(
         return response
 
 
-@mcp.tool()
+@mcp.tool(
+    annotations={
+        "title": "Download Task Run Log",
+        "readOnlyHint": True,
+        "destructiveHint": False,
+    }
+)
 async def download_task_run_log(
     pipeline_run_id: str,
     task_run_id: str,
@@ -295,7 +359,7 @@ async def download_task_run_log(
     """
     import base64
 
-    async with get_client() as client:
+    async with await get_client() as client:
         content = await client.download_task_run_log(
             pipeline_run_id=pipeline_run_id,
             task_run_id=task_run_id,
@@ -309,7 +373,13 @@ async def download_task_run_log(
         }
 
 
-@mcp.tool()
+@mcp.tool(
+    annotations={
+        "title": "List Task Run Artifacts",
+        "readOnlyHint": True,
+        "destructiveHint": False,
+    }
+)
 async def list_task_run_artifacts(
     pipeline_run_id: str,
     task_run_id: str,
@@ -323,7 +393,7 @@ async def list_task_run_artifacts(
     Returns:
         Dictionary with list of artifact filenames
     """
-    async with get_client() as client:
+    async with await get_client() as client:
         response = await client.list_task_run_artifacts(
             pipeline_run_id=pipeline_run_id,
             task_run_id=task_run_id,
@@ -331,7 +401,13 @@ async def list_task_run_artifacts(
         return response
 
 
-@mcp.tool()
+@mcp.tool(
+    annotations={
+        "title": "Download Task Run Artifact",
+        "readOnlyHint": True,
+        "destructiveHint": False,
+    }
+)
 async def download_task_run_artifact(
     pipeline_run_id: str,
     task_run_id: str,
@@ -349,7 +425,7 @@ async def download_task_run_artifact(
     """
     import base64
 
-    async with get_client() as client:
+    async with await get_client() as client:
         content = await client.download_task_run_artifact(
             pipeline_run_id=pipeline_run_id,
             task_run_id=task_run_id,
@@ -362,7 +438,13 @@ async def download_task_run_artifact(
         }
 
 
-@mcp.tool()
+@mcp.tool(
+    annotations={
+        "title": "Get Pipeline Run Lineage URL",
+        "readOnlyHint": True,
+        "destructiveHint": False,
+    }
+)
 def get_pipeline_run_lineage_url(pipeline_run_id: str) -> str:
     """Get the URL of a pipeline run lineage graph."""
     env = os.getenv("ORCHESTRA_ENV", "app").lower().strip()
