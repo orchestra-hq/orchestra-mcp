@@ -58,6 +58,9 @@ async def list_pipeline_runs(
 
     Returns:
         Paginated list of pipeline runs
+
+    Reference:
+        https://docs.getorchestra.io/api/pipeline-runs/list-pipeline-runs
     """
     async with get_client() as client:
         response = await client.list_pipeline_runs(
@@ -90,6 +93,9 @@ async def list_task_runs(
 
     Returns:
         Paginated list of task runs
+
+    Reference:
+        https://docs.getorchestra.io/api/task-runs/list-task-runs
     """
     async with get_client() as client:
         response = await client.list_task_runs(
@@ -126,6 +132,9 @@ async def list_operations(
 
     Returns:
         Paginated list of operations
+
+    Reference:
+        https://docs.getorchestra.io/api/operations/list-operations
     """
     async with get_client() as client:
         response = await client.list_operations(
@@ -153,6 +162,9 @@ async def list_assets(
 
     Returns:
         Paginated list of assets
+
+    Reference:
+        https://docs.getorchestra.io/api/assets/list-assets
     """
     async with get_client() as client:
         response = await client.list_assets(asset_type=asset_type, integration=integration)
