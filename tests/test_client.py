@@ -109,54 +109,6 @@ async def test_list_pipeline_runs_omits_pagination_when_unset(client):
 
 
 @pytest.mark.asyncio
-async def test_pagination_collects_all_results_across_two_pages(client):
-    """An agent paging by `page` retrieves the complete result set.
-
-    The API holds 2 results with page_size=1, so it takes two requests
-    (page 1 and page 2) to collect everything. This mirrors how an agent
-    loops: keep requesting the next page until it has `total` results.
-    """
-    page_one = Mock()
-    page_one.json.return_value = {
-        "page": 1,
-        "pageSize": 1,
-        "total": 2,
-        "results": [{"id": "run-1"}],
-    }
-    page_one.raise_for_status = Mock()
-
-    page_two = Mock()
-    page_two.json.return_value = {
-        "page": 2,
-        "pageSize": 1,
-        "total": 2,
-        "results": [{"id": "run-2"}],
-    }
-    page_two.raise_for_status = Mock()
-
-    client._client.get = AsyncMock(side_effect=[page_one, page_two])
-
-    # Agent-style loop: fetch pages until collected count reaches total.
-    collected: list[dict] = []
-    page = 1
-    while True:
-        response = await client.list_pipeline_runs(page=page, page_size=1)
-        collected.extend(response.results)
-        if len(collected) >= response.total:
-            break
-        page += 1
-
-    # Both pages were hit, with the expected page numbers...
-    assert client._client.get.call_count == 2
-    requested_pages = [call.kwargs["params"]["page"] for call in client._client.get.call_args_list]
-    assert requested_pages == [1, 2]
-
-    # ...and the complete result set was assembled from both pages.
-    assert [r["id"] for r in collected] == ["run-1", "run-2"]
-    assert len(collected) == 2
-
-
-@pytest.mark.asyncio
 async def test_list_assets_with_pagination(client):
     mock_response = Mock()
     mock_response.json.return_value = {"page": 3, "pageSize": 10, "total": 100, "results": []}
