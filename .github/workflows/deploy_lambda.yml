@@ -137,9 +137,64 @@ jobs:
             "s3://orchestra-build/${{ steps.s3_keys.outputs.fallback_key }}"
 
       - name: Update lambda to use key
+        id: update_lambda
         run: |
-          aws lambda update-function-code \
+          VERSION=$(aws lambda update-function-code \
             --function-name "orchestra_mcp" \
             --s3-bucket "orchestra-build" \
             --s3-key "${{ steps.s3_keys.outputs.artifact_key }}" \
-            --publish
+            --publish \
+            --query Version --output text)
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+
+      - name: Update lambda alias to use new version
+        run: |
+          aws lambda update-alias \
+            --function-name "orchestra_mcp" \
+            --name "live" \
+            --function-version "${{ steps.update_lambda.outputs.version }}"
+
+      - name: Prune old Lambda versions
+        run: |
+          FUNCTION_NAME="orchestra_mcp"
+          ALIAS_NAME="live"
+          KEEP_COUNT=2
+
+          LIVE_VERSION=$(aws lambda get-alias \
+            --function-name "$FUNCTION_NAME" \
+            --name "$ALIAS_NAME" \
+            --query FunctionVersion \
+            --output text)
+
+          echo "Fetching published versions for $FUNCTION_NAME (alias $ALIAS_NAME -> $LIVE_VERSION)..."
+
+          VERSIONS=$(aws lambda list-versions-by-function \
+            --function-name "$FUNCTION_NAME" \
+            --query "Versions[?Version!='\$LATEST'].Version" \
+            --output text | tr '\t' '\n' | sort -n)
+
+          if [ -z "$VERSIONS" ]; then
+            echo "No published versions found."
+            exit 0
+          fi
+
+          TOTAL_VERSIONS=$(echo "$VERSIONS" | wc -l | tr -d ' ')
+          echo "Total active versions found: $TOTAL_VERSIONS"
+
+          if [ "$TOTAL_VERSIONS" -gt "$KEEP_COUNT" ]; then
+            NUM_TO_DELETE=$((TOTAL_VERSIONS - KEEP_COUNT))
+            echo "Pruning $NUM_TO_DELETE old version(s)..."
+
+            DELETE_LIST=$(echo "$VERSIONS" | head -n "$NUM_TO_DELETE")
+
+            for VERSION in $DELETE_LIST; do
+              if [ "$VERSION" = "$LIVE_VERSION" ]; then
+                echo "Skipping version $VERSION (referenced by alias $ALIAS_NAME)"
+                continue
+              fi
+              echo "Deleting version: $VERSION"
+              aws lambda delete-function --function-name "$FUNCTION_NAME" --qualifier "$VERSION"
+            done
+          else
+            echo "Number of versions ($TOTAL_VERSIONS) is within the safe limit ($KEEP_COUNT). No action needed."
+          fi
