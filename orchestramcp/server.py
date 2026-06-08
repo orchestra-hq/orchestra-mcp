@@ -40,7 +40,7 @@ def get_client() -> OrchestraClient:
     return OrchestraClient(api_key=api_key)
 
 
-@mcp.tool()
+@mcp.tool(annotations={"title": "List Pipeline Runs", "readOnlyHint": True})
 async def list_pipeline_runs(
     time_from: str | None = None,
     time_to: str | None = None,
@@ -68,7 +68,7 @@ async def list_pipeline_runs(
         return response.model_dump()
 
 
-@mcp.tool()
+@mcp.tool(annotations={"title": "List Task Runs", "readOnlyHint": True})
 async def list_task_runs(
     time_from: str | None = None,
     time_to: str | None = None,
@@ -102,7 +102,7 @@ async def list_task_runs(
         return response.model_dump()
 
 
-@mcp.tool()
+@mcp.tool(annotations={"title": "List Operations", "readOnlyHint": True})
 async def list_operations(
     time_from: str | None = None,
     time_to: str | None = None,
@@ -139,7 +139,7 @@ async def list_operations(
         return response.model_dump()
 
 
-@mcp.tool()
+@mcp.tool(annotations={"title": "List Assets", "readOnlyHint": True})
 async def list_assets(
     asset_type: AssetType | None = None,
     integration: str | None = None,
@@ -158,7 +158,7 @@ async def list_assets(
         return response.model_dump()
 
 
-@mcp.tool()
+@mcp.tool(annotations={"title": "Import Pipeline", "destructiveHint": False})
 async def import_pipeline(
     storage_provider: str,
     repository: str,
@@ -192,7 +192,7 @@ async def import_pipeline(
         return response.model_dump()
 
 
-@mcp.tool()
+@mcp.tool(annotations={"title": "Start Pipeline", "destructiveHint": False})
 async def start_pipeline(
     alias_or_pipeline_id: str,
     branch: str | None = None,
@@ -223,7 +223,7 @@ async def start_pipeline(
         return response.model_dump()
 
 
-@mcp.tool()
+@mcp.tool(annotations={"title": "Get Pipeline Run Status", "readOnlyHint": True})
 async def get_pipeline_run_status(pipeline_run_id: str) -> dict:
     """Get the status of a pipeline run.
 
@@ -238,7 +238,7 @@ async def get_pipeline_run_status(pipeline_run_id: str) -> dict:
         return response.model_dump()
 
 
-@mcp.tool()
+@mcp.tool(annotations={"title": "Cancel Pipeline Run", "destructiveHint": True})
 async def cancel_pipeline_run(pipeline_run_id: str) -> dict:
     """Cancel a pipeline run.
 
@@ -253,7 +253,7 @@ async def cancel_pipeline_run(pipeline_run_id: str) -> dict:
         return {"message": f"Pipeline run {pipeline_run_id} cancellation requested"}
 
 
-@mcp.tool()
+@mcp.tool(annotations={"title": "List Task Run Logs", "readOnlyHint": True})
 async def list_task_run_logs(
     pipeline_run_id: str,
     task_run_id: str,
@@ -275,7 +275,7 @@ async def list_task_run_logs(
         return response
 
 
-@mcp.tool()
+@mcp.tool(annotations={"title": "Download Task Run Log", "readOnlyHint": True})
 async def download_task_run_log(
     pipeline_run_id: str,
     task_run_id: str,
@@ -309,7 +309,7 @@ async def download_task_run_log(
         }
 
 
-@mcp.tool()
+@mcp.tool(annotations={"title": "List Task Run Artifacts", "readOnlyHint": True})
 async def list_task_run_artifacts(
     pipeline_run_id: str,
     task_run_id: str,
@@ -331,7 +331,7 @@ async def list_task_run_artifacts(
         return response
 
 
-@mcp.tool()
+@mcp.tool(annotations={"title": "Download Task Run Artifact", "readOnlyHint": True})
 async def download_task_run_artifact(
     pipeline_run_id: str,
     task_run_id: str,
@@ -362,7 +362,7 @@ async def download_task_run_artifact(
         }
 
 
-@mcp.tool()
+@mcp.tool(annotations={"title": "Get Pipeline Run Lineage URL", "readOnlyHint": True})
 def get_pipeline_run_lineage_url(pipeline_run_id: str) -> str:
     """Get the URL of a pipeline run lineage graph."""
     env = os.getenv("ORCHESTRA_ENV", "app").lower().strip()
