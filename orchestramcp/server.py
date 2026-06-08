@@ -47,6 +47,8 @@ async def list_pipeline_runs(
     time_to: str | None = None,
     status: PipelineRunStatus | None = None,
     pipeline_run_ids: str | None = None,
+    page: int | None = None,
+    page_size: int | None = None,
 ) -> dict:
     """List pipeline runs with optional filters.
 
@@ -55,6 +57,8 @@ async def list_pipeline_runs(
         time_to: End time in ISO 8601 format (e.g., 2025-04-05T00:00:00Z)
         status: Comma-separated statuses (CREATED, RUNNING, SUCCEEDED, WARNING, FAILED, CANCELLING, CANCELLED)
         pipeline_run_ids: Comma-separated pipeline run IDs
+        page: 1-based page number to retrieve (default 1)
+        page_size: Number of results per page (default 50, max 100)
 
     Returns:
         Paginated list of pipeline runs
@@ -65,6 +69,8 @@ async def list_pipeline_runs(
             time_to=parse_iso_datetime(time_to) if time_to else None,
             status=status,
             pipeline_run_ids=pipeline_run_ids,
+            page=page,
+            page_size=page_size,
         )
         return response.model_dump()
 
@@ -77,6 +83,8 @@ async def list_task_runs(
     pipeline_ids: str | None = None,
     integration: str | None = None,
     task_run_ids: str | None = None,
+    page: int | None = None,
+    page_size: int | None = None,
 ) -> dict:
     """List task runs with optional filters.
 
@@ -87,6 +95,8 @@ async def list_task_runs(
         pipeline_ids: Comma-separated pipeline IDs
         integration: Comma-separated integrations (e.g., HTTP, SNOWFLAKE)
         task_run_ids: Comma-separated task run IDs
+        page: 1-based page number to retrieve (default 1)
+        page_size: Number of results per page (default 50, max 100)
 
     Returns:
         Paginated list of task runs
@@ -99,6 +109,8 @@ async def list_task_runs(
             pipeline_ids=pipeline_ids,
             integration=integration,
             task_run_ids=task_run_ids,
+            page=page,
+            page_size=page_size,
         )
         return response.model_dump()
 
@@ -112,6 +124,8 @@ async def list_operations(
     external_id: str | None = None,
     task_run_id: str | None = None,
     status: OperationStatus | None = None,
+    page: int | None = None,
+    page_size: int | None = None,
 ) -> dict:
     """List operations with optional filters.
 
@@ -123,6 +137,8 @@ async def list_operations(
         external_id: External ID to filter on
         task_run_id: Task run ID to filter on
         status: Operation status (SUCCEEDED, FAILED, SKIPPED, UNKNOWN, WARNING, CANCELLED)
+        page: 1-based page number to retrieve (default 1)
+        page_size: Number of results per page (default 50, max 100)
 
     Returns:
         Paginated list of operations
@@ -136,6 +152,8 @@ async def list_operations(
             external_id=external_id,
             task_run_id=task_run_id,
             status=status,
+            page=page,
+            page_size=page_size,
         )
         return response.model_dump()
 
@@ -144,18 +162,27 @@ async def list_operations(
 async def list_assets(
     asset_type: AssetType | None = None,
     integration: str | None = None,
+    page: int | None = None,
+    page_size: int | None = None,
 ) -> dict:
     """List data assets.
 
     Args:
         asset_type: Asset type filter (DASHBOARD, DASHBOARD_VIEWS, DATASET, QUERIES, TABLE, VIEW, WORKBOOK, UNKNOWN)
         integration: Integration filter
+        page: 1-based page number to retrieve (default 1)
+        page_size: Number of results per page (default 50, max 100)
 
     Returns:
         Paginated list of assets
     """
     async with get_client() as client:
-        response = await client.list_assets(asset_type=asset_type, integration=integration)
+        response = await client.list_assets(
+            asset_type=asset_type,
+            integration=integration,
+            page=page,
+            page_size=page_size,
+        )
         return response.model_dump()
 
 

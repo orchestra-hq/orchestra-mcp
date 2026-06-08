@@ -73,6 +73,8 @@ class OrchestraClient:
         time_to: datetime | None = None,
         status: PipelineRunStatus | None = None,
         pipeline_run_ids: str | None = None,
+        page: int | None = None,
+        page_size: int | None = None,
     ) -> PaginatedResponse:
         """List pipeline runs.
 
@@ -81,6 +83,8 @@ class OrchestraClient:
             time_to: End time for filtering (ISO 8601)
             status: Comma-separated statuses (CREATED, RUNNING, SUCCEEDED, etc.)
             pipeline_run_ids: Comma-separated pipeline run UUIDs
+            page: 1-based page number (default 1)
+            page_size: Results per page (default 50, max 100)
 
         Returns:
             Paginated response with pipeline runs
@@ -90,6 +94,8 @@ class OrchestraClient:
             time_to=time_to,
             status=status,
             pipeline_run_ids=pipeline_run_ids,
+            page=page,
+            page_size=page_size,
         )
         response = await self._client.get("/pipeline_runs", params=params)
         self._raise_for_status(response)
@@ -103,6 +109,8 @@ class OrchestraClient:
         pipeline_ids: str | None = None,
         integration: str | None = None,
         task_run_ids: str | None = None,
+        page: int | None = None,
+        page_size: int | None = None,
     ) -> PaginatedResponse:
         """List task runs.
 
@@ -113,6 +121,8 @@ class OrchestraClient:
             pipeline_ids: Comma-separated pipeline UUIDs
             integration: Comma-separated integrations
             task_run_ids: Comma-separated task run UUIDs
+            page: 1-based page number (default 1)
+            page_size: Results per page (default 50, max 100)
 
         Returns:
             Paginated response with task runs
@@ -124,6 +134,8 @@ class OrchestraClient:
             pipeline_ids=pipeline_ids,
             integration=integration,
             task_run_ids=task_run_ids,
+            page=page,
+            page_size=page_size,
         )
         response = await self._client.get("/task_runs", params=params)
         self._raise_for_status(response)
@@ -138,6 +150,8 @@ class OrchestraClient:
         external_id: str | None = None,
         task_run_id: str | None = None,
         status: OperationStatus | None = None,
+        page: int | None = None,
+        page_size: int | None = None,
     ) -> PaginatedResponse:
         """List operations.
 
@@ -149,6 +163,8 @@ class OrchestraClient:
             external_id: External ID to filter on
             task_run_id: Task run UUID to filter on
             status: Operation status
+            page: 1-based page number (default 1)
+            page_size: Results per page (default 50, max 100)
 
         Returns:
             Paginated response with operations
@@ -161,6 +177,8 @@ class OrchestraClient:
             external_id=external_id,
             task_run_id=task_run_id,
             status=status,
+            page=page,
+            page_size=page_size,
         )
         response = await self._client.get("/operations", params=params)
         self._raise_for_status(response)
@@ -170,12 +188,16 @@ class OrchestraClient:
         self,
         asset_type: AssetType | None = None,
         integration: str | None = None,
+        page: int | None = None,
+        page_size: int | None = None,
     ) -> PaginatedResponse:
         """List assets.
 
         Args:
             asset_type: Asset type filter
             integration: Integration filter
+            page: 1-based page number (default 1)
+            page_size: Results per page (default 50, max 100)
 
         Returns:
             Paginated response with assets
@@ -185,6 +207,10 @@ class OrchestraClient:
             params["asset_type"] = asset_type
         if integration:
             params["integration"] = integration
+        if page is not None:
+            params["page"] = page
+        if page_size is not None:
+            params["page_size"] = page_size
 
         response = await self._client.get("/assets", params=params)
         self._raise_for_status(response)
