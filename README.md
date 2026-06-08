@@ -18,8 +18,11 @@ A Model Context Protocol (MCP) server for the [Orchestra API](https://docs.getor
 | `get_pipeline` | Yes | Fetch a single pipeline by selector (`GET /pipeline`). |
 | `create_pipeline` | Yes | Create an Orchestra-backed pipeline from a definition object (`POST /pipelines`). |
 | `update_pipeline` | Yes | Update an Orchestra-backed pipeline by alias (`PUT /pipelines/{alias}`). Git-backed pipelines cannot be updated here. |
+| `build_pipeline` | Yes | Validate a definition, create/update it as an unpublished draft, then start a run of that draft (Orchestra-backed only). |
+| `migrate_pipeline` | Yes | Migrate an Orchestra-backed pipeline to git-backed storage (`PATCH /pipelines/storage-settings`). The YAML must already exist in the repo. |
+| `delete_pipeline` | Yes | **Disabled by default.** Delete a pipeline by selector (`DELETE /pipelines`). Set `ORCHESTRA_ENABLE_DELETE` to expose it. |
 | `import_pipeline` | Yes | Import a pipeline whose YAML lives in a Git repository (`POST /pipelines/import`). |
-| `start_pipeline` | Yes | Start a run by alias or pipeline ID (`POST /pipelines/{alias_or_id}/start`). |
+| `start_pipeline` | Yes | Start a run by alias or pipeline ID (`POST /pipelines/{alias_or_id}/start`). Optionally target a `version_number`. |
 | `get_pipeline_run_status` | Yes | Poll a single pipeline run’s status. |
 | `cancel_pipeline_run` | Yes | Request cancellation of a pipeline run. |
 | `list_pipeline_runs` | Yes | List runs with optional time range plus comma-separated status and ID filters. |
@@ -167,6 +170,14 @@ The base URL is `https://{ORCHESTRA_ENV}.getorchestra.io/api/engine/public`. All
 - `dev`
 
 The CLI uses `BASE_URL` for a custom host; this MCP server uses `ORCHESTRA_ENV` instead.
+
+### Enabling pipeline deletion
+
+The destructive `delete_pipeline` tool is **not registered by default**. To expose it, set `ORCHESTRA_ENABLE_DELETE` to a truthy value (`1`, `true`, `yes`, or `on`) before starting the server:
+
+```bash
+export ORCHESTRA_ENABLE_DELETE="true"
+```
 
 ## Usage
 

@@ -297,3 +297,107 @@ async def test_get_pipeline(client):
     result = await client.get_pipeline(alias="my_pipeline")
     assert result["alias"] == "my_pipeline"
     client._client.get.assert_called_once_with("/pipeline", params={"alias": "my_pipeline"})
+
+
+@pytest.mark.asyncio
+async def test_delete_pipeline(client):
+    mock_response = Mock()
+    mock_response.raise_for_status = Mock()
+
+    client._client.delete = AsyncMock(return_value=mock_response)
+
+    await client.delete_pipeline(alias="my_pipeline")
+    client._client.delete.assert_called_once_with(
+        "/pipelines", params={"alias": "my_pipeline"}
+    )
+
+
+@pytest.mark.asyncio
+async def test_delete_pipeline_requires_selector(client):
+    with pytest.raises(ValueError, match="pipeline_id, alias, or repository"):
+        await client.delete_pipeline()
+
+
+@pytest.mark.asyncio
+async def test_delete_pipeline_requires_repository_and_yaml_path_together(client):
+    with pytest.raises(ValueError, match="repository and yaml_path"):
+        await client.delete_pipeline(repository="owner/repo")
+
+
+@pytest.mark.asyncio
+async def test_migrate_pipeline_storage(client):
+    mock_response = Mock()
+    mock_response.content = b'{"status": "ok"}'
+    mock_response.json.return_value = {"status": "ok"}
+    mock_response.raise_for_status = Mock()
+
+    client._client.patch = AsyncMock(return_value=mock_response)
+
+    result = await client.migrate_pipeline_storage(
+        path="pipelines/my.yaml",
+        repository="owner/repo",
+        storage_provider="GITHUB",
+        default_branch="main",
+        working_branch="feature",
+        alias="my_pipeline",
+    )
+
+    assert result == {"status": "ok"}
+    call = client._client.patch.call_args
+    assert call[0][0] == "/pipelines/storage-settings"
+    assert call[1]["params"] == {"alias": "my_pipeline"}
+    assert call[1]["json"] == {
+        "path": "pipelines/my.yaml",
+        "repository": "owner/repo",
+        "storage_provider": "GITHUB",
+        "default_branch": "main",
+        "working_branch": "feature",
+    }
+
+
+@pytest.mark.asyncio
+async def test_migrate_pipeline_storage_omits_working_branch_when_default(client):
+    mock_response = Mock()
+    mock_response.content = b""
+    mock_response.raise_for_status = Mock()
+
+    client._client.patch = AsyncMock(return_value=mock_response)
+
+    result = await client.migrate_pipeline_storage(
+        path="pipelines/my.yaml",
+        repository="owner/repo",
+        storage_provider="GITHUB",
+        default_branch="main",
+        working_branch="main",
+        pipeline_id="abc",
+    )
+
+    assert result == {}
+    assert "working_branch" not in client._client.patch.call_args[1]["json"]
+
+
+@pytest.mark.asyncio
+async def test_migrate_pipeline_storage_requires_selector(client):
+    with pytest.raises(ValueError, match="pipeline_id or alias"):
+        await client.migrate_pipeline_storage(
+            path="pipelines/my.yaml",
+            repository="owner/repo",
+            storage_provider="GITHUB",
+            default_branch="main",
+        )
+
+
+@pytest.mark.asyncio
+async def test_start_pipeline_includes_version_number(client):
+    mock_response = Mock()
+    mock_response.json.return_value = {
+        "id": uuid.uuid4(),
+        "pipelineRunId": uuid.uuid4(),
+        "message": "Pipeline run created successfully",
+    }
+    mock_response.raise_for_status = Mock()
+
+    client._client.post = AsyncMock(return_value=mock_response)
+
+    await client.start_pipeline("my_pipeline", version_number=3)
+    assert client._client.post.call_args[1]["json"]["versionNumber"] == 3

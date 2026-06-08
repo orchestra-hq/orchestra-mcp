@@ -324,6 +324,68 @@ class OrchestraClient:
             )
         return data
 
+    async def delete_pipeline(
+        self,
+        pipeline_id: str | None = None,
+        alias: str | None = None,
+        repository: str | None = None,
+        yaml_path: str | None = None,
+    ) -> None:
+        """Delete a pipeline by selector (DELETE /pipelines).
+
+        Provide one of:
+        - pipeline_id
+        - alias
+        - repository + yaml_path
+        """
+        if (repository is None) ^ (yaml_path is None):
+            raise ValueError("repository and yaml_path must be provided together")
+        if not (pipeline_id or alias or (repository and yaml_path)):
+            raise ValueError("Provide one of pipeline_id, alias, or repository + yaml_path")
+
+        params = self._build_query_params(
+            pipeline_id=pipeline_id,
+            alias=alias,
+            repository=repository,
+            yaml_path=yaml_path,
+        )
+        response = await self._client.delete("/pipelines", params=params)
+        self._raise_for_status(response)
+
+    async def migrate_pipeline_storage(
+        self,
+        path: str,
+        repository: str,
+        storage_provider: str,
+        default_branch: str,
+        working_branch: str | None = None,
+        pipeline_id: str | None = None,
+        alias: str | None = None,
+    ) -> dict[str, Any]:
+        """Migrate an Orchestra-backed pipeline to git-backed storage.
+
+        PATCH /pipelines/storage-settings. The pipeline is identified by ``alias`` or
+        ``pipeline_id``; the body points Orchestra at the YAML already committed in Git.
+        """
+        if not (pipeline_id or alias):
+            raise ValueError("Provide one of pipeline_id or alias to identify the pipeline")
+
+        params = self._build_query_params(pipeline_id=pipeline_id, alias=alias)
+        payload: dict[str, Any] = {
+            "path": path,
+            "repository": repository,
+            "storage_provider": storage_provider,
+            "default_branch": default_branch,
+        }
+        if working_branch and working_branch != default_branch:
+            payload["working_branch"] = working_branch
+
+        response = await self._client.patch(
+            "/pipelines/storage-settings", params=params, json=payload
+        )
+        self._raise_for_status(response)
+        return response.json() if response.content else {}
+
     async def start_pipeline(
         self,
         alias_or_pipeline_id: str,
@@ -331,6 +393,7 @@ class OrchestraClient:
         commit: str | None = None,
         environment: str | None = None,
         run_inputs: dict[str, Any] | None = None,
+        version_number: int | None = None,
     ) -> PipelineStartResponse:
         """Start a pipeline run.
 
@@ -340,6 +403,7 @@ class OrchestraClient:
             commit: Optional commit SHA
             environment: Optional environment name
             run_inputs: Optional run inputs
+            version_number: Optional pipeline version number to run (Orchestra-backed only)
 
         Returns:
             Pipeline start response with run ID
@@ -353,6 +417,8 @@ class OrchestraClient:
             payload["environment"] = environment
         if run_inputs:
             payload["runInputs"] = run_inputs
+        if version_number is not None:
+            payload["versionNumber"] = version_number
 
         response = await self._client.post(f"/pipelines/{alias_or_pipeline_id}/start", json=payload)
         self._raise_for_status(response)

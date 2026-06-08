@@ -12,7 +12,7 @@ if str(_project_root) not in sys.path:
 
 from fastmcp import FastMCP  # noqa: E402
 
-from orchestramcp.client import OrchestraClient  # noqa: E402
+from orchestramcp.client import OrchestraAPIError, OrchestraClient  # noqa: E402
 from orchestramcp.models import (  # noqa: E402
     AssetType,
     OperationStatus,
@@ -302,12 +302,146 @@ async def update_pipeline(
 
 
 @mcp.tool()
+async def build_pipeline(
+    alias: str,
+    data: dict[str, Any],
+    branch: str | None = None,
+    commit: str | None = None,
+    run_inputs: dict[str, Any] | None = None,
+) -> dict:
+    """Validate a pipeline definition, save it as an unpublished draft, then start a run.
+
+    Orchestra-backed equivalent of the CLI ``pipeline build`` command: validates the
+    definition, creates it (or updates it if the alias already exists) as an unpublished
+    draft, and starts a run of that draft version. Git-backed builds rely on local git
+    state and are not supported here; use ``import_pipeline`` + ``start_pipeline`` instead.
+
+    Args:
+        alias: Pipeline alias to create or update.
+        data: Pipeline definition object per the pipeline YAML schema.
+        branch: Optional branch name to run from.
+        commit: Optional commit SHA to run from.
+        run_inputs: Optional run inputs.
+
+    Returns:
+        Dict with the saved ``pipeline`` body and the started ``run`` response.
+    """
+    async with get_client() as client:
+        await client.validate_pipeline_schema(pipeline_definition=data)
+
+        try:
+            await client.get_pipeline(alias=alias)
+            exists = True
+        except OrchestraAPIError as exc:
+            if exc.status_code == 404:
+                exists = False
+            else:
+                raise
+
+        if exists:
+            pipeline = await client.update_pipeline(alias=alias, data=data, published=False)
+        else:
+            pipeline = await client.create_pipeline(alias=alias, data=data, published=False)
+
+        version = pipeline.get("latestVersionNumber")
+        if version is None:
+            version = pipeline.get("currentVersionNumber")
+
+        run = await client.start_pipeline(
+            alias_or_pipeline_id=alias,
+            branch=branch,
+            commit=commit,
+            run_inputs=run_inputs,
+            version_number=version if isinstance(version, int) else None,
+        )
+        return {"pipeline": pipeline, "run": run.model_dump()}
+
+
+@mcp.tool()
+async def migrate_pipeline(
+    path: str,
+    repository: str,
+    storage_provider: str,
+    default_branch: str,
+    working_branch: str | None = None,
+    alias: str | None = None,
+    pipeline_id: str | None = None,
+) -> dict:
+    """Migrate an Orchestra-backed pipeline to git-backed storage (PATCH /pipelines/storage-settings).
+
+    Identify the pipeline with ``alias`` or ``pipeline_id``. The pipeline YAML must already
+    exist in the target Git repository at ``path`` — this tool only repoints Orchestra at the
+    Git-backed definition, it does not commit or push files. Only Orchestra-backed pipelines
+    can be migrated.
+
+    Args:
+        path: Path to the pipeline YAML within the repository.
+        repository: Repository slug (e.g. owner/repo).
+        storage_provider: Git storage provider (e.g. GITHUB, GITLAB, BITBUCKET).
+        default_branch: Default branch to store in Orchestra.
+        working_branch: Optional working branch (omitted when equal to default_branch).
+        alias: Pipeline alias selector.
+        pipeline_id: Pipeline ID selector.
+    """
+    async with get_client() as client:
+        return await client.migrate_pipeline_storage(
+            path=path,
+            repository=repository,
+            storage_provider=storage_provider,
+            default_branch=default_branch,
+            working_branch=working_branch,
+            alias=alias,
+            pipeline_id=pipeline_id,
+        )
+
+
+def _delete_enabled() -> bool:
+    """Whether the destructive delete_pipeline tool should be registered.
+
+    Disabled by default; set ORCHESTRA_ENABLE_DELETE to a truthy value to expose it.
+    """
+    return os.getenv("ORCHESTRA_ENABLE_DELETE", "").strip().lower() in ("1", "true", "yes", "on")
+
+
+async def delete_pipeline(
+    pipeline_id: str | None = None,
+    alias: str | None = None,
+    repository: str | None = None,
+    yaml_path: str | None = None,
+) -> dict:
+    """Delete a pipeline by selector. DESTRUCTIVE and irreversible.
+
+    Disabled by default; set the ORCHESTRA_ENABLE_DELETE environment variable to a truthy
+    value (1/true/yes/on) to expose this tool.
+
+    Provide one of:
+    - pipeline_id
+    - alias
+    - repository + yaml_path
+    """
+    async with get_client() as client:
+        await client.delete_pipeline(
+            pipeline_id=pipeline_id,
+            alias=alias,
+            repository=repository,
+            yaml_path=yaml_path,
+        )
+    selector = alias or pipeline_id or f"{repository}:{yaml_path}"
+    return {"message": f"Pipeline ({selector}) deleted"}
+
+
+if _delete_enabled():
+    delete_pipeline = mcp.tool()(delete_pipeline)
+
+
+@mcp.tool()
 async def start_pipeline(
     alias_or_pipeline_id: str,
     branch: str | None = None,
     commit: str | None = None,
     environment: str | None = None,
     run_inputs: dict[str, Any] | None = None,
+    version_number: int | None = None,
 ) -> dict:
     """Start a pipeline run.
 
@@ -317,6 +451,7 @@ async def start_pipeline(
         commit: Optional commit SHA to run from
         environment: Optional environment name
         run_inputs: Optional run inputs
+        version_number: Optional pipeline version number to run (Orchestra-backed only)
 
     Returns:
         Pipeline start response with pipeline run ID
@@ -328,6 +463,7 @@ async def start_pipeline(
             commit=commit,
             environment=environment,
             run_inputs=run_inputs,
+            version_number=version_number,
         )
         return response.model_dump()
 
