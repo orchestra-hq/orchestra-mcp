@@ -48,6 +48,14 @@ def _resolve_orchestra_env() -> str:
     raise ConfigInvalidError("Missing ORCHESTRA_ENV environment variable")
 
 
+def _apply_request_credentials(api_key: str | None) -> None:
+    if api_key:
+        os.environ["ORCHESTRA_API_KEY"] = api_key
+    else:
+        os.environ.pop("ORCHESTRA_API_KEY", None)
+    get_client.cache_clear()
+
+
 def _log_mcp_internal_failure_if_present(response: dict[str, Any], context: Any) -> None:
     body = response.get("body")
     if (
@@ -82,8 +90,6 @@ def _extract_bearer_token(event: dict[str, Any]) -> str | None:
 
 def handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
     try:
-        orchestra_env = _resolve_orchestra_env()
-
         method = _get_http_method(event)
         api_key = _extract_bearer_token(event)
         if method == "POST" and not api_key:
@@ -93,13 +99,8 @@ def handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
                 "body": '{"message":"Missing or invalid Authorization header"}',
             }
 
-        mcp_env = {"ORCHESTRA_ENV": orchestra_env}
-        if api_key:
-            mcp_env["ORCHESTRA_API_KEY"] = api_key
-
-        os.environ.update(mcp_env)
-        get_client.cache_clear()
-
+        _resolve_orchestra_env()
+        _apply_request_credentials(api_key)
         response = _event_handler.handle(event, context)
         _log_mcp_internal_failure_if_present(response, context)
         return response

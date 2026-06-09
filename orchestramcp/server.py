@@ -31,8 +31,7 @@ def parse_iso_datetime(dt_str: str) -> datetime:
         return datetime.fromisoformat(dt_str)
     except ValueError:
         raise ValueError(
-            f"Invalid datetime '{dt_str}'. Expected ISO 8601 format, "
-            "e.g. 2025-04-01T00:00:00Z"
+            f"Invalid datetime '{dt_str}'. Expected ISO 8601 format, e.g. 2025-04-01T00:00:00Z"
         )
 
 
