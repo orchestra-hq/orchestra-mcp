@@ -4,9 +4,9 @@ A Model Context Protocol (MCP) server for the [Orchestra API](https://docs.getor
 
 ## Features
 
-- **Pipeline lifecycle**: List pipelines, validate definitions, create/update/delete Orchestra-backed pipelines, and import Git-backed pipelines
-- **Runs**: Start pipeline runs (with optional branch/commit), poll status, cancel runs, and open lineage URLs
-- **Observability**: List pipeline runs, task runs, and operations with filters; list assets
+- **Pipeline lifecycle**: List pipelines, validate definitions, create/update Orchestra-backed pipelines, build (validate + upsert + run), import Git-backed pipelines, migrate to git-backed storage, and optionally delete (opt-in)
+- **Runs**: Start pipeline runs (with optional branch/commit/version), poll status, cancel runs, and open lineage URLs
+- **Observability**: List pipeline runs, task runs, and operations with filters and pagination; list assets
 - **Logs and artifacts**: List and download task run logs and artifacts (for example dbt manifests), returned as base64 for safe transport
 
 ## MCP tools
@@ -35,20 +35,123 @@ A Model Context Protocol (MCP) server for the [Orchestra API](https://docs.getor
 | `download_task_run_artifact` | Yes | Download an artifact file; content is base64-encoded in the result. |
 | `get_pipeline_run_lineage_url` | No | Return the UI URL for a pipeline run’s lineage graph (derived from `ORCHESTRA_ENV`). |
 
-Your MCP client typically lists each tool’s parameters in its UI or in the protocol manifest.
+Your MCP client also lists each tool’s parameters in its UI or in the protocol manifest. The full parameter reference is below.
+
+## Tool parameters
+
+Optional parameters show their default in parentheses where one applies. For multi-value list filters, pass a single comma-separated string (for example `"RUNNING,FAILED"`).
+
+### Pipeline lifecycle
+
+| Tool | Required | Optional |
+|------|----------|----------|
+| `validate_pipeline` | `pipeline_definition` (object) | — |
+| `list_pipelines` | — | — |
+| `get_pipeline` | — (provide one selector) | `pipeline_id`, `alias`, `repository` + `yaml_path`, `version`, `branch`, `commit` |
+| `create_pipeline` | `alias`, `data` (object) | `published` (`false`), `storage_provider` (`ORCHESTRA`) |
+| `update_pipeline` | `alias`, `data` (object) | `published` (`false`), `storage_provider` (`ORCHESTRA`) |
+| `build_pipeline` | `alias`, `data` (object) | `branch`, `commit`, `run_inputs` (object) |
+| `migrate_pipeline` | `path`, `repository`, `storage_provider`, `default_branch` | `working_branch`, and one selector: `alias` or `pipeline_id` |
+| `delete_pipeline` | — (provide one selector) | `pipeline_id`, `alias`, `repository` + `yaml_path` |
+| `import_pipeline` | `storage_provider`, `repository`, `default_branch`, `yaml_path` | `alias`, `working_branch` |
+
+### Runs
+
+| Tool | Required | Optional |
+|------|----------|----------|
+| `start_pipeline` | `alias_or_pipeline_id` | `branch`, `commit`, `environment`, `run_inputs` (object), `version_number` (int) |
+| `get_pipeline_run_status` | `pipeline_run_id` | — |
+| `cancel_pipeline_run` | `pipeline_run_id` | — |
+| `get_pipeline_run_lineage_url` | `pipeline_run_id` | — |
+
+### Observability
+
+All four list tools accept `page` (1-based, default `1`) and `page_size` (default `50`, max `100`) for pagination.
+
+| Tool | Required | Optional |
+|------|----------|----------|
+| `list_pipeline_runs` | — | `time_from`, `time_to`, `status`, `pipeline_run_ids`, `page`, `page_size` |
+| `list_task_runs` | — | `time_from`, `time_to`, `status`, `pipeline_ids`, `integration`, `task_run_ids`, `page`, `page_size` |
+| `list_operations` | — | `time_from`, `time_to`, `operation_type`, `integration`, `external_id`, `task_run_id`, `status`, `page`, `page_size` |
+| `list_assets` | — | `asset_type`, `integration`, `page`, `page_size` |
+
+### Logs and artifacts
+
+| Tool | Required | Optional |
+|------|----------|----------|
+| `list_task_run_logs` | `pipeline_run_id`, `task_run_id` | — |
+| `download_task_run_log` | `pipeline_run_id`, `task_run_id`, `filename` | `range_header` (HTTP `Range`, e.g. `bytes=-262144`) |
+| `list_task_run_artifacts` | `pipeline_run_id`, `task_run_id` | — |
+| `download_task_run_artifact` | `pipeline_run_id`, `task_run_id`, `filename` | — |
+
+Times are ISO 8601 (for example `2026-04-01T00:00:00Z`). Downloaded log and artifact content is returned base64-encoded under a `content` key with `"encoding": "base64"`.
 
 ## Example calls
 
-Pass JSON arguments as shown in your MCP client tool UI. For multi-value list filters, pass comma-separated strings.
+Pass JSON arguments as shown in your MCP client tool UI.
 
-### `list_pipeline_runs` (comma-separated filters)
+### `list_pipeline_runs` (filters + pagination)
 
 ```json
 {
   "time_from": "2026-04-01T00:00:00Z",
   "time_to": "2026-04-07T00:00:00Z",
   "status": "RUNNING,FAILED",
-  "pipeline_run_ids": "11111111-1111-1111-1111-111111111111"
+  "pipeline_run_ids": "11111111-1111-1111-1111-111111111111",
+  "page": 1,
+  "page_size": 50
+}
+```
+
+### `validate_pipeline` (no auth required)
+
+```json
+{
+  "pipeline_definition": { "version": "v1", "name": "my_pipeline", "pipelines": {} }
+}
+```
+
+### `create_pipeline`
+
+```json
+{
+  "alias": "my_pipeline",
+  "data": { "version": "v1", "name": "my_pipeline", "pipelines": {} },
+  "published": true
+}
+```
+
+### `build_pipeline` (validate, upsert draft, then run)
+
+```json
+{
+  "alias": "my_pipeline",
+  "data": { "version": "v1", "name": "my_pipeline", "pipelines": {} }
+}
+```
+
+### `start_pipeline`
+
+```json
+{
+  "alias_or_pipeline_id": "my_pipeline",
+  "branch": "main",
+  "run_inputs": { "my_input": "value" },
+  "version_number": 3
+}
+```
+
+### `migrate_pipeline` (Orchestra-backed → git-backed)
+
+The YAML must already be committed in the repository at `path`; this tool only repoints Orchestra at it.
+
+```json
+{
+  "alias": "my_pipeline",
+  "path": "pipelines/my_pipeline.yaml",
+  "repository": "my-org/my-repo",
+  "storage_provider": "GITHUB",
+  "default_branch": "main"
 }
 ```
 
@@ -145,13 +248,23 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 uv sync
 ```
 
+### Configuration
+
+The server is configured entirely through environment variables:
+
+| Variable | Required | Default | Purpose |
+|----------|----------|---------|---------|
+| `ORCHESTRA_API_KEY` | Yes (most tools) | — | Workspace API key, sent as `Authorization: Bearer <key>`. Not needed for `validate_pipeline` or `get_pipeline_run_lineage_url`. |
+| `ORCHESTRA_ENV` | No | `app` | Target environment / host. One of `app`, `stage`, `dev`. |
+| `ORCHESTRA_ENABLE_DELETE` | No | unset (disabled) | Set to a truthy value (`1`, `true`, `yes`, `on`) to register the destructive `delete_pipeline` tool. |
+
 ### Set API key
 
 ```bash
 export ORCHESTRA_API_KEY="your-orchestra-api-key"
 ```
 
-`ORCHESTRA_API_KEY` is required for every tool except `validate_pipeline`, which calls Orchestra's public schema validation endpoint and can be used anonymously.
+`ORCHESTRA_API_KEY` is required for every tool except `validate_pipeline` (which calls Orchestra's public schema validation endpoint and can be used anonymously) and `get_pipeline_run_lineage_url` (which only builds a URL and makes no API call).
 
 ### Environment selection
 
