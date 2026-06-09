@@ -33,7 +33,7 @@ def parse_iso_datetime(dt_str: str) -> datetime:
         raise ValueError(
             f"Invalid datetime '{dt_str}'. Expected ISO 8601 format, "
             "e.g. 2025-04-01T00:00:00Z"
-        ) from exc
+        )
 
 
 mcp = FastMCP("Orchestra MCP Server")
