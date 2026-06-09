@@ -108,7 +108,7 @@ async def test_migrate_pipeline_tool(set_api_key, monkeypatch):
         alias="my_pipeline",
     )
 
-    assert result == {"alias": "my_pipeline"}
+    assert result["alias"] == "my_pipeline"
     mock_migrate.assert_awaited_once()
 
 

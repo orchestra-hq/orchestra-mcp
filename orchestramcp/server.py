@@ -262,7 +262,7 @@ async def list_pipelines() -> list:
     """List all pipelines for the workspace, including latest run metadata per pipeline."""
     async with get_client() as client:
         pipelines = await client.list_pipelines()
-        return [pipeline.model_dump(exclude_none=True) for pipeline in pipelines]
+        return [pipeline.model_dump() for pipeline in pipelines]
 
 
 @mcp.tool(annotations=ToolAnnotations(title="Get Pipeline", readOnlyHint=True))
@@ -292,7 +292,7 @@ async def get_pipeline(
             branch=branch,
             commit=commit,
         )
-        return response.model_dump(exclude_none=True)
+        return response.model_dump()
 
 
 @mcp.tool(annotations=ToolAnnotations(title="Create Pipeline", destructiveHint=False))
@@ -319,7 +319,7 @@ async def create_pipeline(
             published=published,
             storage_provider=storage_provider,
         )
-        return pipeline.model_dump(exclude_none=True)
+        return pipeline.model_dump()
 
 
 @mcp.tool(annotations=ToolAnnotations(title="Update Pipeline", destructiveHint=True))
@@ -346,7 +346,7 @@ async def update_pipeline(
             published=published,
             storage_provider=storage_provider,
         )
-        return pipeline.model_dump(exclude_none=True)
+        return pipeline.model_dump()
 
 
 @mcp.tool(annotations=ToolAnnotations(title="Migrate Pipeline", destructiveHint=True))
@@ -385,7 +385,7 @@ async def migrate_pipeline(
             alias=alias,
             pipeline_id=pipeline_id,
         )
-        return pipeline.model_dump(exclude_none=True)
+        return pipeline.model_dump()
 
 
 def _delete_enabled() -> bool:
