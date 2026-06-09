@@ -74,6 +74,57 @@ async def test_list_pipeline_runs_with_filters(client):
 
 
 @pytest.mark.asyncio
+async def test_list_pipeline_runs_with_pagination(client):
+    mock_response = Mock()
+    mock_response.json.return_value = {
+        "page": 2,
+        "pageSize": 25,
+        "total": 100,
+        "results": [],
+    }
+    mock_response.raise_for_status = Mock()
+
+    client._client.get = AsyncMock(return_value=mock_response)
+
+    await client.list_pipeline_runs(page=2, page_size=25)
+
+    params = client._client.get.call_args.kwargs["params"]
+    assert params["page"] == 2
+    assert params["page_size"] == 25
+
+
+@pytest.mark.asyncio
+async def test_list_pipeline_runs_omits_pagination_when_unset(client):
+    mock_response = Mock()
+    mock_response.json.return_value = {"page": 1, "pageSize": 50, "total": 0, "results": []}
+    mock_response.raise_for_status = Mock()
+
+    client._client.get = AsyncMock(return_value=mock_response)
+
+    await client.list_pipeline_runs()
+
+    params = client._client.get.call_args.kwargs["params"]
+    assert "page" not in params
+    assert "page_size" not in params
+
+
+@pytest.mark.asyncio
+async def test_list_assets_with_pagination(client):
+    mock_response = Mock()
+    mock_response.json.return_value = {"page": 3, "pageSize": 10, "total": 100, "results": []}
+    mock_response.raise_for_status = Mock()
+
+    client._client.get = AsyncMock(return_value=mock_response)
+
+    await client.list_assets(asset_type="TABLE", page=3, page_size=10)
+
+    client._client.get.assert_called_once_with(
+        "/assets",
+        params={"asset_type": "TABLE", "page": 3, "page_size": 10},
+    )
+
+
+@pytest.mark.asyncio
 async def test_start_pipeline(client):
     mock_response = Mock()
     mock_pipeline_run_id = uuid.uuid4()
