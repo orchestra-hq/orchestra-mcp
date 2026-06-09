@@ -1,19 +1,18 @@
-from __future__ import annotations
-
 import logging
 import os
-import sys
 from datetime import UTC, datetime
 from typing import Any
 
-from mcp.client.stdio import StdioServerParameters
-from mcp_lambda import (
-    APIGatewayProxyEventV2Handler,
-    StdioServerAdapterRequestHandler,
-)
+from mcp_lambda import APIGatewayProxyEventV2Handler
+
+from orchestramcp.in_process_request_handler import FastMCPInProcessRequestHandler
+from orchestramcp.server import get_client
 
 logger = logging.getLogger("orchestramcp.lambda_handler")
 logger.setLevel(logging.ERROR)
+
+_event_handler = APIGatewayProxyEventV2Handler(FastMCPInProcessRequestHandler())
+
 
 class ConfigInvalidError(ValueError):
     pass
@@ -49,14 +48,25 @@ def _resolve_orchestra_env() -> str:
     raise ConfigInvalidError("Missing ORCHESTRA_ENV environment variable")
 
 
+def _apply_request_credentials(api_key: str | None) -> None:
+    if api_key:
+        os.environ["ORCHESTRA_API_KEY"] = api_key
+    else:
+        os.environ.pop("ORCHESTRA_API_KEY", None)
+    get_client.cache_clear()
+
+
 def _log_mcp_internal_failure_if_present(response: dict[str, Any], context: Any) -> None:
     body = response.get("body")
-    if not isinstance(body, str) or "Internal failure, please check Lambda function logs" not in body:
+    if (
+        not isinstance(body, str)
+        or "Internal failure, please check Lambda function logs" not in body
+    ):
         return
     _log_error_event(
-        "mcp_subprocess_nonzero_exit",
+        "mcp_in_process_internal_failure",
         context,
-        RuntimeError("MCP subprocess returned internal failure"),
+        RuntimeError("MCP in-process handler returned internal failure"),
     )
 
 
@@ -80,8 +90,6 @@ def _extract_bearer_token(event: dict[str, Any]) -> str | None:
 
 def handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
     try:
-        orchestra_env = _resolve_orchestra_env()
-
         method = _get_http_method(event)
         api_key = _extract_bearer_token(event)
         if method == "POST" and not api_key:
@@ -91,27 +99,14 @@ def handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
                 "body": '{"message":"Missing or invalid Authorization header"}',
             }
 
-        mcp_env = {"ORCHESTRA_ENV": orchestra_env}
-        if api_key:
-            mcp_env["ORCHESTRA_API_KEY"] = api_key
-
-        server_params = StdioServerParameters(
-            command=sys.executable,
-            args=["-m", "orchestramcp.server_lambda"],
-            env=mcp_env,
-        )
-
-        event_handler = APIGatewayProxyEventV2Handler(
-            StdioServerAdapterRequestHandler(server_params)
-        )
-        response = event_handler.handle(event, context)
+        _resolve_orchestra_env()
+        _apply_request_credentials(api_key)
+        response = _event_handler.handle(event, context)
         _log_mcp_internal_failure_if_present(response, context)
         return response
     except Exception as exc:
         if isinstance(exc, ConfigInvalidError):
             event_name = "config_invalid"
-        elif isinstance(exc, OSError):
-            event_name = "mcp_subprocess_start_failed"
         else:
             event_name = "lambda_handler_unhandled_exception"
         _log_error_event(event_name, context, exc)

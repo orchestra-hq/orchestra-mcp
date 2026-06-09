@@ -60,13 +60,11 @@ Any MCP client that supports remote HTTP/SSE servers can connect with this shape
 }
 ```
 
-
-
 ## Managing Multiple Workspaces
 
 If you need to connect to multiple Orchestra workspaces, you can set up separate MCP server connections with workspace-specific API keys:
 
-```
+```json
 {
   "mcpServers": {
     "orchestra-data-quality-tests": {
