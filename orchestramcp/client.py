@@ -406,7 +406,7 @@ class OrchestraClient:
             "/pipelines/storage-settings", params=params, json=payload
         )
         self._raise_for_status(response)
-        return Pipeline(**response.json()) if response.content else Pipeline()
+        return Pipeline(**response.json())
 
     async def start_pipeline(
         self,

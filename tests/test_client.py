@@ -7,6 +7,26 @@ import pytest
 from orchestramcp.client import OrchestraAPIError, OrchestraClient
 
 
+def pipeline_json(**overrides):
+    """A complete pipeline payload matching the Pipeline model's required fields."""
+    base = {
+        "id": str(uuid.uuid4()),
+        "name": "my_pipeline",
+        "numTasks": 1,
+        "yamlPath": "pipelines/my.yaml",
+        "createdAt": "2026-01-01T00:00:00Z",
+        "updatedAt": "2026-01-01T00:00:00Z",
+        "paused": False,
+        "storageProvider": "GITHUB",
+        "repository": "owner/repo",
+        "defaultBranch": "main",
+        "alias": "my_pipeline",
+        "data": {"version": "v1", "name": "my_pipeline"},
+    }
+    base.update(overrides)
+    return base
+
+
 @pytest.fixture
 def mock_httpx_client():
     with patch("orchestramcp.client.httpx.AsyncClient") as mock_client:
@@ -298,7 +318,7 @@ async def test_validate_pipeline_schema(client):
 @pytest.mark.asyncio
 async def test_list_pipelines(client):
     mock_response = Mock()
-    mock_response.json.return_value = [{"alias": "a", "id": str(uuid.uuid4())}]
+    mock_response.json.return_value = [pipeline_json(alias="a")]
     mock_response.raise_for_status = Mock()
 
     client._client.get = AsyncMock(return_value=mock_response)
@@ -311,7 +331,7 @@ async def test_list_pipelines(client):
 @pytest.mark.asyncio
 async def test_create_pipeline(client):
     mock_response = Mock()
-    mock_response.json.return_value = {"alias": "my_pipeline", "id": str(uuid.uuid4())}
+    mock_response.json.return_value = pipeline_json(alias="my_pipeline")
     mock_response.raise_for_status = Mock()
 
     client._client.post = AsyncMock(return_value=mock_response)
@@ -327,7 +347,7 @@ async def test_create_pipeline(client):
 @pytest.mark.asyncio
 async def test_update_pipeline(client):
     mock_response = Mock()
-    mock_response.json.return_value = {"alias": "my_pipeline"}
+    mock_response.json.return_value = pipeline_json(alias="my_pipeline")
     mock_response.raise_for_status = Mock()
 
     client._client.put = AsyncMock(return_value=mock_response)
@@ -340,7 +360,7 @@ async def test_update_pipeline(client):
 @pytest.mark.asyncio
 async def test_get_pipeline(client):
     mock_response = Mock()
-    mock_response.json.return_value = {"id": str(uuid.uuid4()), "alias": "my_pipeline"}
+    mock_response.json.return_value = pipeline_json(alias="my_pipeline")
     mock_response.raise_for_status = Mock()
 
     client._client.get = AsyncMock(return_value=mock_response)
@@ -378,8 +398,7 @@ async def test_delete_pipeline_requires_repository_and_yaml_path_together(client
 @pytest.mark.asyncio
 async def test_migrate_pipeline_storage(client):
     mock_response = Mock()
-    mock_response.content = b'{"status": "ok"}'
-    mock_response.json.return_value = {"status": "ok"}
+    mock_response.json.return_value = pipeline_json(alias="my_pipeline")
     mock_response.raise_for_status = Mock()
 
     client._client.patch = AsyncMock(return_value=mock_response)
@@ -393,7 +412,7 @@ async def test_migrate_pipeline_storage(client):
         alias="my_pipeline",
     )
 
-    assert result.model_dump(exclude_none=True) == {"status": "ok"}
+    assert result.alias == "my_pipeline"
     call = client._client.patch.call_args
     assert call[0][0] == "/pipelines/storage-settings"
     assert call[1]["params"] == {"alias": "my_pipeline"}
@@ -409,12 +428,12 @@ async def test_migrate_pipeline_storage(client):
 @pytest.mark.asyncio
 async def test_migrate_pipeline_storage_omits_working_branch_when_default(client):
     mock_response = Mock()
-    mock_response.content = b""
+    mock_response.json.return_value = pipeline_json(alias="my_pipeline")
     mock_response.raise_for_status = Mock()
 
     client._client.patch = AsyncMock(return_value=mock_response)
 
-    result = await client.migrate_pipeline_storage(
+    await client.migrate_pipeline_storage(
         path="pipelines/my.yaml",
         repository="owner/repo",
         storage_provider="GITHUB",
@@ -423,7 +442,6 @@ async def test_migrate_pipeline_storage_omits_working_branch_when_default(client
         pipeline_id="abc",
     )
 
-    assert result.model_dump(exclude_none=True) == {}
     assert "working_branch" not in client._client.patch.call_args[1]["json"]
 
 

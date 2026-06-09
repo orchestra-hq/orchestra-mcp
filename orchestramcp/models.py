@@ -2,7 +2,7 @@ from datetime import datetime
 from enum import Enum
 from typing import Any
 
-from pydantic import UUID4, BaseModel, ConfigDict, Field
+from pydantic import UUID4, BaseModel, Field
 
 
 class PipelineRunStatus(str, Enum):
@@ -81,7 +81,7 @@ class PipelineRunProgress(BaseModel):
     run_status: str = Field(alias="runStatus")
 
 
-class PipelineImportResponse(BaseModel):
+class Pipeline(BaseModel):
     id: UUID4
     name: str
     num_tasks: int = Field(alias="numTasks")
@@ -96,33 +96,11 @@ class PipelineImportResponse(BaseModel):
     data: dict[str, Any]
 
 
+class PipelineImportResponse(Pipeline):
+    """Response from importing a Git-backed pipeline (POST /pipelines/import)."""
+
+
 class PipelineStartResponse(BaseModel):
     id: UUID4
     pipeline_run_id: UUID4 = Field(alias="pipelineRunId")
     message: str
-
-
-class Pipeline(BaseModel):
-    """A pipeline resource as returned by the pipeline-management endpoints.
-
-    The pipeline payload is large and varies by storage provider, so every field is
-    optional and unknown fields are preserved (``extra="allow"``).
-    """
-
-    model_config = ConfigDict(extra="allow", populate_by_name=True)
-
-    id: UUID4 | None = None
-    alias: str | None = None
-    name: str | None = None
-    repository: str | None = None
-    storage_provider: str | None = Field(default=None, alias="storageProvider")
-    default_branch: str | None = Field(default=None, alias="defaultBranch")
-    paused: bool | None = None
-    published: bool | None = None
-    num_tasks: int | None = Field(default=None, alias="numTasks")
-    yaml_path: str | None = Field(default=None, alias="yamlPath")
-    latest_version_number: int | None = Field(default=None, alias="latestVersionNumber")
-    current_version_number: int | None = Field(default=None, alias="currentVersionNumber")
-    created_at: datetime | None = Field(default=None, alias="createdAt")
-    updated_at: datetime | None = Field(default=None, alias="updatedAt")
-    data: dict[str, Any] | None = None
