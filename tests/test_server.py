@@ -2,7 +2,7 @@ import os
 
 import pytest
 
-from orchestramcp.server import get_client, mcp
+from orchestramcp.server import get_client, mcp, parse_iso_datetime
 
 
 @pytest.fixture
@@ -27,6 +27,21 @@ def test_get_client_missing_api_key():
 
 def test_get_client_with_api_key(set_api_key):
     assert get_client().api_key == "test-api-key"
+
+
+def test_parse_iso_datetime_accepts_z_suffix():
+    dt = parse_iso_datetime("2025-04-01T00:00:00Z")
+    assert dt.year == 2025
+    assert dt.tzinfo is not None
+
+
+def test_parse_iso_datetime_invalid_message_is_actionable():
+    with pytest.raises(ValueError) as exc_info:
+        parse_iso_datetime("yesterday")
+    message = str(exc_info.value)
+    assert "yesterday" in message
+    assert "ISO 8601" in message
+    assert "2025-04-01T00:00:00Z" in message
 
 
 @pytest.mark.asyncio

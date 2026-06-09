@@ -27,7 +27,13 @@ def parse_iso_datetime(dt_str: str) -> datetime:
     dt_str = dt_str.strip()
     if dt_str.endswith("Z"):
         dt_str = dt_str[:-1] + "+00:00"
-    return datetime.fromisoformat(dt_str)
+    try:
+        return datetime.fromisoformat(dt_str)
+    except ValueError:
+        raise ValueError(
+            f"Invalid datetime '{dt_str}'. Expected ISO 8601 format, "
+            "e.g. 2025-04-01T00:00:00Z"
+        )
 
 
 mcp = FastMCP("Orchestra MCP Server")
