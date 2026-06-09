@@ -4,7 +4,6 @@ from typing import Any
 
 import anyio
 import mcp.types as types
-from aws_lambda_powertools.utilities.typing import LambdaContext
 from fastmcp.client.transports import FastMCPTransport
 from mcp.types import (
     INTERNAL_ERROR,
@@ -78,7 +77,7 @@ async def _forward_request(event: dict[str, Any]) -> dict[str, Any]:
 
 class FastMCPInProcessRequestHandler(RequestHandler):
     def handle_request(
-        self, request: JSONRPCRequest, context: LambdaContext
+        self, request: JSONRPCRequest, context
     ) -> JSONRPCResponse | JSONRPCError:
         del context
         request_dict = request.model_dump(by_alias=True, exclude_none=True)
