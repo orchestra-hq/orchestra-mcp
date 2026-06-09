@@ -10,6 +10,7 @@ from orchestramcp.models import (
     OperationStatus,
     OperationType,
     PaginatedResponse,
+    Pipeline,
     PipelineImportResponse,
     PipelineRunProgress,
     PipelineRunStatus,
@@ -265,7 +266,7 @@ class OrchestraClient:
         self._raise_for_status(response)
         return response.json()
 
-    async def list_pipelines(self) -> list[dict[str, Any]]:
+    async def list_pipelines(self) -> list[Pipeline]:
         """List all pipelines for the workspace (GET /pipelines)."""
         response = await self._client.get("/pipelines")
         self._raise_for_status(response)
@@ -275,7 +276,7 @@ class OrchestraClient:
                 response.status_code,
                 "Expected JSON array from GET /pipelines",
             )
-        return data
+        return [Pipeline(**item) for item in data]
 
     async def create_pipeline(
         self,
@@ -283,7 +284,7 @@ class OrchestraClient:
         data: dict[str, Any],
         published: bool = False,
         storage_provider: str = "ORCHESTRA",
-    ) -> dict[str, Any]:
+    ) -> Pipeline:
         """Create an Orchestra-backed pipeline (POST /pipelines)."""
         payload: dict[str, Any] = {
             "alias": alias,
@@ -293,7 +294,7 @@ class OrchestraClient:
         }
         response = await self._client.post("/pipelines", json=payload)
         self._raise_for_status(response)
-        return response.json()
+        return Pipeline(**response.json())
 
     async def update_pipeline(
         self,
@@ -301,7 +302,7 @@ class OrchestraClient:
         data: dict[str, Any],
         published: bool = False,
         storage_provider: str = "ORCHESTRA",
-    ) -> dict[str, Any]:
+    ) -> Pipeline:
         """Update an Orchestra-backed pipeline by alias (PUT /pipelines/{alias})."""
         payload: dict[str, Any] = {
             "data": data,
@@ -310,7 +311,7 @@ class OrchestraClient:
         }
         response = await self._client.put(f"/pipelines/{alias}", json=payload)
         self._raise_for_status(response)
-        return response.json()
+        return Pipeline(**response.json())
 
     async def get_pipeline(
         self,
@@ -321,7 +322,7 @@ class OrchestraClient:
         version: int | None = None,
         branch: str | None = None,
         commit: str | None = None,
-    ) -> dict[str, Any]:
+    ) -> Pipeline:
         """Fetch a single pipeline by selector (GET /pipeline).
 
         The API supports multiple selectors:
@@ -343,13 +344,7 @@ class OrchestraClient:
         )
         response = await self._client.get("/pipeline", params=params)
         self._raise_for_status(response)
-        data = response.json()
-        if not isinstance(data, dict):
-            raise OrchestraAPIError(
-                response.status_code,
-                "Expected JSON object from GET /pipeline",
-            )
-        return data
+        return Pipeline(**response.json())
 
     async def delete_pipeline(
         self,
@@ -388,7 +383,7 @@ class OrchestraClient:
         working_branch: str | None = None,
         pipeline_id: str | None = None,
         alias: str | None = None,
-    ) -> dict[str, Any]:
+    ) -> Pipeline:
         """Migrate an Orchestra-backed pipeline to git-backed storage.
 
         PATCH /pipelines/storage-settings. The pipeline is identified by ``alias`` or
@@ -411,7 +406,7 @@ class OrchestraClient:
             "/pipelines/storage-settings", params=params, json=payload
         )
         self._raise_for_status(response)
-        return response.json() if response.content else {}
+        return Pipeline(**response.json()) if response.content else Pipeline()
 
     async def start_pipeline(
         self,

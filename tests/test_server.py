@@ -94,7 +94,9 @@ def test_delete_enabled_flag(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_migrate_pipeline_tool(set_api_key, monkeypatch):
-    mock_migrate = AsyncMock(return_value={"status": "ok"})
+    from orchestramcp.models import Pipeline
+
+    mock_migrate = AsyncMock(return_value=Pipeline(alias="my_pipeline"))
     monkeypatch.setattr("orchestramcp.client.OrchestraClient.migrate_pipeline_storage", mock_migrate)
 
     tool = await mcp.get_tool("migrate_pipeline")
@@ -106,7 +108,7 @@ async def test_migrate_pipeline_tool(set_api_key, monkeypatch):
         alias="my_pipeline",
     )
 
-    assert result == {"status": "ok"}
+    assert result == {"alias": "my_pipeline"}
     mock_migrate.assert_awaited_once()
 
 

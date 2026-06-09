@@ -261,7 +261,8 @@ async def validate_pipeline(pipeline_definition: dict[str, Any]) -> dict:
 async def list_pipelines() -> list:
     """List all pipelines for the workspace, including latest run metadata per pipeline."""
     async with get_client() as client:
-        return await client.list_pipelines()
+        pipelines = await client.list_pipelines()
+        return [pipeline.model_dump(exclude_none=True) for pipeline in pipelines]
 
 
 @mcp.tool(annotations=ToolAnnotations(title="Get Pipeline", readOnlyHint=True))
@@ -291,7 +292,7 @@ async def get_pipeline(
             branch=branch,
             commit=commit,
         )
-        return response
+        return response.model_dump(exclude_none=True)
 
 
 @mcp.tool(annotations=ToolAnnotations(title="Create Pipeline", destructiveHint=False))
@@ -312,12 +313,13 @@ async def create_pipeline(
         storage_provider: Must be ORCHESTRA for API-created pipelines.
     """
     async with get_client() as client:
-        return await client.create_pipeline(
+        pipeline = await client.create_pipeline(
             alias=alias,
             data=data,
             published=published,
             storage_provider=storage_provider,
         )
+        return pipeline.model_dump(exclude_none=True)
 
 
 @mcp.tool(annotations=ToolAnnotations(title="Update Pipeline", destructiveHint=True))
@@ -338,12 +340,13 @@ async def update_pipeline(
         storage_provider: Must be ORCHESTRA.
     """
     async with get_client() as client:
-        return await client.update_pipeline(
+        pipeline = await client.update_pipeline(
             alias=alias,
             data=data,
             published=published,
             storage_provider=storage_provider,
         )
+        return pipeline.model_dump(exclude_none=True)
 
 
 @mcp.tool(annotations=ToolAnnotations(title="Migrate Pipeline", destructiveHint=True))
@@ -373,7 +376,7 @@ async def migrate_pipeline(
         pipeline_id: Pipeline ID selector.
     """
     async with get_client() as client:
-        return await client.migrate_pipeline_storage(
+        pipeline = await client.migrate_pipeline_storage(
             path=path,
             repository=repository,
             storage_provider=storage_provider,
@@ -382,6 +385,7 @@ async def migrate_pipeline(
             alias=alias,
             pipeline_id=pipeline_id,
         )
+        return pipeline.model_dump(exclude_none=True)
 
 
 def _delete_enabled() -> bool:

@@ -305,7 +305,7 @@ async def test_list_pipelines(client):
 
     result = await client.list_pipelines()
     assert len(result) == 1
-    assert result[0]["alias"] == "a"
+    assert result[0].alias == "a"
 
 
 @pytest.mark.asyncio
@@ -317,7 +317,7 @@ async def test_create_pipeline(client):
     client._client.post = AsyncMock(return_value=mock_response)
 
     result = await client.create_pipeline("my_pipeline", {"version": "v1", "name": "n"})
-    assert result["alias"] == "my_pipeline"
+    assert result.alias == "my_pipeline"
     call = client._client.post.call_args
     assert call[0][0] == "/pipelines"
     assert call[1]["json"]["published"] is False
@@ -346,7 +346,7 @@ async def test_get_pipeline(client):
     client._client.get = AsyncMock(return_value=mock_response)
 
     result = await client.get_pipeline(alias="my_pipeline")
-    assert result["alias"] == "my_pipeline"
+    assert result.alias == "my_pipeline"
     client._client.get.assert_called_once_with("/pipeline", params={"alias": "my_pipeline"})
 
 
@@ -393,7 +393,7 @@ async def test_migrate_pipeline_storage(client):
         alias="my_pipeline",
     )
 
-    assert result == {"status": "ok"}
+    assert result.model_dump(exclude_none=True) == {"status": "ok"}
     call = client._client.patch.call_args
     assert call[0][0] == "/pipelines/storage-settings"
     assert call[1]["params"] == {"alias": "my_pipeline"}
@@ -423,7 +423,7 @@ async def test_migrate_pipeline_storage_omits_working_branch_when_default(client
         pipeline_id="abc",
     )
 
-    assert result == {}
+    assert result.model_dump(exclude_none=True) == {}
     assert "working_branch" not in client._client.patch.call_args[1]["json"]
 
 
