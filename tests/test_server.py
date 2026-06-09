@@ -3,7 +3,6 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from orchestramcp.client import OrchestraAPIError
 from orchestramcp.server import get_client, mcp, parse_iso_datetime
 
 
@@ -50,7 +49,6 @@ def test_parse_iso_datetime_invalid_message_is_actionable():
 async def test_tool_registration():
     tool_names = {tool.name for tool in await mcp.list_tools()}
     expected_tools = {
-        "build_pipeline",
         "cancel_pipeline_run",
         "create_pipeline",
         "download_task_run_artifact",
@@ -92,56 +90,6 @@ def test_delete_enabled_flag(monkeypatch):
 
     monkeypatch.setenv("ORCHESTRA_ENABLE_DELETE", "false")
     assert _delete_enabled() is False
-
-
-@pytest.mark.asyncio
-async def test_build_pipeline_creates_and_starts(set_api_key, monkeypatch):
-    from unittest.mock import Mock
-
-    mock_validate = AsyncMock(return_value={"message": "valid"})
-    mock_get = AsyncMock(side_effect=OrchestraAPIError(404, "not found"))
-    mock_create = AsyncMock(return_value={"id": "p1", "latestVersionNumber": 2})
-    mock_update = AsyncMock()
-    mock_start = AsyncMock(return_value=Mock(model_dump=Mock(return_value={"pipelineRunId": "r1"})))
-
-    monkeypatch.setattr("orchestramcp.client.OrchestraClient.validate_pipeline_schema", mock_validate)
-    monkeypatch.setattr("orchestramcp.client.OrchestraClient.get_pipeline", mock_get)
-    monkeypatch.setattr("orchestramcp.client.OrchestraClient.create_pipeline", mock_create)
-    monkeypatch.setattr("orchestramcp.client.OrchestraClient.update_pipeline", mock_update)
-    monkeypatch.setattr("orchestramcp.client.OrchestraClient.start_pipeline", mock_start)
-
-    tool = await mcp.get_tool("build_pipeline")
-    result = await tool.fn(alias="my_pipeline", data={"version": "v1", "name": "n"})
-
-    mock_validate.assert_awaited_once()
-    mock_create.assert_awaited_once()
-    mock_update.assert_not_awaited()
-    assert mock_start.await_args.kwargs["version_number"] == 2
-    assert result["run"] == {"pipelineRunId": "r1"}
-
-
-@pytest.mark.asyncio
-async def test_build_pipeline_updates_existing(set_api_key, monkeypatch):
-    from unittest.mock import Mock
-
-    mock_validate = AsyncMock(return_value={"message": "valid"})
-    mock_get = AsyncMock(return_value={"id": "p1", "alias": "my_pipeline"})
-    mock_create = AsyncMock()
-    mock_update = AsyncMock(return_value={"id": "p1", "latestVersionNumber": 5})
-    mock_start = AsyncMock(return_value=Mock(model_dump=Mock(return_value={"pipelineRunId": "r2"})))
-
-    monkeypatch.setattr("orchestramcp.client.OrchestraClient.validate_pipeline_schema", mock_validate)
-    monkeypatch.setattr("orchestramcp.client.OrchestraClient.get_pipeline", mock_get)
-    monkeypatch.setattr("orchestramcp.client.OrchestraClient.create_pipeline", mock_create)
-    monkeypatch.setattr("orchestramcp.client.OrchestraClient.update_pipeline", mock_update)
-    monkeypatch.setattr("orchestramcp.client.OrchestraClient.start_pipeline", mock_start)
-
-    tool = await mcp.get_tool("build_pipeline")
-    await tool.fn(alias="my_pipeline", data={"version": "v1", "name": "n"})
-
-    mock_update.assert_awaited_once()
-    mock_create.assert_not_awaited()
-    assert mock_start.await_args.kwargs["version_number"] == 5
 
 
 @pytest.mark.asyncio

@@ -4,7 +4,7 @@ A Model Context Protocol (MCP) server for the [Orchestra API](https://docs.getor
 
 ## Features
 
-- **Pipeline lifecycle**: List pipelines, validate definitions, create/update Orchestra-backed pipelines, build (validate + upsert + run), import Git-backed pipelines, migrate to git-backed storage, and optionally delete (opt-in)
+- **Pipeline lifecycle**: List pipelines, validate definitions, create/update Orchestra-backed pipelines, import Git-backed pipelines, migrate to git-backed storage, and optionally delete (opt-in)
 - **Runs**: Start pipeline runs (with optional branch/commit/version), poll status, cancel runs, and open lineage URLs
 - **Observability**: List pipeline runs, task runs, and operations with filters and pagination; list assets
 - **Logs and artifacts**: List and download task run logs and artifacts (for example dbt manifests), returned as base64 for safe transport
@@ -18,7 +18,6 @@ A Model Context Protocol (MCP) server for the [Orchestra API](https://docs.getor
 | `get_pipeline` | Yes | Fetch a single pipeline by selector (`GET /pipeline`). |
 | `create_pipeline` | Yes | Create an Orchestra-backed pipeline from a definition object (`POST /pipelines`). |
 | `update_pipeline` | Yes | Update an Orchestra-backed pipeline by alias (`PUT /pipelines/{alias}`). Git-backed pipelines cannot be updated here. |
-| `build_pipeline` | Yes | Validate a definition, create/update it as an unpublished draft, then start a run of that draft (Orchestra-backed only). |
 | `migrate_pipeline` | Yes | Migrate an Orchestra-backed pipeline to git-backed storage (`PATCH /pipelines/storage-settings`). The YAML must already exist in the repo. |
 | `delete_pipeline` | Yes | **Disabled by default.** Delete a pipeline by selector (`DELETE /pipelines`). Set `ORCHESTRA_ENABLE_DELETE` to expose it. |
 | `import_pipeline` | Yes | Import a pipeline whose YAML lives in a Git repository (`POST /pipelines/import`). |
@@ -50,7 +49,6 @@ Optional parameters show their default in parentheses where one applies. For mul
 | `get_pipeline` | — (provide one selector) | `pipeline_id`, `alias`, `repository` + `yaml_path`, `version`, `branch`, `commit` |
 | `create_pipeline` | `alias`, `data` (object) | `published` (`false`), `storage_provider` (`ORCHESTRA`) |
 | `update_pipeline` | `alias`, `data` (object) | `published` (`false`), `storage_provider` (`ORCHESTRA`) |
-| `build_pipeline` | `alias`, `data` (object) | `branch`, `commit`, `run_inputs` (object) |
 | `migrate_pipeline` | `path`, `repository`, `storage_provider`, `default_branch` | `working_branch`, and one selector: `alias` or `pipeline_id` |
 | `delete_pipeline` | — (provide one selector) | `pipeline_id`, `alias`, `repository` + `yaml_path` |
 | `import_pipeline` | `storage_provider`, `repository`, `default_branch`, `yaml_path` | `alias`, `working_branch` |
@@ -118,15 +116,6 @@ Pass JSON arguments as shown in your MCP client tool UI.
   "alias": "my_pipeline",
   "data": { "version": "v1", "name": "my_pipeline", "pipelines": {} },
   "published": true
-}
-```
-
-### `build_pipeline` (validate, upsert draft, then run)
-
-```json
-{
-  "alias": "my_pipeline",
-  "data": { "version": "v1", "name": "my_pipeline", "pipelines": {} }
 }
 ```
 

@@ -13,7 +13,7 @@ if str(_project_root) not in sys.path:
 from fastmcp import FastMCP  # noqa: E402
 from mcp.types import ToolAnnotations  # noqa: E402
 
-from orchestramcp.client import OrchestraAPIError, OrchestraClient  # noqa: E402
+from orchestramcp.client import OrchestraClient  # noqa: E402
 from orchestramcp.models import (  # noqa: E402
     AssetType,
     OperationStatus,
@@ -320,7 +320,7 @@ async def create_pipeline(
         )
 
 
-@mcp.tool(annotations=ToolAnnotations(title="Update Pipeline", destructiveHint=False))
+@mcp.tool(annotations=ToolAnnotations(title="Update Pipeline", destructiveHint=True))
 async def update_pipeline(
     alias: str,
     data: dict[str, Any],
@@ -346,63 +346,7 @@ async def update_pipeline(
         )
 
 
-@mcp.tool(annotations=ToolAnnotations(title="Build Pipeline", destructiveHint=False))
-async def build_pipeline(
-    alias: str,
-    data: dict[str, Any],
-    branch: str | None = None,
-    commit: str | None = None,
-    run_inputs: dict[str, Any] | None = None,
-) -> dict:
-    """Validate a pipeline definition, save it as an unpublished draft, then start a run.
-
-    Orchestra-backed equivalent of the CLI ``pipeline build`` command: validates the
-    definition, creates it (or updates it if the alias already exists) as an unpublished
-    draft, and starts a run of that draft version. Git-backed builds rely on local git
-    state and are not supported here; use ``import_pipeline`` + ``start_pipeline`` instead.
-
-    Args:
-        alias: Pipeline alias to create or update.
-        data: Pipeline definition object per the pipeline YAML schema.
-        branch: Optional branch name to run from.
-        commit: Optional commit SHA to run from.
-        run_inputs: Optional run inputs.
-
-    Returns:
-        Dict with the saved ``pipeline`` body and the started ``run`` response.
-    """
-    async with get_client() as client:
-        await client.validate_pipeline_schema(pipeline_definition=data)
-
-        try:
-            await client.get_pipeline(alias=alias)
-            exists = True
-        except OrchestraAPIError as exc:
-            if exc.status_code == 404:
-                exists = False
-            else:
-                raise
-
-        if exists:
-            pipeline = await client.update_pipeline(alias=alias, data=data, published=False)
-        else:
-            pipeline = await client.create_pipeline(alias=alias, data=data, published=False)
-
-        version = pipeline.get("latestVersionNumber")
-        if version is None:
-            version = pipeline.get("currentVersionNumber")
-
-        run = await client.start_pipeline(
-            alias_or_pipeline_id=alias,
-            branch=branch,
-            commit=commit,
-            run_inputs=run_inputs,
-            version_number=version if isinstance(version, int) else None,
-        )
-        return {"pipeline": pipeline, "run": run.model_dump()}
-
-
-@mcp.tool(annotations=ToolAnnotations(title="Migrate Pipeline", destructiveHint=False))
+@mcp.tool(annotations=ToolAnnotations(title="Migrate Pipeline", destructiveHint=True))
 async def migrate_pipeline(
     path: str,
     repository: str,
