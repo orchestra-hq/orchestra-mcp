@@ -11,6 +11,7 @@ if str(_project_root) not in sys.path:
     sys.path.insert(0, str(_project_root))
 
 from fastmcp import FastMCP  # noqa: E402
+from mcp.types import ToolAnnotations  # noqa: E402
 
 from orchestramcp.client import OrchestraAPIError, OrchestraClient  # noqa: E402
 from orchestramcp.models import (  # noqa: E402
@@ -26,7 +27,12 @@ def parse_iso_datetime(dt_str: str) -> datetime:
     dt_str = dt_str.strip()
     if dt_str.endswith("Z"):
         dt_str = dt_str[:-1] + "+00:00"
-    return datetime.fromisoformat(dt_str)
+    try:
+        return datetime.fromisoformat(dt_str)
+    except ValueError:
+        raise ValueError(
+            f"Invalid datetime '{dt_str}'. Expected ISO 8601 format, e.g. 2025-04-01T00:00:00Z"
+        )
 
 
 mcp = FastMCP("Orchestra MCP Server")
@@ -40,12 +46,14 @@ def get_client() -> OrchestraClient:
     return OrchestraClient(api_key=api_key)
 
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(title="List Pipeline Runs", readOnlyHint=True))
 async def list_pipeline_runs(
     time_from: str | None = None,
     time_to: str | None = None,
     status: PipelineRunStatus | None = None,
     pipeline_run_ids: str | None = None,
+    page: int | None = None,
+    page_size: int | None = None,
 ) -> dict:
     """List pipeline runs with optional filters.
 
@@ -54,9 +62,14 @@ async def list_pipeline_runs(
         time_to: End time in ISO 8601 format (e.g., 2025-04-05T00:00:00Z)
         status: Comma-separated statuses (CREATED, RUNNING, SUCCEEDED, WARNING, FAILED, CANCELLING, CANCELLED)
         pipeline_run_ids: Comma-separated pipeline run IDs
+        page: 1-based page number to retrieve (default 1)
+        page_size: Number of results per page (default 50, max 100)
 
     Returns:
         Paginated list of pipeline runs
+
+    Reference:
+        https://docs.getorchestra.io/api/pipeline-runs/list-pipeline-runs
     """
     async with get_client() as client:
         response = await client.list_pipeline_runs(
@@ -64,11 +77,13 @@ async def list_pipeline_runs(
             time_to=parse_iso_datetime(time_to) if time_to else None,
             status=status,
             pipeline_run_ids=pipeline_run_ids,
+            page=page,
+            page_size=page_size,
         )
         return response.model_dump()
 
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(title="List Task Runs", readOnlyHint=True))
 async def list_task_runs(
     time_from: str | None = None,
     time_to: str | None = None,
@@ -76,6 +91,8 @@ async def list_task_runs(
     pipeline_ids: str | None = None,
     integration: str | None = None,
     task_run_ids: str | None = None,
+    page: int | None = None,
+    page_size: int | None = None,
 ) -> dict:
     """List task runs with optional filters.
 
@@ -86,9 +103,14 @@ async def list_task_runs(
         pipeline_ids: Comma-separated pipeline IDs
         integration: Comma-separated integrations (e.g., HTTP, SNOWFLAKE)
         task_run_ids: Comma-separated task run IDs
+        page: 1-based page number to retrieve (default 1)
+        page_size: Number of results per page (default 50, max 100)
 
     Returns:
         Paginated list of task runs
+
+    Reference:
+        https://docs.getorchestra.io/api/task-runs/list-task-runs
     """
     async with get_client() as client:
         response = await client.list_task_runs(
@@ -98,11 +120,13 @@ async def list_task_runs(
             pipeline_ids=pipeline_ids,
             integration=integration,
             task_run_ids=task_run_ids,
+            page=page,
+            page_size=page_size,
         )
         return response.model_dump()
 
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(title="List Operations", readOnlyHint=True))
 async def list_operations(
     time_from: str | None = None,
     time_to: str | None = None,
@@ -111,6 +135,8 @@ async def list_operations(
     external_id: str | None = None,
     task_run_id: str | None = None,
     status: OperationStatus | None = None,
+    page: int | None = None,
+    page_size: int | None = None,
 ) -> dict:
     """List operations with optional filters.
 
@@ -122,9 +148,14 @@ async def list_operations(
         external_id: External ID to filter on
         task_run_id: Task run ID to filter on
         status: Operation status (SUCCEEDED, FAILED, SKIPPED, UNKNOWN, WARNING, CANCELLED)
+        page: 1-based page number to retrieve (default 1)
+        page_size: Number of results per page (default 50, max 100)
 
     Returns:
         Paginated list of operations
+
+    Reference:
+        https://docs.getorchestra.io/api/operations/list-operations
     """
     async with get_client() as client:
         response = await client.list_operations(
@@ -135,30 +166,44 @@ async def list_operations(
             external_id=external_id,
             task_run_id=task_run_id,
             status=status,
+            page=page,
+            page_size=page_size,
         )
         return response.model_dump()
 
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(title="List Assets", readOnlyHint=True))
 async def list_assets(
     asset_type: AssetType | None = None,
     integration: str | None = None,
+    page: int | None = None,
+    page_size: int | None = None,
 ) -> dict:
     """List data assets.
 
     Args:
         asset_type: Asset type filter (DASHBOARD, DASHBOARD_VIEWS, DATASET, QUERIES, TABLE, VIEW, WORKBOOK, UNKNOWN)
         integration: Integration filter
+        page: 1-based page number to retrieve (default 1)
+        page_size: Number of results per page (default 50, max 100)
 
     Returns:
         Paginated list of assets
+
+    Reference:
+        https://docs.getorchestra.io/api/assets/list-assets
     """
     async with get_client() as client:
-        response = await client.list_assets(asset_type=asset_type, integration=integration)
+        response = await client.list_assets(
+            asset_type=asset_type,
+            integration=integration,
+            page=page,
+            page_size=page_size,
+        )
         return response.model_dump()
 
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(title="Import Pipeline", destructiveHint=False))
 async def import_pipeline(
     storage_provider: str,
     repository: str,
@@ -192,7 +237,7 @@ async def import_pipeline(
         return response.model_dump()
 
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(title="Validate Pipeline", readOnlyHint=True))
 async def validate_pipeline(pipeline_definition: dict[str, Any]) -> dict:
     """Validate a pipeline definition (JSON object) against the Orchestra API schema without persisting it.
 
@@ -212,14 +257,14 @@ async def validate_pipeline(pipeline_definition: dict[str, Any]) -> dict:
         await client.close()
 
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(title="List Pipelines", readOnlyHint=True))
 async def list_pipelines() -> list:
     """List all pipelines for the workspace, including latest run metadata per pipeline."""
     async with get_client() as client:
         return await client.list_pipelines()
 
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(title="Get Pipeline", readOnlyHint=True))
 async def get_pipeline(
     pipeline_id: str | None = None,
     alias: str | None = None,
@@ -249,7 +294,7 @@ async def get_pipeline(
         return response
 
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(title="Create Pipeline", destructiveHint=False))
 async def create_pipeline(
     alias: str,
     data: dict[str, Any],
@@ -275,7 +320,7 @@ async def create_pipeline(
         )
 
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(title="Update Pipeline", destructiveHint=False))
 async def update_pipeline(
     alias: str,
     data: dict[str, Any],
@@ -301,7 +346,7 @@ async def update_pipeline(
         )
 
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(title="Build Pipeline", destructiveHint=False))
 async def build_pipeline(
     alias: str,
     data: dict[str, Any],
@@ -357,7 +402,7 @@ async def build_pipeline(
         return {"pipeline": pipeline, "run": run.model_dump()}
 
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(title="Migrate Pipeline", destructiveHint=False))
 async def migrate_pipeline(
     path: str,
     repository: str,
@@ -431,10 +476,12 @@ async def delete_pipeline(
 
 
 if _delete_enabled():
-    delete_pipeline = mcp.tool()(delete_pipeline)
+    delete_pipeline = mcp.tool(
+        annotations=ToolAnnotations(title="Delete Pipeline", destructiveHint=True)
+    )(delete_pipeline)
 
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(title="Start Pipeline", destructiveHint=False))
 async def start_pipeline(
     alias_or_pipeline_id: str,
     branch: str | None = None,
@@ -468,7 +515,7 @@ async def start_pipeline(
         return response.model_dump()
 
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(title="Get Pipeline Run Status", readOnlyHint=True))
 async def get_pipeline_run_status(pipeline_run_id: str) -> dict:
     """Get the status of a pipeline run.
 
@@ -483,7 +530,7 @@ async def get_pipeline_run_status(pipeline_run_id: str) -> dict:
         return response.model_dump()
 
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(title="Cancel Pipeline Run", destructiveHint=True))
 async def cancel_pipeline_run(pipeline_run_id: str) -> dict:
     """Cancel a pipeline run.
 
@@ -498,7 +545,7 @@ async def cancel_pipeline_run(pipeline_run_id: str) -> dict:
         return {"message": f"Pipeline run {pipeline_run_id} cancellation requested"}
 
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(title="List Task Run Logs", readOnlyHint=True))
 async def list_task_run_logs(
     pipeline_run_id: str,
     task_run_id: str,
@@ -520,7 +567,7 @@ async def list_task_run_logs(
         return response
 
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(title="Download Task Run Log", readOnlyHint=True))
 async def download_task_run_log(
     pipeline_run_id: str,
     task_run_id: str,
@@ -554,7 +601,7 @@ async def download_task_run_log(
         }
 
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(title="List Task Run Artifacts", readOnlyHint=True))
 async def list_task_run_artifacts(
     pipeline_run_id: str,
     task_run_id: str,
@@ -576,7 +623,7 @@ async def list_task_run_artifacts(
         return response
 
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(title="Download Task Run Artifact", readOnlyHint=True))
 async def download_task_run_artifact(
     pipeline_run_id: str,
     task_run_id: str,
@@ -607,7 +654,7 @@ async def download_task_run_artifact(
         }
 
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(title="Get Pipeline Run Lineage URL", readOnlyHint=True))
 def get_pipeline_run_lineage_url(pipeline_run_id: str) -> str:
     """Get the URL of a pipeline run lineage graph."""
     env = os.getenv("ORCHESTRA_ENV", "app").lower().strip()
