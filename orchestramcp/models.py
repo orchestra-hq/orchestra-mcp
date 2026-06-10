@@ -103,11 +103,5 @@ class PipelineStartResponse(BaseModel):
 
 
 class ValidatePipelineSchemaResponse(BaseModel):
-    """Response from Orchestra pipeline schema validation.
-
-    The tool is intentionally small: callers generally only need a human-readable message
-    and a status indicator.
-    """
-
     message: str
-    status: str
+    status: int
