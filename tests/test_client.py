@@ -262,7 +262,43 @@ async def test_get_pipeline_by_alias(client):
     result = await client.get_pipeline(alias="daily_etl")
     assert result.name == "Daily ETL"
     assert result.paused is False
-    client._client.get.assert_called_once_with("/pipelines", params={"alias": "daily_etl"})
+    client._client.get.assert_called_once_with(
+        "/pipeline", params={"alias": "daily_etl"}
+    )
+
+
+@pytest.mark.asyncio
+async def test_get_pipeline_passes_optional_selectors(client):
+    mock_response = Mock()
+    mock_response.json.return_value = {
+        "id": str(uuid.uuid4()),
+        "name": "Daily ETL",
+        "yamlPath": "pipelines/daily_etl.yaml",
+        "createdAt": "2025-03-01T12:00:00Z",
+        "updatedAt": "2025-03-20T15:30:00Z",
+        "paused": False,
+        "alias": "daily_etl",
+    }
+    mock_response.raise_for_status = Mock()
+
+    client._client.get = AsyncMock(return_value=mock_response)
+
+    await client.get_pipeline(
+        alias="daily_etl",
+        version=2,
+        branch="main",
+        commit="deadbeef",
+    )
+
+    client._client.get.assert_called_once_with(
+        "/pipeline",
+        params={
+            "alias": "daily_etl",
+            "version": 2,
+            "branch": "main",
+            "commit": "deadbeef",
+        },
+    )
 
 
 @pytest.mark.asyncio

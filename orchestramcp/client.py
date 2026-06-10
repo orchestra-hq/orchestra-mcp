@@ -234,10 +234,13 @@ class OrchestraClient:
         alias: str | None = None,
         repository: str | None = None,
         yaml_path: str | None = None,
+        version: int | None = None,
+        branch: str | None = None,
+        commit: str | None = None,
     ) -> PipelineResponse:
         """Fetch a single pipeline by selector.
 
-        Reference: GET /pipelines (list-or-fetch)
+        Reference: GET /pipeline (get-a-pipeline-by-selector)
         """
 
         selector_count = sum(selector is not None for selector in (pipeline_id, alias)) + (
@@ -265,7 +268,15 @@ class OrchestraClient:
             params["repository"] = repository
             params["yaml_path"] = yaml_path
 
-        response = await self._client.get("/pipelines", params=params)
+        # Optional selectors (used by git-backed / versioned pipelines).
+        if version is not None:
+            params["version"] = version
+        if branch is not None:
+            params["branch"] = branch
+        if commit is not None:
+            params["commit"] = commit
+
+        response = await self._client.get("/pipeline", params=params)
         self._raise_for_status(response)
         return PipelineResponse.model_validate(response.json())
 

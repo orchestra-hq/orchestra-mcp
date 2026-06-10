@@ -221,10 +221,13 @@ async def get_pipeline(
     alias: str | None = None,
     repository: str | None = None,
     yaml_path: str | None = None,
+    version: int | None = None,
+    branch: str | None = None,
+    commit: str | None = None,
 ) -> dict:
     """Fetch a single pipeline by selector.
 
-    Reference: https://docs.getorchestra.io/api/pipelines/list-or-fetch-pipelines
+    Reference: https://docs.getorchestra.io/api/pipelines/get-a-pipeline-by-selector
     """
     async with get_client() as client:
         response = await client.get_pipeline(
@@ -232,6 +235,9 @@ async def get_pipeline(
             alias=alias,
             repository=repository,
             yaml_path=yaml_path,
+            version=version,
+            branch=branch,
+            commit=commit,
         )
         return response.model_dump()
 
