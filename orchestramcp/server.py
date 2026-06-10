@@ -250,14 +250,11 @@ async def validate_pipeline(pipeline_definition: dict[str, Any]) -> dict:
     Returns:
         Success payload (e.g. validation message) or the API error is surfaced as a tool error.
     """
-    client = OrchestraClient(api_key=os.getenv("ORCHESTRA_API_KEY"))
-    try:
+    async with get_client() as client:
         response = await client.validate_pipeline_schema(
             pipeline_definition=pipeline_definition
         )
-        return response.model_dump(exclude_none=True)
-    finally:
-        await client.close()
+        return response.model_dump()
 
 
 @mcp.tool(annotations=ToolAnnotations(title="Start Pipeline", destructiveHint=False))
