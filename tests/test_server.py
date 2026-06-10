@@ -3,6 +3,7 @@ from unittest.mock import AsyncMock
 
 import pytest
 
+from orchestramcp.models import ValidatePipelineSchemaResponse
 from orchestramcp.server import get_client, mcp, parse_iso_datetime
 
 
@@ -78,7 +79,11 @@ async def test_list_operations_tool_exposes_integration_filter():
 async def test_validate_pipeline_does_not_require_api_key(monkeypatch):
     get_client.cache_clear()
     monkeypatch.delenv("ORCHESTRA_API_KEY", raising=False)
-    mock_validate = AsyncMock(return_value={"message": "Pipeline schema is valid"})
+    mock_validate = AsyncMock(
+        return_value=ValidatePipelineSchemaResponse(
+            message="Pipeline schema is valid", status="VALID"
+        )
+    )
     mock_close = AsyncMock()
     monkeypatch.setattr(
         "orchestramcp.client.OrchestraClient.validate_pipeline_schema",
@@ -90,6 +95,7 @@ async def test_validate_pipeline_does_not_require_api_key(monkeypatch):
     result = await tool.fn({"version": "v1", "name": "test"})
 
     assert result["message"] == "Pipeline schema is valid"
+    assert result["status"] == "VALID"
     mock_validate.assert_awaited_once_with(
         pipeline_definition={"version": "v1", "name": "test"}
     )
@@ -100,7 +106,11 @@ async def test_validate_pipeline_does_not_require_api_key(monkeypatch):
 async def test_validate_pipeline_uses_api_key_when_present(monkeypatch):
     get_client.cache_clear()
     monkeypatch.setenv("ORCHESTRA_API_KEY", "test-api-key")
-    mock_validate = AsyncMock(return_value={"message": "Pipeline schema is valid"})
+    mock_validate = AsyncMock(
+        return_value=ValidatePipelineSchemaResponse(
+            message="Pipeline schema is valid", status="VALID"
+        )
+    )
     mock_close = AsyncMock()
     monkeypatch.setattr(
         "orchestramcp.client.OrchestraClient.validate_pipeline_schema",
@@ -112,6 +122,7 @@ async def test_validate_pipeline_uses_api_key_when_present(monkeypatch):
     result = await tool.fn({"version": "v1", "name": "test"})
 
     assert result["message"] == "Pipeline schema is valid"
+    assert result["status"] == "VALID"
     mock_validate.assert_awaited_once_with(
         pipeline_definition={"version": "v1", "name": "test"}
     )

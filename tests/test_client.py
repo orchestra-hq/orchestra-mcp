@@ -252,13 +252,17 @@ async def test_start_pipeline_parses_json_error(client):
 @pytest.mark.asyncio
 async def test_validate_pipeline_schema(client):
     mock_response = Mock()
-    mock_response.json.return_value = {"message": "Pipeline schema is valid"}
+    mock_response.json.return_value = {
+        "message": "Pipeline schema is valid",
+        "status": "VALID",
+    }
     mock_response.raise_for_status = Mock()
 
     client._client.post = AsyncMock(return_value=mock_response)
 
     result = await client.validate_pipeline_schema({"version": "v1", "name": "x"})
-    assert result["message"] == "Pipeline schema is valid"
+    assert result.message == "Pipeline schema is valid"
+    assert result.status == "VALID"
     client._client.post.assert_called_once_with(
         "/pipelines/schema", json={"version": "v1", "name": "x"}
     )

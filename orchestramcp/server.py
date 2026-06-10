@@ -252,7 +252,10 @@ async def validate_pipeline(pipeline_definition: dict[str, Any]) -> dict:
     """
     client = OrchestraClient(api_key=os.getenv("ORCHESTRA_API_KEY"))
     try:
-        return await client.validate_pipeline_schema(pipeline_definition=pipeline_definition)
+        response = await client.validate_pipeline_schema(
+            pipeline_definition=pipeline_definition
+        )
+        return response.model_dump()
     finally:
         await client.close()
 
