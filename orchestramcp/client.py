@@ -243,17 +243,9 @@ class OrchestraClient:
         Reference: GET /pipeline (get-a-pipeline-by-selector)
         """
 
-        selector_count = sum(selector is not None for selector in (pipeline_id, alias)) + (
-            1 if repository is not None or yaml_path is not None else 0
-        )
-        if selector_count == 0:
-            raise ValueError(
-                "Provide exactly one selector: pipeline_id, alias, or repository + yaml_path"
-            )
-        if selector_count > 1:
-            raise ValueError(
-                "Provide only one selector: pipeline_id, alias, or repository + yaml_path"
-            )
+        selectors = [pipeline_id, alias, repository or yaml_path]
+        if sum(s is not None for s in selectors) != 1:
+            raise ValueError("Provide exactly one selector: pipeline_id, alias, or repository + yaml_path")
 
         if (repository is None) != (yaml_path is None):
             raise ValueError("repository and yaml_path must be provided together")
@@ -264,11 +256,9 @@ class OrchestraClient:
         elif alias:
             params["alias"] = alias
         else:
-            # repository + yaml_path selector
             params["repository"] = repository
             params["yaml_path"] = yaml_path
 
-        # Optional selectors (used by git-backed / versioned pipelines).
         if version is not None:
             params["version"] = version
         if branch is not None:

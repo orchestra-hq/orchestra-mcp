@@ -290,7 +290,9 @@ async def validate_pipeline(pipeline_definition: dict[str, Any]) -> dict:
         Success payload (e.g. validation message) or the API error is surfaced as a tool error.
     """
     async with get_client() as client:
-        response = await client.validate_pipeline_schema(pipeline_definition=pipeline_definition)
+        response = await client.validate_pipeline_schema(
+            pipeline_definition=pipeline_definition
+        )
         return response.model_dump()
 
 
