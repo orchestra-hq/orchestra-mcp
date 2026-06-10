@@ -237,6 +237,26 @@ async def import_pipeline(
         return response.model_dump()
 
 
+@mcp.tool(annotations=ToolAnnotations(title="Validate Pipeline", readOnlyHint=True))
+async def validate_pipeline(pipeline_definition: dict[str, Any]) -> dict:
+    """Validate a pipeline definition (JSON object) against the Orchestra API schema without persisting it.
+
+    Supply the same structure as in pipeline YAML (version, name, pipeline tasks, etc.), as parsed JSON.
+    See https://docs.getorchestra.io/api/pipelines/validate-pipeline-schema
+
+    Args:
+        pipeline_definition: Pipeline definition object (e.g. from YAML converted to JSON).
+
+    Returns:
+        Success payload (e.g. validation message) or the API error is surfaced as a tool error.
+    """
+    client = OrchestraClient(api_key=os.getenv("ORCHESTRA_API_KEY"))
+    try:
+        return await client.validate_pipeline_schema(pipeline_definition=pipeline_definition)
+    finally:
+        await client.close()
+
+
 @mcp.tool(annotations=ToolAnnotations(title="Start Pipeline", destructiveHint=False))
 async def start_pipeline(
     alias_or_pipeline_id: str,

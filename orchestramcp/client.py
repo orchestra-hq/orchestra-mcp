@@ -253,6 +253,19 @@ class OrchestraClient:
         self._raise_for_status(response)
         return PipelineImportResponse(**response.json())
 
+    async def validate_pipeline_schema(
+        self, pipeline_definition: dict[str, Any]
+    ) -> dict[str, Any]:
+        """Validate a pipeline definition (JSON) against the Orchestra schema (POST /pipelines/schema).
+
+        Does not create or update a pipeline. This endpoint can be called without authentication.
+        """
+        response = await self._client.post(
+            "/pipelines/schema", json=pipeline_definition
+        )
+        self._raise_for_status(response)
+        return response.json()
+
     async def start_pipeline(
         self,
         alias_or_pipeline_id: str,
