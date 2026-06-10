@@ -100,3 +100,8 @@ class PipelineStartResponse(BaseModel):
     id: UUID4
     pipeline_run_id: UUID4 = Field(alias="pipelineRunId")
     message: str
+
+
+class ValidatePipelineSchemaResponse(BaseModel):
+    message: str
+    status: str | None = None

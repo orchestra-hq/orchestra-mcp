@@ -60,6 +60,7 @@ async def test_tool_registration():
         "list_task_run_logs",
         "list_task_runs",
         "start_pipeline",
+        "validate_pipeline",
     }
     assert expected_tools.issubset(tool_names)
 
