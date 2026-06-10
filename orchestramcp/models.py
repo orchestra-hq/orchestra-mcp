@@ -104,4 +104,3 @@ class PipelineStartResponse(BaseModel):
 
 class ValidatePipelineSchemaResponse(BaseModel):
     message: str
-    status: int
