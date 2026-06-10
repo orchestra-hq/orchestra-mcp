@@ -255,7 +255,7 @@ async def validate_pipeline(pipeline_definition: dict[str, Any]) -> dict:
         response = await client.validate_pipeline_schema(
             pipeline_definition=pipeline_definition
         )
-        return response.model_dump()
+        return response.model_dump(exclude_none=True)
     finally:
         await client.close()
 

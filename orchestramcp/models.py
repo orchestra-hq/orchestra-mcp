@@ -104,3 +104,4 @@ class PipelineStartResponse(BaseModel):
 
 class ValidatePipelineSchemaResponse(BaseModel):
     message: str
+    status: str | None = None

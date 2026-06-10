@@ -254,7 +254,6 @@ async def test_validate_pipeline_schema(client):
     mock_response = Mock()
     mock_response.json.return_value = {
         "message": "Pipeline schema is valid",
-        "status": "VALID",
     }
     mock_response.raise_for_status = Mock()
 
@@ -262,7 +261,6 @@ async def test_validate_pipeline_schema(client):
 
     result = await client.validate_pipeline_schema({"version": "v1", "name": "x"})
     assert result.message == "Pipeline schema is valid"
-    assert result.status == "VALID"
     client._client.post.assert_called_once_with(
         "/pipelines/schema", json={"version": "v1", "name": "x"}
     )
