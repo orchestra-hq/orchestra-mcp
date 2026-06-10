@@ -228,6 +228,47 @@ class OrchestraClient:
         self._raise_for_status(response)
         return [PipelineResponse.model_validate(item) for item in response.json()]
 
+    async def get_pipeline(
+        self,
+        pipeline_id: str | None = None,
+        alias: str | None = None,
+        repository: str | None = None,
+        yaml_path: str | None = None,
+    ) -> PipelineResponse:
+        """Fetch a single pipeline by selector.
+
+        Reference: GET /pipelines (list-or-fetch)
+        """
+
+        selector_count = sum(selector is not None for selector in (pipeline_id, alias)) + (
+            1 if repository is not None or yaml_path is not None else 0
+        )
+        if selector_count == 0:
+            raise ValueError(
+                "Provide exactly one selector: pipeline_id, alias, or repository + yaml_path"
+            )
+        if selector_count > 1:
+            raise ValueError(
+                "Provide only one selector: pipeline_id, alias, or repository + yaml_path"
+            )
+
+        if (repository is None) != (yaml_path is None):
+            raise ValueError("repository and yaml_path must be provided together")
+
+        params: dict[str, Any] = {}
+        if pipeline_id:
+            params["pipeline_id"] = pipeline_id
+        elif alias:
+            params["alias"] = alias
+        else:
+            # repository + yaml_path selector
+            params["repository"] = repository
+            params["yaml_path"] = yaml_path
+
+        response = await self._client.get("/pipelines", params=params)
+        self._raise_for_status(response)
+        return PipelineResponse.model_validate(response.json())
+
     async def import_pipeline(
         self,
         storage_provider: str,
