@@ -322,7 +322,7 @@ async def test_get_pipeline_repository_yaml_requires_both(client):
 
 @pytest.mark.asyncio
 async def test_get_pipeline_rejects_multiple_selectors(client):
-    with pytest.raises(ValueError, match="Provide only one selector"):
+    with pytest.raises(ValueError, match="Provide exactly one selector"):
         await client.get_pipeline(pipeline_id="pipeline-id", alias="daily_etl")
 
 
