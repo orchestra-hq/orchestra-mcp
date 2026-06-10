@@ -1,6 +1,6 @@
 from datetime import datetime
 from enum import Enum
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import UUID4, BaseModel, ConfigDict, Field
 
@@ -108,25 +108,12 @@ class ValidatePipelineSchemaResponse(BaseModel):
 
 
 class PipelineInputModel(BaseModel):
-    """Input parameter for a pipeline.
-
-    Orchestra models inputs using a {type, default, optional} shape. The API
-    can also return additional fields depending on the pipeline definition,
-    so we allow extra keys for forward compatibility.
-    """
-
-    model_config = ConfigDict(extra="allow")
-
-    type: str
+    type: Literal["string", "number", "boolean", "dict", "list"]
     default: Any | None = None
     optional: bool | None = None
 
 
 class PipelineResponse(BaseModel):
-    """Pipeline summary returned by `GET /pipelines`."""
-
-    model_config = ConfigDict(extra="allow")
-
     id: UUID4
     name: str
     num_tasks: int | None = Field(alias="numTasks")
