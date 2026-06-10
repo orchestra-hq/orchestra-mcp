@@ -11,6 +11,7 @@ from orchestramcp.models import (
     OperationType,
     PaginatedResponse,
     PipelineImportResponse,
+    PipelineResponse,
     PipelineRunProgress,
     PipelineRunStatus,
     PipelineStartResponse,
@@ -216,6 +217,16 @@ class OrchestraClient:
         response = await self._client.get("/assets", params=params)
         self._raise_for_status(response)
         return PaginatedResponse(**response.json())
+
+    async def list_pipelines(self) -> list[PipelineResponse]:
+        """List pipelines available to the current workspace API key.
+
+        Reference: GET /pipelines
+        """
+
+        response = await self._client.get("/pipelines", params={})
+        self._raise_for_status(response)
+        return [PipelineResponse.model_validate(item) for item in response.json()]
 
     async def import_pipeline(
         self,

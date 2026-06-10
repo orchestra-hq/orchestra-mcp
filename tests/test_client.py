@@ -201,6 +201,49 @@ async def test_list_assets(client):
 
 
 @pytest.mark.asyncio
+async def test_list_pipelines(client):
+    mock_response = Mock()
+    mock_response.json.return_value = [
+        {
+            "id": str(uuid.uuid4()),
+            "name": "Daily ETL",
+            "yamlPath": "pipelines/daily_etl.yaml",
+            "createdAt": "2025-03-01T12:00:00Z",
+            "updatedAt": "2025-03-20T15:30:00Z",
+            "paused": False,
+            "alias": "daily_etl",
+            "numTasks": 4,
+            "latestRunId": str(uuid.uuid4()),
+            "latestRunStatus": "SUCCEEDED",
+        },
+        {
+            "id": str(uuid.uuid4()),
+            "name": "Hourly Data Push",
+            "yamlPath": "pipelines/hourly_data_push.yaml",
+            "createdAt": "2025-04-01T12:00:00Z",
+            "updatedAt": "2025-04-19T15:30:00Z",
+            "paused": False,
+            "alias": "hourly_data",
+            "numTasks": 2,
+            "latestRunId": str(uuid.uuid4()),
+            "latestRunStatus": "SUCCEEDED",
+        }
+    ]
+    mock_response.raise_for_status = Mock()
+
+    client._client.get = AsyncMock(return_value=mock_response)
+
+    result = await client.list_pipelines()
+    assert len(result) == 2
+    assert result[0].name == "Daily ETL"
+    assert result[0].paused is False
+    assert result[1].name == "Hourly Data Push"
+    assert result[1].paused is False
+
+    client._client.get.assert_called_once_with("/pipelines", params={})
+
+
+@pytest.mark.asyncio
 async def test_list_operations_with_integration_filter(client):
     mock_response = Mock()
     mock_response.json.return_value = {

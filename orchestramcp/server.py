@@ -203,6 +203,18 @@ async def list_assets(
         return response.model_dump()
 
 
+@mcp.tool(annotations=ToolAnnotations(title="List Pipelines", readOnlyHint=True))
+async def list_pipelines() -> list[dict[str, Any]]:
+    """List pipelines available to the current workspace API key.
+
+    Reference: https://docs.getorchestra.io/api/pipelines/list-pipelines
+    """
+
+    async with get_client() as client:
+        response = await client.list_pipelines()
+        return [pipeline.model_dump() for pipeline in response]
+
+
 @mcp.tool(annotations=ToolAnnotations(title="Import Pipeline", destructiveHint=False))
 async def import_pipeline(
     storage_provider: str,
