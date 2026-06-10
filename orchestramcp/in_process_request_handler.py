@@ -76,9 +76,7 @@ async def _forward_request(event: dict[str, Any]) -> dict[str, Any]:
 
 
 class FastMCPInProcessRequestHandler(RequestHandler):
-    def handle_request(
-        self, request: JSONRPCRequest, context
-    ) -> JSONRPCResponse | JSONRPCError:
+    def handle_request(self, request: JSONRPCRequest, context) -> JSONRPCResponse | JSONRPCError:
         del context
         request_dict = request.model_dump(by_alias=True, exclude_none=True)
         try:

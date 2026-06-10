@@ -14,6 +14,7 @@ EXPECTED_TOOLS = {
     "list_assets",
     "list_operations",
     "list_pipeline_runs",
+    "list_pipelines",
     "list_task_run_artifacts",
     "list_task_run_logs",
     "list_task_runs",
