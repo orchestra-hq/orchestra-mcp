@@ -307,13 +307,43 @@ class OrchestraClient:
         self._raise_for_status(response)
         return PipelineImportResponse(**response.json())
 
-    async def delete_pipeline(self, alias: str) -> None:
-        """Delete a pipeline by alias (DELETE /pipelines/{alias}).
+    async def create_pipeline(
+        self,
+        pipeline_definition: dict[str, Any],
+        alias: str,
+        published: bool,
+        storage_provider: str = "ORCHESTRA",
+        default_branch: str | None = None,
+        repository: str | None = None,
+        working_branch: str | None = None,
+        yaml_path: str | None = None,
+        message: str | None = None,
+        message_is_custom: bool | None = None,
+    ) -> PipelineResponse:
+        """Create a new Orchestra-backed pipeline (POST /pipelines)."""
 
-        The Orchestra API returns 204 No Content on success.
-        """
-        response = await self._client.delete(f"/pipelines/{alias}")
+        payload: dict[str, Any] = {
+            "data": pipeline_definition,
+            "published": published,
+            "storageProvider": storage_provider,
+            "alias": alias,
+        }
+        if default_branch is not None:
+            payload["defaultBranch"] = default_branch
+        if repository is not None:
+            payload["repository"] = repository
+        if working_branch is not None:
+            payload["workingBranch"] = working_branch
+        if yaml_path is not None:
+            payload["yamlPath"] = yaml_path
+        if message is not None:
+            payload["message"] = message
+        if message_is_custom is not None:
+            payload["messageIsCustom"] = message_is_custom
+
+        response = await self._client.post("/pipelines", json=payload)
         self._raise_for_status(response)
+        return PipelineResponse.model_validate(response.json())
 
     async def validate_pipeline_schema(
         self, pipeline_definition: dict[str, Any]

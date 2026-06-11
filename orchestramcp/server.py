@@ -241,17 +241,34 @@ async def get_pipeline(
         )
         return response.model_dump()
 
-
-@mcp.tool(annotations=ToolAnnotations(title="Delete Pipeline", destructiveHint=True))
-async def delete_pipeline(alias: str) -> dict:
-    """Delete a pipeline by alias.
-
-    Reference: https://docs.getorchestra.io/api/pipelines/delete-a-pipeline
-    """
+@mcp.tool(annotations=ToolAnnotations(title="Create Pipeline", destructiveHint=False))
+async def create_pipeline(
+    pipeline_definition: dict[str, Any],
+    alias: str,
+    published: bool,
+    storage_provider: str = "ORCHESTRA",
+    default_branch: str | None = None,
+    repository: str | None = None,
+    working_branch: str | None = None,
+    yaml_path: str | None = None,
+    message: str | None = None,
+    message_is_custom: bool | None = None,
+) -> dict:
+    """Create a new Orchestra-backed pipeline (POST /pipelines)."""
     async with get_client() as client:
-        await client.delete_pipeline(alias=alias)
-        return {"message": f"Pipeline '{alias}' deleted"}
-
+        response = await client.create_pipeline(
+            pipeline_definition=pipeline_definition,
+            alias=alias,
+            published=published,
+            storage_provider=storage_provider,
+            default_branch=default_branch,
+            repository=repository,
+            working_branch=working_branch,
+            yaml_path=yaml_path,
+            message=message,
+            message_is_custom=message_is_custom,
+        )
+        return response.model_dump()
 
 @mcp.tool(annotations=ToolAnnotations(title="Import Pipeline", destructiveHint=False))
 async def import_pipeline(

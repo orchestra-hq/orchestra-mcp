@@ -173,15 +173,34 @@ async def test_cancel_pipeline_run(client):
 
 
 @pytest.mark.asyncio
-async def test_delete_pipeline(client):
+async def test_create_pipeline(client):
     mock_response = Mock()
-    mock_response.is_success = True
-    mock_response.status_code = 204
+    mock_response.json.return_value = {
+        "id": str(uuid.uuid4()),
+        "name": "Daily ETL",
+        "yamlPath": "pipelines/daily_etl.yaml",
+        "createdAt": "2025-03-01T12:00:00Z",
+        "updatedAt": "2025-03-20T15:30:00Z",
+        "paused": False,
+        "alias": "daily_etl",
+        "numTasks": 4,
+    }
+    mock_response.raise_for_status = Mock()
 
-    client._client.delete = AsyncMock(return_value=mock_response)
+    client._client.post = AsyncMock(return_value=mock_response)
 
-    await client.delete_pipeline(alias="daily_etl")
-    client._client.delete.assert_called_once_with("/pipelines/daily_etl")
+    pipeline_definition = {"version": "v1", "name": "Daily ETL"}
+    await client.create_pipeline(
+        pipeline_definition=pipeline_definition,
+        alias="daily_etl",
+        published=False,
+    )
+
+    client._client.post.assert_called_once()
+    _, kwargs = client._client.post.call_args
+    assert kwargs["json"]["alias"] == "daily_etl"
+    assert kwargs["json"]["published"] is False
+    assert kwargs["json"]["data"] == pipeline_definition
 
 
 @pytest.mark.asyncio
