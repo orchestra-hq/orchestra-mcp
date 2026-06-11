@@ -378,8 +378,20 @@ async def migrate_pipeline(
     """Migrate an Orchestra-backed pipeline to git-backed storage (PATCH /pipelines/storage-settings).
 
     Identify the pipeline with ``alias`` or ``pipeline_id``. The pipeline YAML must already
-    exist in the target Git repository at ``path`` — this tool only repoints Orchestra at the
-    Git-backed definition, it does not commit or push files.
+    exist in the target Git repository at ``path``. This tool only repoints Orchestra at
+    the Git-backed definition, it does not commit or push files.
+
+    Args:
+        path: Path to the pipeline YAML within the repository.
+        repository: Repository slug (e.g. owner/repo).
+        storage_provider: Git storage provider (e.g. GITHUB, GITLAB, BITBUCKET).
+        default_branch: Default branch to store in Orchestra.
+        working_branch: Optional working branch to use (omitted when equal to default_branch).
+        alias: Pipeline alias selector.
+        pipeline_id: Pipeline ID selector.
+
+    Returns:
+        The API response payload.
     """
     async with get_client() as client:
         return await client.migrate_pipeline_storage(

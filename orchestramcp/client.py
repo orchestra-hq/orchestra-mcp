@@ -321,8 +321,21 @@ class OrchestraClient:
 
         PATCH /pipelines/storage-settings.
 
-        The pipeline is identified by ``alias`` or ``pipeline_id``; the body points Orchestra
-        at the YAML already committed in Git. This tool does not commit or push files.
+        This repoints Orchestra at a Git-backed pipeline YAML that must already exist
+        in the target repository. Only Orchestra-backed pipelines can be migrated.
+
+        Args:
+            path: Path to the pipeline YAML within the repository.
+            repository: Repository slug or URL.
+            storage_provider: Git storage provider (e.g. GITHUB, GITLAB, BITBUCKET).
+            default_branch: Default branch to store the pipeline in.
+            working_branch: Optional working branch. If set and differs from default_branch,
+                it will be included in the request body.
+            pipeline_id: Pipeline ID selector.
+            alias: Pipeline alias selector.
+
+        Returns:
+            The API response JSON payload (or `{}` when the response has no body).
         """
         if not (pipeline_id or alias):
             raise ValueError("Provide one of pipeline_id or alias to identify the pipeline")
