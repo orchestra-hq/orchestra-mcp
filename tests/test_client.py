@@ -257,18 +257,6 @@ async def test_create_pipeline_full_config(client):
     assert body["messageIsCustom"] is False
     assert body["data"] == pipeline_definition
 
-
-@pytest.mark.asyncio
-async def test_create_pipeline_rejects_invalid_storage_provider(client):
-    with pytest.raises(ValueError, match="Invalid storage_provider"):
-        await client.create_pipeline(
-            pipeline_definition={"version": "v1", "name": "x"},
-            alias="x",
-            published=False,
-            storage_provider="UNKNOWN",
-        )
-
-
 @pytest.mark.asyncio
 async def test_list_assets(client):
     mock_response = Mock()

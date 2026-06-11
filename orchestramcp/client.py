@@ -21,14 +21,6 @@ from orchestramcp.models import (
 
 
 class OrchestraClient:
-    _ALLOWED_PIPELINE_STORAGE_PROVIDERS: set[str] = {
-        "ORCHESTRA",
-        "AZURE_DEVOPS",
-        "GITHUB",
-        "GITLAB",
-        "BITBUCKET",
-    }
-
     @staticmethod
     def _build_base_url() -> str:
         env = os.getenv("ORCHESTRA_ENV", "app").lower().strip()
@@ -329,11 +321,6 @@ class OrchestraClient:
         message_is_custom: bool | None = None,
     ) -> PipelineResponse:
         """Create a new Orchestra-backed pipeline (POST /pipelines)."""
-        if storage_provider not in self._ALLOWED_PIPELINE_STORAGE_PROVIDERS:
-            raise ValueError(
-                f"Invalid storage_provider '{storage_provider}'. Must be one of: "
-                + ", ".join(sorted(self._ALLOWED_PIPELINE_STORAGE_PROVIDERS))
-            )
 
         payload: dict[str, Any] = {
             "data": pipeline_definition,
