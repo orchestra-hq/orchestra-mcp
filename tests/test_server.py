@@ -51,6 +51,7 @@ async def test_tool_registration():
         "cancel_pipeline_run",
         "download_task_run_artifact",
         "download_task_run_log",
+        "delete_pipeline",
         "get_pipeline_run_status",
         "get_pipeline",
         "import_pipeline",

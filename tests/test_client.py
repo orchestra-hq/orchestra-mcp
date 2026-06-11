@@ -173,6 +173,18 @@ async def test_cancel_pipeline_run(client):
 
 
 @pytest.mark.asyncio
+async def test_delete_pipeline(client):
+    mock_response = Mock()
+    mock_response.is_success = True
+    mock_response.status_code = 204
+
+    client._client.delete = AsyncMock(return_value=mock_response)
+
+    await client.delete_pipeline(alias="daily_etl")
+    client._client.delete.assert_called_once_with("/pipelines/daily_etl")
+
+
+@pytest.mark.asyncio
 async def test_list_assets(client):
     mock_response = Mock()
     mock_response.json.return_value = {

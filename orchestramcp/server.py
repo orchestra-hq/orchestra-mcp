@@ -242,6 +242,17 @@ async def get_pipeline(
         return response.model_dump()
 
 
+@mcp.tool(annotations=ToolAnnotations(title="Delete Pipeline", destructiveHint=True))
+async def delete_pipeline(alias: str) -> dict:
+    """Delete a pipeline by alias.
+
+    Reference: https://docs.getorchestra.io/api/pipelines/delete-a-pipeline
+    """
+    async with get_client() as client:
+        await client.delete_pipeline(alias=alias)
+        return {"message": f"Pipeline '{alias}' deleted"}
+
+
 @mcp.tool(annotations=ToolAnnotations(title="Import Pipeline", destructiveHint=False))
 async def import_pipeline(
     storage_provider: str,

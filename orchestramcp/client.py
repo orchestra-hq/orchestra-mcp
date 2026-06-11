@@ -307,6 +307,14 @@ class OrchestraClient:
         self._raise_for_status(response)
         return PipelineImportResponse(**response.json())
 
+    async def delete_pipeline(self, alias: str) -> None:
+        """Delete a pipeline by alias (DELETE /pipelines/{alias}).
+
+        The Orchestra API returns 204 No Content on success.
+        """
+        response = await self._client.delete(f"/pipelines/{alias}")
+        self._raise_for_status(response)
+
     async def validate_pipeline_schema(
         self, pipeline_definition: dict[str, Any]
     ) -> ValidatePipelineSchemaResponse:
