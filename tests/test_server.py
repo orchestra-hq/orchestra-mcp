@@ -90,12 +90,16 @@ def test_delete_enabled_flag(monkeypatch):
     monkeypatch.delenv("ORCHESTRA_ENABLE_DELETE", raising=False)
     assert _delete_enabled() is False
 
-    for truthy in ("1", "true", "TRUE", "yes", "on"):
+    for truthy in ("1", "true", "TRUE"):
         monkeypatch.setenv("ORCHESTRA_ENABLE_DELETE", truthy)
         assert _delete_enabled() is True
 
     monkeypatch.setenv("ORCHESTRA_ENABLE_DELETE", "false")
     assert _delete_enabled() is False
+
+    for falsy in ("yes", "on", "0", "", "random"):
+        monkeypatch.setenv("ORCHESTRA_ENABLE_DELETE", falsy)
+        assert _delete_enabled() is False
 
 
 @pytest.mark.asyncio

@@ -335,10 +335,10 @@ async def update_pipeline(
 def _delete_enabled() -> bool:
     """Whether the destructive delete_pipeline tool should be registered.
 
-    Disabled by default; set ORCHESTRA_ENABLE_DELETE to a truthy value to expose it.
+    Disabled by default; set ORCHESTRA_ENABLE_DELETE to "true" or "1" to expose it.
     """
 
-    return os.getenv("ORCHESTRA_ENABLE_DELETE", "").strip().lower() in ("1", "true", "yes", "on")
+    return os.getenv("ORCHESTRA_ENABLE_DELETE", "").strip().lower() in ("1", "true")
 
 
 async def delete_pipeline(
@@ -349,8 +349,8 @@ async def delete_pipeline(
 ) -> dict:
     """Delete a pipeline by selector (DELETE /pipelines).
 
-    Disabled by default; set the `ORCHESTRA_ENABLE_DELETE` environment variable to a
-    truthy value (`1`, `true`, `yes`, or `on`) to expose this tool.
+    Disabled by default; set the `ORCHESTRA_ENABLE_DELETE` environment variable to
+    either `1` or `true` to expose this tool.
 
     Args:
         pipeline_id: Pipeline ID selector (UUID)
