@@ -312,6 +312,32 @@ async def test_update_pipeline_full_config(client):
 
 
 @pytest.mark.asyncio
+async def test_update_pipeline_parses_json_error(client):
+    """When the API returns an error with JSON body, error message is parsed."""
+    mock_response = Mock()
+    mock_response.is_success = False
+    mock_response.status_code = 422
+    mock_response.json.return_value = {
+        "detail": "Invalid pipeline definition: missing tasks",
+    }
+    mock_response.text = ""
+
+    client._client.put = AsyncMock(return_value=mock_response)
+
+    with pytest.raises(OrchestraAPIError) as exc_info:
+        await client.update_pipeline(
+            alias="bad_pipeline",
+            pipeline_definition={"version": "v1", "name": "Bad Pipeline"},
+            published=False,
+            storage_provider="ORCHESTRA",
+        )
+
+    assert exc_info.value.status_code == 422
+    assert "Invalid pipeline definition: missing tasks" in str(exc_info.value)
+    assert exc_info.value.message == "Invalid pipeline definition: missing tasks"
+
+
+@pytest.mark.asyncio
 async def test_create_pipeline_parses_json_error(client):
     """When the API returns an error with JSON body, error message is parsed."""
     mock_response = Mock()

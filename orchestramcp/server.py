@@ -299,7 +299,23 @@ async def update_pipeline(
     message: str | None = None,
     message_is_custom: bool | None = None,
 ) -> dict:
-    """Update an existing Orchestra-backed pipeline by alias (PUT /pipelines/{alias})."""
+    """Update an existing Orchestra-backed pipeline by alias (PUT /pipelines/{alias}).
+
+    Args:
+        alias: Pipeline alias identifier
+        pipeline_definition: Pipeline definition object (e.g. from YAML converted to JSON)
+        published: Whether to publish the pipeline on update
+        storage_provider: Where the pipeline definition is stored (default ORCHESTRA)
+        default_branch: Default branch name (Git-backed pipelines)
+        repository: Repository slug or URL (Git-backed pipelines)
+        working_branch: Working branch to commit to (Git-backed pipelines)
+        yaml_path: Path to pipeline YAML file within repository (Git-backed pipelines)
+        message: Commit message (Git-backed pipelines)
+        message_is_custom: Whether the commit message is custom (Git-backed pipelines)
+
+    Returns:
+        Updated pipeline with metadata
+    """
     async with get_client() as client:
         response = await client.update_pipeline(
             alias=alias,
