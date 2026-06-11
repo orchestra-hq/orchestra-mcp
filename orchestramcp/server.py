@@ -55,7 +55,7 @@ async def list_pipeline_runs(
     page: int | None = None,
     page_size: int | None = None,
 ) -> dict:
-    """List pipeline runs with optional filters.
+    """List pipeline runs with optional filters (GET /pipeline_runs).
 
     Args:
         time_from: Start time in ISO 8601 format (e.g., 2025-04-01T00:00:00Z)
@@ -94,7 +94,7 @@ async def list_task_runs(
     page: int | None = None,
     page_size: int | None = None,
 ) -> dict:
-    """List task runs with optional filters.
+    """List task runs with optional filters (GET /task_runs).
 
     Args:
         time_from: Start time in ISO 8601 format
@@ -138,7 +138,7 @@ async def list_operations(
     page: int | None = None,
     page_size: int | None = None,
 ) -> dict:
-    """List operations with optional filters.
+    """List operations with optional filters (GET /operations).
 
     Args:
         time_from: Start time in ISO 8601 format
@@ -179,7 +179,7 @@ async def list_assets(
     page: int | None = None,
     page_size: int | None = None,
 ) -> dict:
-    """List data assets.
+    """List data assets (GET /assets).
 
     Args:
         asset_type: Asset type filter (DASHBOARD, DASHBOARD_VIEWS, DATASET, QUERIES, TABLE, VIEW, WORKBOOK, UNKNOWN)
@@ -205,9 +205,13 @@ async def list_assets(
 
 @mcp.tool(annotations=ToolAnnotations(title="List Pipelines", readOnlyHint=True))
 async def list_pipelines() -> list[dict[str, Any]]:
-    """List pipelines available to the current workspace API key.
+    """List pipelines available to the current workspace API key (GET /pipelines).
 
-    Reference: https://docs.getorchestra.io/api/pipelines/list-pipelines
+    Returns:
+        List of pipelines available to the workspace
+
+    Reference:
+        https://docs.getorchestra.io/api/pipelines/list-pipelines
     """
 
     async with get_client() as client:
@@ -225,9 +229,24 @@ async def get_pipeline(
     branch: str | None = None,
     commit: str | None = None,
 ) -> dict:
-    """Fetch a single pipeline by selector.
+    """Fetch a single pipeline by selector (GET /pipeline).
 
-    Reference: https://docs.getorchestra.io/api/pipelines/get-a-pipeline-by-selector
+    Provide exactly one selector: pipeline_id, alias, or repository + yaml_path.
+
+    Args:
+        pipeline_id: Pipeline ID selector (UUID)
+        alias: Pipeline alias selector
+        repository: Repository slug or URL selector (used with yaml_path)
+        yaml_path: Path to pipeline YAML file within repository (used with repository)
+        version: Optional pipeline version number
+        branch: Optional branch name
+        commit: Optional commit SHA
+
+    Returns:
+        The matching pipeline with metadata
+
+    Reference:
+        https://docs.getorchestra.io/api/pipelines/get-a-pipeline-by-selector
     """
     async with get_client() as client:
         response = await client.get_pipeline(
@@ -270,6 +289,9 @@ async def create_pipeline(
 
     Returns:
         Created pipeline with metadata
+
+    Reference:
+        https://docs.getorchestra.io/api/pipelines/create-a-pipeline
     """
     async with get_client() as client:
         response = await client.create_pipeline(
@@ -315,6 +337,9 @@ async def update_pipeline(
 
     Returns:
         Updated pipeline with metadata
+
+    Reference:
+        https://docs.getorchestra.io/api/pipelines/update-a-pipeline
     """
     async with get_client() as client:
         response = await client.update_pipeline(
@@ -360,6 +385,9 @@ async def delete_pipeline(
 
     Returns:
         Confirmation message indicating the selected pipeline that was deleted
+
+    Reference:
+        https://docs.getorchestra.io/api/pipelines/delete-a-pipeline
     """
 
     async with get_client() as client:
@@ -388,7 +416,7 @@ async def import_pipeline(
     alias: str | None = None,
     working_branch: str | None = None,
 ) -> dict:
-    """Import a pipeline from a Git repository.
+    """Import a pipeline from a Git repository (POST /pipelines/import).
 
     Args:
         storage_provider: Storage provider (e.g., GITHUB)
@@ -400,6 +428,9 @@ async def import_pipeline(
 
     Returns:
         Pipeline import response with metadata
+
+    Reference:
+        https://docs.getorchestra.io/api/pipelines/import-a-pipeline
     """
     async with get_client() as client:
         response = await client.import_pipeline(
@@ -425,21 +456,24 @@ async def migrate_pipeline(
 ) -> dict:
     """Migrate an Orchestra-backed pipeline to git-backed storage (PATCH /pipelines/storage-settings).
 
-    Identify the pipeline with ``alias`` or ``pipeline_id``. The pipeline YAML must already
-    exist in the target Git repository at ``path``. This tool only repoints Orchestra at
-    the Git-backed definition, it does not commit or push files.
+    Identify the pipeline with `alias` or `pipeline_id`. The pipeline YAML must already
+    exist in the target Git repository at `path`. This tool only repoints Orchestra at
+    the Git-backed definition; it does not commit or push files.
 
     Args:
-        path: Path to the pipeline YAML within the repository.
-        repository: Repository slug (e.g. owner/repo).
-        storage_provider: Git storage provider (e.g. GITHUB, GITLAB, BITBUCKET).
-        default_branch: Default branch to store in Orchestra.
-        working_branch: Optional working branch to use (omitted when equal to default_branch).
-        alias: Pipeline alias selector.
-        pipeline_id: Pipeline ID selector.
+        path: Path to the pipeline YAML within the repository
+        repository: Repository slug (e.g. owner/repo)
+        storage_provider: Git storage provider (e.g. GITHUB, GITLAB, BITBUCKET)
+        default_branch: Default branch to store in Orchestra
+        working_branch: Optional working branch (omitted when equal to default_branch)
+        alias: Pipeline alias selector
+        pipeline_id: Pipeline ID selector
 
     Returns:
-        The API response payload.
+        The API response payload
+
+    Reference:
+        https://docs.getorchestra.io/api/pipelines/update-pipeline-storage-settings
     """
     async with get_client() as client:
         return await client.migrate_pipeline_storage(
@@ -455,16 +489,18 @@ async def migrate_pipeline(
 
 @mcp.tool(annotations=ToolAnnotations(title="Validate Pipeline", readOnlyHint=True))
 async def validate_pipeline(pipeline_definition: dict[str, Any]) -> dict:
-    """Validate a pipeline definition (JSON object) against the Orchestra API schema without persisting it.
+    """Validate a pipeline definition against the Orchestra schema without persisting it (POST /pipelines/schema).
 
-    Supply the same structure as in pipeline YAML (version, name, pipeline tasks, etc.), as parsed JSON.
-    See https://docs.getorchestra.io/api/pipelines/validate-pipeline-schema
+    Supply the same structure as the pipeline YAML (version, name, tasks, etc.) as parsed JSON.
 
     Args:
-        pipeline_definition: Pipeline definition object (e.g. from YAML converted to JSON).
+        pipeline_definition: Pipeline definition object (e.g. from YAML converted to JSON)
 
     Returns:
-        Success payload (e.g. validation message) or the API error is surfaced as a tool error.
+        Validation result payload; API errors are surfaced as tool errors
+
+    Reference:
+        https://docs.getorchestra.io/api/pipelines/validate-pipeline-schema
     """
     async with get_client() as client:
         response = await client.validate_pipeline_schema(
@@ -481,7 +517,7 @@ async def start_pipeline(
     environment: str | None = None,
     run_inputs: dict[str, Any] | None = None,
 ) -> dict:
-    """Start a pipeline run.
+    """Start a pipeline run (POST /pipelines/{alias_or_pipeline_id}/start).
 
     Args:
         alias_or_pipeline_id: Pipeline alias or pipeline ID (UUID)
@@ -492,6 +528,9 @@ async def start_pipeline(
 
     Returns:
         Pipeline start response with pipeline run ID
+
+    Reference:
+        https://docs.getorchestra.io/api/pipelines/start-a-pipeline-run
     """
     async with get_client() as client:
         response = await client.start_pipeline(
@@ -506,13 +545,16 @@ async def start_pipeline(
 
 @mcp.tool(annotations=ToolAnnotations(title="Get Pipeline Run Status", readOnlyHint=True))
 async def get_pipeline_run_status(pipeline_run_id: str) -> dict:
-    """Get the status of a pipeline run.
+    """Get the status of a pipeline run (GET /pipeline_runs/{pipeline_run_id}/status).
 
     Args:
         pipeline_run_id: Pipeline run ID
 
     Returns:
         Pipeline run status information
+
+    Reference:
+        https://docs.getorchestra.io/api/pipeline-runs/get-pipeline-run-status
     """
     async with get_client() as client:
         response = await client.get_pipeline_run_status(pipeline_run_id=pipeline_run_id)
@@ -521,13 +563,16 @@ async def get_pipeline_run_status(pipeline_run_id: str) -> dict:
 
 @mcp.tool(annotations=ToolAnnotations(title="Cancel Pipeline Run", destructiveHint=True))
 async def cancel_pipeline_run(pipeline_run_id: str) -> dict:
-    """Cancel a pipeline run.
+    """Cancel a pipeline run (POST /pipeline_runs/{pipeline_run_id}/cancel).
 
     Args:
         pipeline_run_id: Pipeline run ID to cancel
 
     Returns:
         Confirmation message
+
+    Reference:
+        https://docs.getorchestra.io/api/pipeline-runs/cancel-a-pipeline-run
     """
     async with get_client() as client:
         await client.cancel_pipeline_run(pipeline_run_id=pipeline_run_id)
@@ -539,7 +584,7 @@ async def list_task_run_logs(
     pipeline_run_id: str,
     task_run_id: str,
 ) -> dict:
-    """List available log files for a task run.
+    """List available log files for a task run (GET /pipeline_runs/{pipeline_run_id}/task_runs/{task_run_id}/logs).
 
     Args:
         pipeline_run_id: Pipeline run ID
@@ -547,6 +592,9 @@ async def list_task_run_logs(
 
     Returns:
         Dictionary with list of log filenames
+
+    Reference:
+        https://docs.getorchestra.io/api/logs/list-task-run-logs
     """
     async with get_client() as client:
         response = await client.list_task_run_logs(
@@ -563,7 +611,7 @@ async def download_task_run_log(
     filename: str,
     range_header: str | None = None,
 ) -> dict:
-    """Download a task run log file.
+    """Download a task run log file (GET /pipeline_runs/{pipeline_run_id}/task_runs/{task_run_id}/logs/download).
 
     Args:
         pipeline_run_id: Pipeline run ID
@@ -573,6 +621,9 @@ async def download_task_run_log(
 
     Returns:
         Dictionary with log content (base64 encoded for binary safety)
+
+    Reference:
+        https://docs.getorchestra.io/api/logs/download-a-task-run-log
     """
     import base64
 
@@ -595,7 +646,7 @@ async def list_task_run_artifacts(
     pipeline_run_id: str,
     task_run_id: str,
 ) -> dict:
-    """List available artifact files for a task run.
+    """List available artifact files for a task run (GET /pipeline_runs/{pipeline_run_id}/task_runs/{task_run_id}/artifacts).
 
     Args:
         pipeline_run_id: Pipeline run ID
@@ -603,6 +654,9 @@ async def list_task_run_artifacts(
 
     Returns:
         Dictionary with list of artifact filenames
+
+    Reference:
+        https://docs.getorchestra.io/api/artifacts/list-task-run-artifacts
     """
     async with get_client() as client:
         response = await client.list_task_run_artifacts(
@@ -618,7 +672,7 @@ async def download_task_run_artifact(
     task_run_id: str,
     filename: str,
 ) -> dict:
-    """Download a task run artifact file (e.g., dbt manifest.json).
+    """Download a task run artifact file, e.g. dbt manifest.json (GET /pipeline_runs/{pipeline_run_id}/task_runs/{task_run_id}/artifacts/download).
 
     Args:
         pipeline_run_id: Pipeline run ID
@@ -627,6 +681,9 @@ async def download_task_run_artifact(
 
     Returns:
         Dictionary with artifact content (base64 encoded for binary safety)
+
+    Reference:
+        https://docs.getorchestra.io/api/artifacts/download-a-task-run-artifact
     """
     import base64
 
@@ -645,7 +702,14 @@ async def download_task_run_artifact(
 
 @mcp.tool(annotations=ToolAnnotations(title="Get Pipeline Run Lineage URL", readOnlyHint=True))
 def get_pipeline_run_lineage_url(pipeline_run_id: str) -> str:
-    """Get the URL of a pipeline run lineage graph."""
+    """Build the URL of a pipeline run's lineage graph in the Orchestra UI.
+
+    Args:
+        pipeline_run_id: Pipeline run ID
+
+    Returns:
+        URL of the pipeline run lineage graph in the Orchestra UI
+    """
     env = os.getenv("ORCHESTRA_ENV", "app").lower().strip()
     return f"https://{env}.getorchestra.io/pipeline-runs/{pipeline_run_id}/lineage"
 
