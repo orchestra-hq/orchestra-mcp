@@ -365,6 +365,46 @@ async def import_pipeline(
         return response.model_dump()
 
 
+@mcp.tool(annotations=ToolAnnotations(title="Migrate Pipeline", destructiveHint=False))
+async def migrate_pipeline(
+    path: str,
+    repository: str,
+    storage_provider: str,
+    default_branch: str,
+    working_branch: str | None = None,
+    alias: str | None = None,
+    pipeline_id: str | None = None,
+) -> dict:
+    """Migrate an Orchestra-backed pipeline to git-backed storage (PATCH /pipelines/storage-settings).
+
+    Identify the pipeline with ``alias`` or ``pipeline_id``. The pipeline YAML must already
+    exist in the target Git repository at ``path``. This tool only repoints Orchestra at
+    the Git-backed definition, it does not commit or push files.
+
+    Args:
+        path: Path to the pipeline YAML within the repository.
+        repository: Repository slug (e.g. owner/repo).
+        storage_provider: Git storage provider (e.g. GITHUB, GITLAB, BITBUCKET).
+        default_branch: Default branch to store in Orchestra.
+        working_branch: Optional working branch to use (omitted when equal to default_branch).
+        alias: Pipeline alias selector.
+        pipeline_id: Pipeline ID selector.
+
+    Returns:
+        The API response payload.
+    """
+    async with get_client() as client:
+        return await client.migrate_pipeline_storage(
+            path=path,
+            repository=repository,
+            storage_provider=storage_provider,
+            default_branch=default_branch,
+            working_branch=working_branch,
+            alias=alias,
+            pipeline_id=pipeline_id,
+        )
+
+
 @mcp.tool(annotations=ToolAnnotations(title="Validate Pipeline", readOnlyHint=True))
 async def validate_pipeline(pipeline_definition: dict[str, Any]) -> dict:
     """Validate a pipeline definition (JSON object) against the Orchestra API schema without persisting it.

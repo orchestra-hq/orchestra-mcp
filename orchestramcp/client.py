@@ -307,6 +307,55 @@ class OrchestraClient:
         self._raise_for_status(response)
         return PipelineImportResponse(**response.json())
 
+    async def migrate_pipeline_storage(
+        self,
+        path: str,
+        repository: str,
+        storage_provider: str,
+        default_branch: str,
+        working_branch: str | None = None,
+        pipeline_id: str | None = None,
+        alias: str | None = None,
+    ) -> dict[str, Any]:
+        """Migrate an Orchestra-backed pipeline to git-backed storage.
+
+        PATCH /pipelines/storage-settings.
+
+        This repoints Orchestra at a Git-backed pipeline YAML that must already exist
+        in the target repository. Only Orchestra-backed pipelines can be migrated.
+
+        Args:
+            path: Path to the pipeline YAML within the repository.
+            repository: Repository slug or URL.
+            storage_provider: Git storage provider (e.g. GITHUB, GITLAB, BITBUCKET).
+            default_branch: Default branch to store the pipeline in.
+            working_branch: Optional working branch. If set and differs from default_branch,
+                it will be included in the request body.
+            pipeline_id: Pipeline ID selector.
+            alias: Pipeline alias selector.
+
+        Returns:
+            The API response JSON payload (or `{}` when the response has no body).
+        """
+        if not (pipeline_id or alias):
+            raise ValueError("Provide one of pipeline_id or alias to identify the pipeline")
+
+        params = self._build_query_params(pipeline_id=pipeline_id, alias=alias)
+        payload: dict[str, Any] = {
+            "path": path,
+            "repository": repository,
+            "storage_provider": storage_provider,
+            "default_branch": default_branch,
+        }
+        if working_branch and working_branch != default_branch:
+            payload["working_branch"] = working_branch
+
+        response = await self._client.patch(
+            "/pipelines/storage-settings", params=params, json=payload
+        )
+        self._raise_for_status(response)
+        return response.json() if response.content else {}
+
     async def create_pipeline(
         self,
         pipeline_definition: dict[str, Any],
