@@ -361,6 +361,59 @@ class OrchestraClient:
         self._raise_for_status(response)
         return PipelineResponse.model_validate(response.json())
 
+    async def update_pipeline(
+        self,
+        alias: str,
+        pipeline_definition: dict[str, Any],
+        published: bool,
+        storage_provider: Literal["ORCHESTRA", "AZURE_DEVOPS", "GITHUB", "GITLAB", "BITBUCKET"] = "ORCHESTRA",
+        default_branch: str | None = None,
+        repository: str | None = None,
+        working_branch: str | None = None,
+        yaml_path: str | None = None,
+        message: str | None = None,
+        message_is_custom: bool | None = None,
+    ) -> PipelineResponse:
+        """Update an existing Orchestra-backed pipeline by alias (PUT /pipelines/{alias}).
+
+        Args:
+            alias: Pipeline alias identifier
+            pipeline_definition: Pipeline definition object (e.g. from YAML converted to JSON)
+            published: Whether to publish the pipeline on update
+            storage_provider: Where the pipeline definition is stored (default ORCHESTRA)
+            default_branch: Default branch name (Git-backed pipelines)
+            repository: Repository slug or URL (Git-backed pipelines)
+            working_branch: Working branch to commit to (Git-backed pipelines)
+            yaml_path: Path to pipeline YAML file within repository (Git-backed pipelines)
+            message: Commit message (Git-backed pipelines)
+            message_is_custom: Whether the commit message is custom (Git-backed pipelines)
+
+        Returns:
+            Updated pipeline with metadata
+        """
+
+        payload: dict[str, Any] = {
+            "data": pipeline_definition,
+            "published": published,
+            "storageProvider": storage_provider,
+        }
+        if default_branch is not None:
+            payload["defaultBranch"] = default_branch
+        if repository is not None:
+            payload["repository"] = repository
+        if working_branch is not None:
+            payload["workingBranch"] = working_branch
+        if yaml_path is not None:
+            payload["yamlPath"] = yaml_path
+        if message is not None:
+            payload["message"] = message
+        if message_is_custom is not None:
+            payload["messageIsCustom"] = message_is_custom
+
+        response = await self._client.put(f"/pipelines/{alias}", json=payload)
+        self._raise_for_status(response)
+        return PipelineResponse.model_validate(response.json())
+
     async def validate_pipeline_schema(
         self, pipeline_definition: dict[str, Any]
     ) -> ValidatePipelineSchemaResponse:

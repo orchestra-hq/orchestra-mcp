@@ -50,6 +50,7 @@ async def test_tool_registration():
     expected_tools = {
         "cancel_pipeline_run",
         "create_pipeline",
+        "update_pipeline",
         "download_task_run_artifact",
         "download_task_run_log",
         "get_pipeline_run_status",

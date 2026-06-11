@@ -258,6 +258,86 @@ async def test_create_pipeline_full_config(client):
 
 
 @pytest.mark.asyncio
+async def test_update_pipeline_full_config(client):
+    mock_response = Mock()
+    mock_response.json.return_value = {
+        "id": str(uuid.uuid4()),
+        "name": "Updated Pipeline",
+        "yamlPath": "pipelines/updated_pipeline.yaml",
+        "createdAt": "2025-03-01T12:00:00Z",
+        "updatedAt": "2025-03-20T15:30:00Z",
+        "paused": False,
+        "alias": "updated_pipeline",
+        "numTasks": 3,
+    }
+    mock_response.raise_for_status = Mock()
+
+    client._client.put = AsyncMock(return_value=mock_response)
+
+    pipeline_definition = {
+        "version": "v1",
+        "name": "Updated Pipeline",
+        "tasks": {
+            "extract": {"type": "python", "command": "python -c 'print(1)'"},
+            "load": {"type": "http", "command": "curl -X POST https://example.com/ingest"},
+        },
+    }
+
+    await client.update_pipeline(
+        alias="updated_pipeline",
+        pipeline_definition=pipeline_definition,
+        published=True,
+        storage_provider="AZURE_DEVOPS",
+        default_branch="main",
+        repository="my-org/my-repo",
+        working_branch="feature/pipeline-update",
+        yaml_path="pipelines/updated_pipeline.yaml",
+        message="Update pipeline import",
+        message_is_custom=False,
+    )
+
+    client._client.put.assert_called_once()
+    _, kwargs = client._client.put.call_args
+    body = kwargs["json"]
+    assert "alias" not in body  # alias is a path parameter only
+    assert body["published"] is True
+    assert body["storageProvider"] == "AZURE_DEVOPS"
+    assert body["defaultBranch"] == "main"
+    assert body["repository"] == "my-org/my-repo"
+    assert body["workingBranch"] == "feature/pipeline-update"
+    assert body["yamlPath"] == "pipelines/updated_pipeline.yaml"
+    assert body["message"] == "Update pipeline import"
+    assert body["messageIsCustom"] is False
+    assert body["data"] == pipeline_definition
+
+
+@pytest.mark.asyncio
+async def test_update_pipeline_parses_json_error(client):
+    """When the API returns an error with JSON body, error message is parsed."""
+    mock_response = Mock()
+    mock_response.is_success = False
+    mock_response.status_code = 422
+    mock_response.json.return_value = {
+        "detail": "Invalid pipeline definition: missing tasks",
+    }
+    mock_response.text = ""
+
+    client._client.put = AsyncMock(return_value=mock_response)
+
+    with pytest.raises(OrchestraAPIError) as exc_info:
+        await client.update_pipeline(
+            alias="bad_pipeline",
+            pipeline_definition={"version": "v1", "name": "Bad Pipeline"},
+            published=False,
+            storage_provider="ORCHESTRA",
+        )
+
+    assert exc_info.value.status_code == 422
+    assert "Invalid pipeline definition: missing tasks" in str(exc_info.value)
+    assert exc_info.value.message == "Invalid pipeline definition: missing tasks"
+
+
+@pytest.mark.asyncio
 async def test_create_pipeline_parses_json_error(client):
     """When the API returns an error with JSON body, error message is parsed."""
     mock_response = Mock()
