@@ -307,6 +307,42 @@ class OrchestraClient:
         self._raise_for_status(response)
         return PipelineImportResponse(**response.json())
 
+    async def migrate_pipeline_storage(
+        self,
+        path: str,
+        repository: str,
+        storage_provider: str,
+        default_branch: str,
+        working_branch: str | None = None,
+        pipeline_id: str | None = None,
+        alias: str | None = None,
+    ) -> dict[str, Any]:
+        """Migrate an Orchestra-backed pipeline to git-backed storage.
+
+        PATCH /pipelines/storage-settings.
+
+        The pipeline is identified by ``alias`` or ``pipeline_id``; the body points Orchestra
+        at the YAML already committed in Git. This tool does not commit or push files.
+        """
+        if not (pipeline_id or alias):
+            raise ValueError("Provide one of pipeline_id or alias to identify the pipeline")
+
+        params = self._build_query_params(pipeline_id=pipeline_id, alias=alias)
+        payload: dict[str, Any] = {
+            "path": path,
+            "repository": repository,
+            "storage_provider": storage_provider,
+            "default_branch": default_branch,
+        }
+        if working_branch and working_branch != default_branch:
+            payload["working_branch"] = working_branch
+
+        response = await self._client.patch(
+            "/pipelines/storage-settings", params=params, json=payload
+        )
+        self._raise_for_status(response)
+        return response.json() if response.content else {}
+
     async def create_pipeline(
         self,
         pipeline_definition: dict[str, Any],

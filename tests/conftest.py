@@ -19,6 +19,7 @@ EXPECTED_TOOLS = {
     "list_task_run_artifacts",
     "list_task_run_logs",
     "list_task_runs",
+    "migrate_pipeline",
     "start_pipeline",
     "update_pipeline",
 }

@@ -517,6 +517,69 @@ async def test_get_pipeline_rejects_multiple_selectors(client):
 
 
 @pytest.mark.asyncio
+async def test_migrate_pipeline_storage(client):
+    mock_response = Mock()
+    mock_response.content = b'{"status": "ok"}'
+    mock_response.json.return_value = {"status": "ok"}
+    mock_response.raise_for_status = Mock()
+
+    client._client.patch = AsyncMock(return_value=mock_response)
+
+    result = await client.migrate_pipeline_storage(
+        path="pipelines/my.yaml",
+        repository="owner/repo",
+        storage_provider="GITHUB",
+        default_branch="main",
+        working_branch="feature",
+        alias="my_pipeline",
+    )
+
+    assert result == {"status": "ok"}
+    call = client._client.patch.call_args
+    assert call[0][0] == "/pipelines/storage-settings"
+    assert call[1]["params"] == {"alias": "my_pipeline"}
+    assert call[1]["json"] == {
+        "path": "pipelines/my.yaml",
+        "repository": "owner/repo",
+        "storage_provider": "GITHUB",
+        "default_branch": "main",
+        "working_branch": "feature",
+    }
+
+
+@pytest.mark.asyncio
+async def test_migrate_pipeline_storage_omits_working_branch_when_default(client):
+    mock_response = Mock()
+    mock_response.content = b""
+    mock_response.raise_for_status = Mock()
+
+    client._client.patch = AsyncMock(return_value=mock_response)
+
+    result = await client.migrate_pipeline_storage(
+        path="pipelines/my.yaml",
+        repository="owner/repo",
+        storage_provider="GITHUB",
+        default_branch="main",
+        working_branch="main",
+        pipeline_id="abc",
+    )
+
+    assert result == {}
+    assert "working_branch" not in client._client.patch.call_args[1]["json"]
+
+
+@pytest.mark.asyncio
+async def test_migrate_pipeline_storage_requires_selector(client):
+    with pytest.raises(ValueError, match="pipeline_id or alias"):
+        await client.migrate_pipeline_storage(
+            path="pipelines/my.yaml",
+            repository="owner/repo",
+            storage_provider="GITHUB",
+            default_branch="main",
+        )
+
+
+@pytest.mark.asyncio
 async def test_list_operations_with_integration_filter(client):
     mock_response = Mock()
     mock_response.json.return_value = {

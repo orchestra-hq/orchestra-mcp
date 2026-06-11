@@ -8,6 +8,7 @@ A Model Context Protocol (MCP) server for the [Orchestra API](https://docs.getor
 - **Task & Operation Monitoring**: Query task runs and operations with flexible filtering, including integration filters
 - **Asset Discovery**: List and filter data assets across integrations
 - **Pipeline Import**: Import pipelines from Git repositories
+- **Pipeline Migration**: Migrate Orchestra-backed pipelines to git-backed storage
 - **Logs & Artifacts**: Download task run logs and artifacts (e.g., dbt manifest files)
 
 ## Quick Start

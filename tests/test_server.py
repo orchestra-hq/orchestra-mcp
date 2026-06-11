@@ -63,6 +63,7 @@ async def test_tool_registration():
         "list_task_run_artifacts",
         "list_task_run_logs",
         "list_task_runs",
+        "migrate_pipeline",
         "start_pipeline",
         "validate_pipeline",
     }
