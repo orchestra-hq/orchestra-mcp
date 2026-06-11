@@ -363,15 +363,14 @@ async def delete_pipeline(
     """
 
     async with get_client() as client:
-        await client.delete_pipeline(
+        response = await client.delete_pipeline(
             pipeline_id=pipeline_id,
             alias=alias,
             repository=repository,
             yaml_path=yaml_path,
         )
 
-    selector = alias or pipeline_id or f"{repository}:{yaml_path}"
-    return {"message": f"Pipeline ({selector}) deleted"}
+    return response.model_dump()
 
 
 if _delete_enabled():

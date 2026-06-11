@@ -7,6 +7,7 @@ import httpx
 from orchestramcp.errors import OrchestraAPIError, parse_error_response
 from orchestramcp.models import (
     AssetType,
+    DeletePipelineResponse,
     OperationStatus,
     OperationType,
     PaginatedResponse,
@@ -420,7 +421,7 @@ class OrchestraClient:
         alias: str | None = None,
         repository: str | None = None,
         yaml_path: str | None = None,
-    ) -> None:
+    ) -> DeletePipelineResponse:
         """Delete a pipeline by selector (DELETE /pipelines).
 
         Args:
@@ -430,7 +431,7 @@ class OrchestraClient:
             yaml_path: Path to the pipeline YAML file within the repository (used with repository)
 
         Returns:
-            None
+            Deletion result. For HTTP `204 No Content`, this returns `{"is_deleted": true}`.
         """
         if (repository is None) ^ (yaml_path is None):
             raise ValueError("repository and yaml_path must be provided together")
@@ -445,6 +446,19 @@ class OrchestraClient:
         )
         response = await self._client.delete("/pipelines", params=params)
         self._raise_for_status(response)
+        if response.status_code == 204 or not response.content:
+            return DeletePipelineResponse(is_deleted=True)
+
+        # The API usually returns 204 with empty body, but if it returns JSON we still
+        # normalize the response to our stable `is_deleted` shape.
+        try:
+            data = response.json()
+            if isinstance(data, dict) and "is_deleted" in data:
+                return DeletePipelineResponse.model_validate(data)
+        except Exception:
+            pass
+
+        return DeletePipelineResponse(is_deleted=True)
 
     async def validate_pipeline_schema(
         self, pipeline_definition: dict[str, Any]

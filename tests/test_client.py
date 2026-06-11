@@ -366,11 +366,14 @@ async def test_create_pipeline_parses_json_error(client):
 @pytest.mark.asyncio
 async def test_delete_pipeline(client):
     mock_response = Mock()
-    mock_response.raise_for_status = Mock()
+    mock_response.is_success = True
+    mock_response.status_code = 204
+    mock_response.content = b""
 
     client._client.delete = AsyncMock(return_value=mock_response)
 
-    await client.delete_pipeline(alias="my_pipeline")
+    result = await client.delete_pipeline(alias="my_pipeline")
+    assert result.is_deleted is True
     client._client.delete.assert_called_once_with(
         "/pipelines", params={"alias": "my_pipeline"}
     )

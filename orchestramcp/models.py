@@ -107,6 +107,10 @@ class ValidatePipelineSchemaResponse(BaseModel):
     status: str | None = None
 
 
+class DeletePipelineResponse(BaseModel):
+    is_deleted: bool
+
+
 class PipelineInputModel(BaseModel):
     type: Literal["string", "number", "boolean", "dict", "list"]
     default: Any | None = None
