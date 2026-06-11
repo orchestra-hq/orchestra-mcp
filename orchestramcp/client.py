@@ -423,10 +423,14 @@ class OrchestraClient:
     ) -> None:
         """Delete a pipeline by selector (DELETE /pipelines).
 
-        Provide one of:
-        - pipeline_id
-        - alias
-        - repository + yaml_path
+        Args:
+            pipeline_id: Pipeline ID selector (UUID)
+            alias: Pipeline alias selector
+            repository: Repository slug or URL selector (used with yaml_path)
+            yaml_path: Path to the pipeline YAML file within the repository (used with repository)
+
+        Returns:
+            None
         """
         if (repository is None) ^ (yaml_path is None):
             raise ValueError("repository and yaml_path must be provided together")

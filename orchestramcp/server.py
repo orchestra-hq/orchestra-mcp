@@ -349,13 +349,17 @@ async def delete_pipeline(
 ) -> dict:
     """Delete a pipeline by selector (DELETE /pipelines).
 
-    Disabled by default; set the ORCHESTRA_ENABLE_DELETE environment variable to a truthy
-    value (1/true/yes/on) to expose this tool.
+    Disabled by default; set the `ORCHESTRA_ENABLE_DELETE` environment variable to a
+    truthy value (`1`, `true`, `yes`, or `on`) to expose this tool.
 
-    Provide one of:
-    - pipeline_id
-    - alias
-    - repository + yaml_path
+    Args:
+        pipeline_id: Pipeline ID selector (UUID)
+        alias: Pipeline alias selector
+        repository: Repository slug or URL selector (used with `yaml_path`)
+        yaml_path: Path to the pipeline YAML file within the repository (used with `repository`)
+
+    Returns:
+        Confirmation message indicating the selected pipeline that was deleted
     """
 
     async with get_client() as client:
