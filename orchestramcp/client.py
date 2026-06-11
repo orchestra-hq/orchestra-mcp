@@ -433,10 +433,10 @@ class OrchestraClient:
         Returns:
             Deletion result. For HTTP `204 No Content`, this returns `{"is_deleted": true}`.
         """
-        if not (pipeline_id or alias or (repository and yaml_path)):
-            raise ValueError("Provide one of pipeline_id, alias, or repository + yaml_path")
         if (repository is None) != (yaml_path is None):
             raise ValueError("repository and yaml_path must be provided together")
+        if not (pipeline_id or alias or (repository and yaml_path)):
+            raise ValueError("Provide one of pipeline_id, alias, or repository + yaml_path")
 
         params = self._build_query_params(
             pipeline_id=pipeline_id,
