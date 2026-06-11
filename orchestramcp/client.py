@@ -242,15 +242,6 @@ class OrchestraClient:
     ) -> PipelineResponse:
         """Fetch a single pipeline by selector (GET /pipeline).
 
-        Args:
-            pipeline_id: Pipeline ID selector (UUID)
-            alias: Pipeline alias selector
-            repository: Repository slug or URL selector (used with yaml_path)
-            yaml_path: Path to pipeline YAML file within repository (used with repository)
-            version: Optional pipeline version number
-            branch: Optional branch name
-            commit: Optional commit SHA
-
         Returns:
             The matching pipeline with metadata
         """
@@ -293,14 +284,6 @@ class OrchestraClient:
     ) -> PipelineImportResponse:
         """Import a pipeline from a Git repository (POST /pipelines/import).
 
-        Args:
-            storage_provider: Storage provider (e.g., GITHUB)
-            repository: Repository slug or URL
-            default_branch: Default branch name
-            yaml_path: Path to pipeline YAML file
-            alias: Optional pipeline alias
-            working_branch: Optional working branch
-
         Returns:
             Pipeline import response
         """
@@ -330,15 +313,6 @@ class OrchestraClient:
         alias: str | None = None,
     ) -> dict[str, Any]:
         """Migrate an Orchestra-backed pipeline to git-backed storage (PATCH /pipelines/storage-settings).
-
-        Args:
-            path: Path to the pipeline YAML within the repository
-            repository: Repository slug or URL
-            storage_provider: Git storage provider (e.g. GITHUB, GITLAB, BITBUCKET)
-            default_branch: Default branch to store the pipeline in
-            working_branch: Optional working branch; included only when it differs from default_branch
-            pipeline_id: Pipeline ID selector
-            alias: Pipeline alias selector
 
         Returns:
             The API response JSON payload (or `{}` when the response has no body)
@@ -376,18 +350,6 @@ class OrchestraClient:
         message_is_custom: bool | None = None,
     ) -> PipelineResponse:
         """Create a new pipeline (POST /pipelines).
-
-        Args:
-            pipeline_definition: Pipeline definition object (e.g. from YAML converted to JSON)
-            alias: Pipeline alias identifier
-            published: Whether to publish the pipeline on creation
-            storage_provider: Where the pipeline definition is stored (default ORCHESTRA)
-            default_branch: Default branch name (Git-backed pipelines)
-            repository: Repository slug or URL (Git-backed pipelines)
-            working_branch: Working branch to commit to (Git-backed pipelines)
-            yaml_path: Path to pipeline YAML file within repository (Git-backed pipelines)
-            message: Commit message (Git-backed pipelines)
-            message_is_custom: Whether the commit message is custom (Git-backed pipelines)
 
         Returns:
             Created pipeline with metadata
@@ -431,18 +393,6 @@ class OrchestraClient:
     ) -> PipelineResponse:
         """Update an existing Orchestra-backed pipeline by alias (PUT /pipelines/{alias}).
 
-        Args:
-            alias: Pipeline alias identifier
-            pipeline_definition: Pipeline definition object (e.g. from YAML converted to JSON)
-            published: Whether to publish the pipeline on update
-            storage_provider: Where the pipeline definition is stored (default ORCHESTRA)
-            default_branch: Default branch name (Git-backed pipelines)
-            repository: Repository slug or URL (Git-backed pipelines)
-            working_branch: Working branch to commit to (Git-backed pipelines)
-            yaml_path: Path to pipeline YAML file within repository (Git-backed pipelines)
-            message: Commit message (Git-backed pipelines)
-            message_is_custom: Whether the commit message is custom (Git-backed pipelines)
-
         Returns:
             Updated pipeline with metadata
         """
@@ -478,12 +428,6 @@ class OrchestraClient:
     ) -> DeletePipelineResponse:
         """Delete a pipeline by selector (DELETE /pipelines).
 
-        Args:
-            pipeline_id: Pipeline ID selector (UUID)
-            alias: Pipeline alias selector
-            repository: Repository slug or URL selector (used with yaml_path)
-            yaml_path: Path to the pipeline YAML file within the repository (used with repository)
-
         Returns:
             Deletion result. For HTTP `204 No Content`, this returns `{"is_deleted": true}`.
         """
@@ -507,9 +451,6 @@ class OrchestraClient:
     ) -> ValidatePipelineSchemaResponse:
         """Validate a pipeline definition against the Orchestra schema (POST /pipelines/schema).
 
-        Args:
-            pipeline_definition: Pipeline definition object (e.g. from YAML converted to JSON)
-
         Returns:
             Validation result payload
         """
@@ -526,13 +467,6 @@ class OrchestraClient:
         run_inputs: dict[str, Any] | None = None,
     ) -> PipelineStartResponse:
         """Start a pipeline run (POST /pipelines/{alias_or_pipeline_id}/start).
-
-        Args:
-            alias_or_pipeline_id: Pipeline alias or pipeline ID (UUID)
-            branch: Optional branch name
-            commit: Optional commit SHA
-            environment: Optional environment name
-            run_inputs: Optional run inputs
 
         Returns:
             Pipeline start response with run ID
