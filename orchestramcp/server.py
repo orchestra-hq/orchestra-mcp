@@ -254,7 +254,23 @@ async def create_pipeline(
     message: str | None = None,
     message_is_custom: bool | None = None,
 ) -> dict:
-    """Create a new Orchestra-backed pipeline (POST /pipelines)."""
+    """Create a new pipeline (POST /pipelines).
+
+    Args:
+        pipeline_definition: Pipeline definition object (e.g. from YAML converted to JSON)
+        alias: Pipeline alias identifier
+        published: Whether to publish the pipeline on creation
+        storage_provider: Where the pipeline definition is stored (default ORCHESTRA)
+        default_branch: Default branch name (Git-backed pipelines)
+        repository: Repository slug or URL (Git-backed pipelines)
+        working_branch: Working branch to commit to (Git-backed pipelines)
+        yaml_path: Path to pipeline YAML file within repository (Git-backed pipelines)
+        message: Commit message (Git-backed pipelines)
+        message_is_custom: Whether the commit message is custom (Git-backed pipelines)
+
+    Returns:
+        Created pipeline with metadata
+    """
     async with get_client() as client:
         response = await client.create_pipeline(
             pipeline_definition=pipeline_definition,
