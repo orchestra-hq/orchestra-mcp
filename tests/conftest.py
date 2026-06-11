@@ -20,6 +20,7 @@ EXPECTED_TOOLS = {
     "list_task_run_logs",
     "list_task_runs",
     "start_pipeline",
+    "update_pipeline",
 }
 
 MCP_HEADERS = {

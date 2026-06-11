@@ -286,6 +286,35 @@ async def create_pipeline(
         )
         return response.model_dump()
 
+@mcp.tool(annotations=ToolAnnotations(title="Update Pipeline", destructiveHint=False))
+async def update_pipeline(
+    alias: str,
+    pipeline_definition: dict[str, Any],
+    published: bool,
+    storage_provider: Literal["ORCHESTRA", "AZURE_DEVOPS", "GITHUB", "GITLAB", "BITBUCKET"] = "ORCHESTRA",
+    default_branch: str | None = None,
+    repository: str | None = None,
+    working_branch: str | None = None,
+    yaml_path: str | None = None,
+    message: str | None = None,
+    message_is_custom: bool | None = None,
+) -> dict:
+    """Update an existing Orchestra-backed pipeline by alias (PUT /pipelines/{alias})."""
+    async with get_client() as client:
+        response = await client.update_pipeline(
+            alias=alias,
+            pipeline_definition=pipeline_definition,
+            published=published,
+            storage_provider=storage_provider,
+            default_branch=default_branch,
+            repository=repository,
+            working_branch=working_branch,
+            yaml_path=yaml_path,
+            message=message,
+            message_is_custom=message_is_custom,
+        )
+        return response.model_dump()
+
 @mcp.tool(annotations=ToolAnnotations(title="Import Pipeline", destructiveHint=False))
 async def import_pipeline(
     storage_provider: str,
