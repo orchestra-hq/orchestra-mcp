@@ -207,6 +207,9 @@ async def list_assets(
 async def list_pipelines() -> list[dict[str, Any]]:
     """List pipelines available to the current workspace API key (GET /pipelines).
 
+    Returns:
+        List of pipelines available to the workspace
+
     Reference:
         https://docs.getorchestra.io/api/pipelines/list-pipelines
     """
