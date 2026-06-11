@@ -215,6 +215,33 @@ async def list_pipelines() -> list[dict[str, Any]]:
         return [pipeline.model_dump() for pipeline in response]
 
 
+@mcp.tool(annotations=ToolAnnotations(title="Get Pipeline", readOnlyHint=True))
+async def get_pipeline(
+    pipeline_id: str | None = None,
+    alias: str | None = None,
+    repository: str | None = None,
+    yaml_path: str | None = None,
+    version: int | None = None,
+    branch: str | None = None,
+    commit: str | None = None,
+) -> dict:
+    """Fetch a single pipeline by selector.
+
+    Reference: https://docs.getorchestra.io/api/pipelines/get-a-pipeline-by-selector
+    """
+    async with get_client() as client:
+        response = await client.get_pipeline(
+            pipeline_id=pipeline_id,
+            alias=alias,
+            repository=repository,
+            yaml_path=yaml_path,
+            version=version,
+            branch=branch,
+            commit=commit,
+        )
+        return response.model_dump()
+
+
 @mcp.tool(annotations=ToolAnnotations(title="Import Pipeline", destructiveHint=False))
 async def import_pipeline(
     storage_provider: str,

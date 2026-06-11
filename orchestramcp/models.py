@@ -116,7 +116,7 @@ class PipelineInputModel(BaseModel):
 class PipelineResponse(BaseModel):
     id: UUID4
     name: str
-    num_tasks: int | None = Field(alias="numTasks")
+    num_tasks: int | None = Field(alias="numTasks", default=None)
     yaml_path: str = Field(alias="yamlPath")
     created_at: datetime = Field(alias="createdAt")
     updated_at: datetime = Field(alias="updatedAt")

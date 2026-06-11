@@ -227,7 +227,7 @@ async def test_list_pipelines(client):
             "numTasks": 2,
             "latestRunId": str(uuid.uuid4()),
             "latestRunStatus": "SUCCEEDED",
-        }
+        },
     ]
     mock_response.raise_for_status = Mock()
 
@@ -241,6 +241,89 @@ async def test_list_pipelines(client):
     assert result[1].paused is False
 
     client._client.get.assert_called_once_with("/pipelines", params={})
+
+
+@pytest.mark.asyncio
+async def test_get_pipeline_by_alias(client):
+    mock_response = Mock()
+    mock_response.json.return_value = {
+        "id": str(uuid.uuid4()),
+        "name": "Daily ETL",
+        "yamlPath": "pipelines/daily_etl.yaml",
+        "createdAt": "2025-03-01T12:00:00Z",
+        "updatedAt": "2025-03-20T15:30:00Z",
+        "paused": False,
+        "alias": "daily_etl",
+    }
+    mock_response.raise_for_status = Mock()
+
+    client._client.get = AsyncMock(return_value=mock_response)
+
+    result = await client.get_pipeline(alias="daily_etl")
+    assert result.name == "Daily ETL"
+    assert result.paused is False
+    client._client.get.assert_called_once_with(
+        "/pipeline", params={"alias": "daily_etl"}
+    )
+
+
+@pytest.mark.asyncio
+async def test_get_pipeline_passes_optional_selectors(client):
+    mock_response = Mock()
+    mock_response.json.return_value = {
+        "id": str(uuid.uuid4()),
+        "name": "Daily ETL",
+        "yamlPath": "pipelines/daily_etl.yaml",
+        "createdAt": "2025-03-01T12:00:00Z",
+        "updatedAt": "2025-03-20T15:30:00Z",
+        "paused": False,
+        "alias": "daily_etl",
+    }
+    mock_response.raise_for_status = Mock()
+
+    client._client.get = AsyncMock(return_value=mock_response)
+
+    await client.get_pipeline(
+        alias="daily_etl",
+        version=2,
+        branch="main",
+        commit="deadbeef",
+    )
+
+    client._client.get.assert_called_once_with(
+        "/pipeline",
+        params={
+            "alias": "daily_etl",
+            "version": 2,
+            "branch": "main",
+            "commit": "deadbeef",
+        },
+    )
+
+
+@pytest.mark.asyncio
+async def test_get_pipeline_repository_yaml_requires_both(client):
+    mock_response = Mock()
+    mock_response.json.return_value = {
+        "id": str(uuid.uuid4()),
+        "name": "Daily ETL",
+        "yamlPath": "pipelines/daily_etl.yaml",
+        "createdAt": "2025-03-01T12:00:00Z",
+        "updatedAt": "2025-03-20T15:30:00Z",
+        "paused": False,
+        "alias": "daily_etl",
+    }
+    mock_response.raise_for_status = Mock()
+    client._client.get = AsyncMock(return_value=mock_response)
+
+    with pytest.raises(ValueError, match="repository and yaml_path must be provided together"):
+        await client.get_pipeline(repository="repo", yaml_path=None)
+
+
+@pytest.mark.asyncio
+async def test_get_pipeline_rejects_multiple_selectors(client):
+    with pytest.raises(ValueError, match="Provide exactly one selector"):
+        await client.get_pipeline(pipeline_id="pipeline-id", alias="daily_etl")
 
 
 @pytest.mark.asyncio
