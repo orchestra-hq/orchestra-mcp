@@ -3,7 +3,7 @@ import sys
 from datetime import datetime
 from functools import lru_cache
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 # Allow running server.py directly (e.g. via fastmcp run); project root must be on path
 _project_root = Path(__file__).resolve().parent.parent
@@ -241,6 +241,50 @@ async def get_pipeline(
         )
         return response.model_dump()
 
+@mcp.tool(annotations=ToolAnnotations(title="Create Pipeline", destructiveHint=False))
+async def create_pipeline(
+    pipeline_definition: dict[str, Any],
+    alias: str,
+    published: bool,
+    storage_provider: Literal["ORCHESTRA", "AZURE_DEVOPS", "GITHUB", "GITLAB", "BITBUCKET"] = "ORCHESTRA",
+    default_branch: str | None = None,
+    repository: str | None = None,
+    working_branch: str | None = None,
+    yaml_path: str | None = None,
+    message: str | None = None,
+    message_is_custom: bool | None = None,
+) -> dict:
+    """Create a new pipeline (POST /pipelines).
+
+    Args:
+        pipeline_definition: Pipeline definition object (e.g. from YAML converted to JSON)
+        alias: Pipeline alias identifier
+        published: Whether to publish the pipeline on creation
+        storage_provider: Where the pipeline definition is stored (default ORCHESTRA)
+        default_branch: Default branch name (Git-backed pipelines)
+        repository: Repository slug or URL (Git-backed pipelines)
+        working_branch: Working branch to commit to (Git-backed pipelines)
+        yaml_path: Path to pipeline YAML file within repository (Git-backed pipelines)
+        message: Commit message (Git-backed pipelines)
+        message_is_custom: Whether the commit message is custom (Git-backed pipelines)
+
+    Returns:
+        Created pipeline with metadata
+    """
+    async with get_client() as client:
+        response = await client.create_pipeline(
+            pipeline_definition=pipeline_definition,
+            alias=alias,
+            published=published,
+            storage_provider=storage_provider,
+            default_branch=default_branch,
+            repository=repository,
+            working_branch=working_branch,
+            yaml_path=yaml_path,
+            message=message,
+            message_is_custom=message_is_custom,
+        )
+        return response.model_dump()
 
 @mcp.tool(annotations=ToolAnnotations(title="Import Pipeline", destructiveHint=False))
 async def import_pipeline(

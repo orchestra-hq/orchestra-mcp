@@ -173,6 +173,116 @@ async def test_cancel_pipeline_run(client):
 
 
 @pytest.mark.asyncio
+async def test_create_pipeline(client):
+    mock_response = Mock()
+    mock_response.json.return_value = {
+        "id": str(uuid.uuid4()),
+        "name": "Daily ETL",
+        "yamlPath": "pipelines/daily_etl.yaml",
+        "createdAt": "2025-03-01T12:00:00Z",
+        "updatedAt": "2025-03-20T15:30:00Z",
+        "paused": False,
+        "alias": "daily_etl",
+        "numTasks": 4,
+    }
+    mock_response.raise_for_status = Mock()
+
+    client._client.post = AsyncMock(return_value=mock_response)
+
+    pipeline_definition = {"version": "v1", "name": "Daily ETL"}
+    await client.create_pipeline(
+        pipeline_definition=pipeline_definition,
+        alias="daily_etl",
+        published=False,
+    )
+
+    client._client.post.assert_called_once()
+    _, kwargs = client._client.post.call_args
+    assert kwargs["json"]["alias"] == "daily_etl"
+    assert kwargs["json"]["published"] is False
+    assert kwargs["json"]["data"] == pipeline_definition
+
+
+@pytest.mark.asyncio
+async def test_create_pipeline_full_config(client):
+    mock_response = Mock()
+    mock_response.json.return_value = {
+        "id": str(uuid.uuid4()),
+        "name": "Full Pipeline",
+        "yamlPath": "pipelines/full_pipeline.yaml",
+        "createdAt": "2025-03-01T12:00:00Z",
+        "updatedAt": "2025-03-20T15:30:00Z",
+        "paused": False,
+        "alias": "full_pipeline",
+        "numTasks": 3,
+    }
+    mock_response.raise_for_status = Mock()
+
+    client._client.post = AsyncMock(return_value=mock_response)
+
+    pipeline_definition = {
+        "version": "v1",
+        "name": "Full Pipeline",
+        "tasks": {
+            "extract": {"type": "python", "command": "python -c 'print(1)'"},
+            "transform": {"type": "dbt", "command": "dbt run --select model+transform"},
+            "load": {"type": "http", "command": "curl -X POST https://example.com/ingest"},
+        },
+    }
+
+    await client.create_pipeline(
+        pipeline_definition=pipeline_definition,
+        alias="full_pipeline",
+        published=True,
+        storage_provider="AZURE_DEVOPS",
+        default_branch="main",
+        repository="my-org/my-repo",
+        working_branch="feature/pipeline-create",
+        yaml_path="pipelines/full_pipeline.yaml",
+        message="Initial pipeline import",
+        message_is_custom=False,
+    )
+
+    _, kwargs = client._client.post.call_args
+    body = kwargs["json"]
+    assert body["alias"] == "full_pipeline"
+    assert body["published"] is True
+    assert body["storageProvider"] == "AZURE_DEVOPS"
+    assert body["defaultBranch"] == "main"
+    assert body["repository"] == "my-org/my-repo"
+    assert body["workingBranch"] == "feature/pipeline-create"
+    assert body["yamlPath"] == "pipelines/full_pipeline.yaml"
+    assert body["message"] == "Initial pipeline import"
+    assert body["messageIsCustom"] is False
+    assert body["data"] == pipeline_definition
+
+
+@pytest.mark.asyncio
+async def test_create_pipeline_parses_json_error(client):
+    """When the API returns an error with JSON body, error message is parsed."""
+    mock_response = Mock()
+    mock_response.is_success = False
+    mock_response.status_code = 422
+    mock_response.json.return_value = {
+        "detail": "Invalid pipeline definition: missing tasks"
+    }
+    mock_response.text = ""
+
+    client._client.post = AsyncMock(return_value=mock_response)
+
+    with pytest.raises(OrchestraAPIError) as exc_info:
+        await client.create_pipeline(
+            pipeline_definition={"version": "v1", "name": "Bad Pipeline"},
+            alias="bad_pipeline",
+            published=False,
+            storage_provider="ORCHESTRA",
+        )
+
+    assert exc_info.value.status_code == 422
+    assert "Invalid pipeline definition: missing tasks" in str(exc_info.value)
+    assert exc_info.value.message == "Invalid pipeline definition: missing tasks"
+
+@pytest.mark.asyncio
 async def test_list_assets(client):
     mock_response = Mock()
     mock_response.json.return_value = {

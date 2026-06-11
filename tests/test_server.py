@@ -49,6 +49,7 @@ async def test_tool_registration():
     tool_names = {tool.name for tool in await mcp.list_tools()}
     expected_tools = {
         "cancel_pipeline_run",
+        "create_pipeline",
         "download_task_run_artifact",
         "download_task_run_log",
         "get_pipeline_run_status",
