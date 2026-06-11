@@ -242,8 +242,6 @@ class OrchestraClient:
     ) -> PipelineResponse:
         """Fetch a single pipeline by selector (GET /pipeline).
 
-        Provide exactly one selector: pipeline_id, alias, or repository + yaml_path.
-
         Args:
             pipeline_id: Pipeline ID selector (UUID)
             alias: Pipeline alias selector
@@ -332,9 +330,6 @@ class OrchestraClient:
         alias: str | None = None,
     ) -> dict[str, Any]:
         """Migrate an Orchestra-backed pipeline to git-backed storage (PATCH /pipelines/storage-settings).
-
-        This repoints Orchestra at a Git-backed pipeline YAML that must already exist in the
-        target repository. Only Orchestra-backed pipelines can be migrated.
 
         Args:
             path: Path to the pipeline YAML within the repository
@@ -511,8 +506,6 @@ class OrchestraClient:
         self, pipeline_definition: dict[str, Any]
     ) -> ValidatePipelineSchemaResponse:
         """Validate a pipeline definition against the Orchestra schema (POST /pipelines/schema).
-
-        Does not create or update a pipeline. This endpoint can be called without authentication.
 
         Args:
             pipeline_definition: Pipeline definition object (e.g. from YAML converted to JSON)

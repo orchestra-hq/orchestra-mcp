@@ -286,6 +286,9 @@ async def create_pipeline(
 
     Returns:
         Created pipeline with metadata
+
+    Reference:
+        https://docs.getorchestra.io/api/pipelines/create-a-pipeline
     """
     async with get_client() as client:
         response = await client.create_pipeline(
@@ -331,6 +334,9 @@ async def update_pipeline(
 
     Returns:
         Updated pipeline with metadata
+
+    Reference:
+        https://docs.getorchestra.io/api/pipelines/update-a-pipeline
     """
     async with get_client() as client:
         response = await client.update_pipeline(
@@ -376,6 +382,9 @@ async def delete_pipeline(
 
     Returns:
         Confirmation message indicating the selected pipeline that was deleted
+
+    Reference:
+        https://docs.getorchestra.io/api/pipelines/delete-a-pipeline
     """
 
     async with get_client() as client:
@@ -416,6 +425,9 @@ async def import_pipeline(
 
     Returns:
         Pipeline import response with metadata
+
+    Reference:
+        https://docs.getorchestra.io/api/pipelines/import-a-pipeline
     """
     async with get_client() as client:
         response = await client.import_pipeline(
@@ -456,6 +468,9 @@ async def migrate_pipeline(
 
     Returns:
         The API response payload
+
+    Reference:
+        https://docs.getorchestra.io/api/pipelines/update-pipeline-storage-settings
     """
     async with get_client() as client:
         return await client.migrate_pipeline_storage(
@@ -510,6 +525,9 @@ async def start_pipeline(
 
     Returns:
         Pipeline start response with pipeline run ID
+
+    Reference:
+        https://docs.getorchestra.io/api/pipelines/start-a-pipeline-run
     """
     async with get_client() as client:
         response = await client.start_pipeline(
@@ -531,6 +549,9 @@ async def get_pipeline_run_status(pipeline_run_id: str) -> dict:
 
     Returns:
         Pipeline run status information
+
+    Reference:
+        https://docs.getorchestra.io/api/pipeline-runs/get-pipeline-run-status
     """
     async with get_client() as client:
         response = await client.get_pipeline_run_status(pipeline_run_id=pipeline_run_id)
@@ -546,6 +567,9 @@ async def cancel_pipeline_run(pipeline_run_id: str) -> dict:
 
     Returns:
         Confirmation message
+
+    Reference:
+        https://docs.getorchestra.io/api/pipeline-runs/cancel-a-pipeline-run
     """
     async with get_client() as client:
         await client.cancel_pipeline_run(pipeline_run_id=pipeline_run_id)
@@ -565,6 +589,9 @@ async def list_task_run_logs(
 
     Returns:
         Dictionary with list of log filenames
+
+    Reference:
+        https://docs.getorchestra.io/api/logs/list-task-run-logs
     """
     async with get_client() as client:
         response = await client.list_task_run_logs(
@@ -591,6 +618,9 @@ async def download_task_run_log(
 
     Returns:
         Dictionary with log content (base64 encoded for binary safety)
+
+    Reference:
+        https://docs.getorchestra.io/api/logs/download-a-task-run-log
     """
     import base64
 
@@ -621,6 +651,9 @@ async def list_task_run_artifacts(
 
     Returns:
         Dictionary with list of artifact filenames
+
+    Reference:
+        https://docs.getorchestra.io/api/artifacts/list-task-run-artifacts
     """
     async with get_client() as client:
         response = await client.list_task_run_artifacts(
@@ -645,6 +678,9 @@ async def download_task_run_artifact(
 
     Returns:
         Dictionary with artifact content (base64 encoded for binary safety)
+
+    Reference:
+        https://docs.getorchestra.io/api/artifacts/download-a-task-run-artifact
     """
     import base64
 
