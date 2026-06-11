@@ -414,6 +414,34 @@ class OrchestraClient:
         self._raise_for_status(response)
         return PipelineResponse.model_validate(response.json())
 
+    async def delete_pipeline(
+        self,
+        pipeline_id: str | None = None,
+        alias: str | None = None,
+        repository: str | None = None,
+        yaml_path: str | None = None,
+    ) -> None:
+        """Delete a pipeline by selector (DELETE /pipelines).
+
+        Provide one of:
+        - pipeline_id
+        - alias
+        - repository + yaml_path
+        """
+        if (repository is None) ^ (yaml_path is None):
+            raise ValueError("repository and yaml_path must be provided together")
+        if not (pipeline_id or alias or (repository and yaml_path)):
+            raise ValueError("Provide one of pipeline_id, alias, or repository + yaml_path")
+
+        params = self._build_query_params(
+            pipeline_id=pipeline_id,
+            alias=alias,
+            repository=repository,
+            yaml_path=yaml_path,
+        )
+        response = await self._client.delete("/pipelines", params=params)
+        self._raise_for_status(response)
+
     async def validate_pipeline_schema(
         self, pipeline_definition: dict[str, Any]
     ) -> ValidatePipelineSchemaResponse:

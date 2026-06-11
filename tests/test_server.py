@@ -1,3 +1,4 @@
+import importlib
 import os
 
 import pytest
@@ -75,3 +76,36 @@ async def test_list_operations_tool_exposes_integration_filter():
     tool = tools["list_operations"]
 
     assert "integration" in tool.parameters["properties"]
+
+
+@pytest.mark.asyncio
+async def test_delete_pipeline_disabled_by_default():
+    tool_names = {tool.name for tool in await mcp.list_tools()}
+    assert "delete_pipeline" not in tool_names
+
+
+def test_delete_enabled_flag(monkeypatch):
+    from orchestramcp.server import _delete_enabled
+
+    monkeypatch.delenv("ORCHESTRA_ENABLE_DELETE", raising=False)
+    assert _delete_enabled() is False
+
+    for truthy in ("1", "true", "TRUE", "yes", "on"):
+        monkeypatch.setenv("ORCHESTRA_ENABLE_DELETE", truthy)
+        assert _delete_enabled() is True
+
+    monkeypatch.setenv("ORCHESTRA_ENABLE_DELETE", "false")
+    assert _delete_enabled() is False
+
+
+@pytest.mark.asyncio
+async def test_delete_pipeline_enabled_when_env_var_set(set_api_key, monkeypatch):
+    monkeypatch.setenv("ORCHESTRA_ENABLE_DELETE", "true")
+
+    import orchestramcp.server as server_module
+
+    server_module = importlib.reload(server_module)
+    server_module.get_client.cache_clear()
+
+    tool_names = {tool.name for tool in await server_module.mcp.list_tools()}
+    assert "delete_pipeline" in tool_names

@@ -331,6 +331,51 @@ async def update_pipeline(
         )
         return response.model_dump()
 
+
+def _delete_enabled() -> bool:
+    """Whether the destructive delete_pipeline tool should be registered.
+
+    Disabled by default; set ORCHESTRA_ENABLE_DELETE to a truthy value to expose it.
+    """
+
+    return os.getenv("ORCHESTRA_ENABLE_DELETE", "").strip().lower() in ("1", "true", "yes", "on")
+
+
+async def delete_pipeline(
+    pipeline_id: str | None = None,
+    alias: str | None = None,
+    repository: str | None = None,
+    yaml_path: str | None = None,
+) -> dict:
+    """Delete a pipeline by selector (DELETE /pipelines).
+
+    Disabled by default; set the ORCHESTRA_ENABLE_DELETE environment variable to a truthy
+    value (1/true/yes/on) to expose this tool.
+
+    Provide one of:
+    - pipeline_id
+    - alias
+    - repository + yaml_path
+    """
+
+    async with get_client() as client:
+        await client.delete_pipeline(
+            pipeline_id=pipeline_id,
+            alias=alias,
+            repository=repository,
+            yaml_path=yaml_path,
+        )
+
+    selector = alias or pipeline_id or f"{repository}:{yaml_path}"
+    return {"message": f"Pipeline ({selector}) deleted"}
+
+
+if _delete_enabled():
+    delete_pipeline = mcp.tool(
+        annotations=ToolAnnotations(title="Delete Pipeline", destructiveHint=True)
+    )(delete_pipeline)
+
+
 @mcp.tool(annotations=ToolAnnotations(title="Import Pipeline", destructiveHint=False))
 async def import_pipeline(
     storage_provider: str,

@@ -362,6 +362,32 @@ async def test_create_pipeline_parses_json_error(client):
     assert "Invalid pipeline definition: missing tasks" in str(exc_info.value)
     assert exc_info.value.message == "Invalid pipeline definition: missing tasks"
 
+
+@pytest.mark.asyncio
+async def test_delete_pipeline(client):
+    mock_response = Mock()
+    mock_response.raise_for_status = Mock()
+
+    client._client.delete = AsyncMock(return_value=mock_response)
+
+    await client.delete_pipeline(alias="my_pipeline")
+    client._client.delete.assert_called_once_with(
+        "/pipelines", params={"alias": "my_pipeline"}
+    )
+
+
+@pytest.mark.asyncio
+async def test_delete_pipeline_requires_selector(client):
+    with pytest.raises(ValueError, match="pipeline_id, alias, or repository \\+ yaml_path"):
+        await client.delete_pipeline()
+
+
+@pytest.mark.asyncio
+async def test_delete_pipeline_requires_repository_and_yaml_path_together(client):
+    with pytest.raises(ValueError, match="repository and yaml_path must be provided together"):
+        await client.delete_pipeline(repository="owner/repo")
+
+
 @pytest.mark.asyncio
 async def test_list_assets(client):
     mock_response = Mock()
