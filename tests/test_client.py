@@ -204,6 +204,72 @@ async def test_create_pipeline(client):
 
 
 @pytest.mark.asyncio
+async def test_create_pipeline_full_config(client):
+    mock_response = Mock()
+    mock_response.json.return_value = {
+        "id": str(uuid.uuid4()),
+        "name": "Full Pipeline",
+        "yamlPath": "pipelines/full_pipeline.yaml",
+        "createdAt": "2025-03-01T12:00:00Z",
+        "updatedAt": "2025-03-20T15:30:00Z",
+        "paused": False,
+        "alias": "full_pipeline",
+        "numTasks": 3,
+    }
+    mock_response.raise_for_status = Mock()
+
+    client._client.post = AsyncMock(return_value=mock_response)
+
+    # Use a richer definition shape than the minimal test above.
+    pipeline_definition = {
+        "version": "v1",
+        "name": "Full Pipeline",
+        "tasks": {
+            "extract": {"type": "python", "command": "python -c 'print(1)'"},
+            "transform": {"type": "python", "command": "python -c 'print(2)'"},
+            "load": {"type": "python", "command": "python -c 'print(3)'"},
+        },
+    }
+
+    await client.create_pipeline(
+        pipeline_definition=pipeline_definition,
+        alias="full_pipeline",
+        published=True,
+        storage_provider="AZURE_DEVOPS",
+        default_branch="main",
+        repository="my-org/my-repo",
+        working_branch="feature/pipeline-create",
+        yaml_path="pipelines/full_pipeline.yaml",
+        message="Initial pipeline import",
+        message_is_custom=False,
+    )
+
+    _, kwargs = client._client.post.call_args
+    body = kwargs["json"]
+    assert body["alias"] == "full_pipeline"
+    assert body["published"] is True
+    assert body["storageProvider"] == "AZURE_DEVOPS"
+    assert body["defaultBranch"] == "main"
+    assert body["repository"] == "my-org/my-repo"
+    assert body["workingBranch"] == "feature/pipeline-create"
+    assert body["yamlPath"] == "pipelines/full_pipeline.yaml"
+    assert body["message"] == "Initial pipeline import"
+    assert body["messageIsCustom"] is False
+    assert body["data"] == pipeline_definition
+
+
+@pytest.mark.asyncio
+async def test_create_pipeline_rejects_invalid_storage_provider(client):
+    with pytest.raises(ValueError, match="Invalid storage_provider"):
+        await client.create_pipeline(
+            pipeline_definition={"version": "v1", "name": "x"},
+            alias="x",
+            published=False,
+            storage_provider="UNKNOWN",
+        )
+
+
+@pytest.mark.asyncio
 async def test_list_assets(client):
     mock_response = Mock()
     mock_response.json.return_value = {

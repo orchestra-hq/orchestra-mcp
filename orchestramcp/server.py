@@ -3,7 +3,7 @@ import sys
 from datetime import datetime
 from functools import lru_cache
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 # Allow running server.py directly (e.g. via fastmcp run); project root must be on path
 _project_root = Path(__file__).resolve().parent.parent
@@ -246,7 +246,7 @@ async def create_pipeline(
     pipeline_definition: dict[str, Any],
     alias: str,
     published: bool,
-    storage_provider: str = "ORCHESTRA",
+    storage_provider: Literal["ORCHESTRA", "AZURE_DEVOPS", "GITHUB", "GITLAB", "BITBUCKET"] = "ORCHESTRA",
     default_branch: str | None = None,
     repository: str | None = None,
     working_branch: str | None = None,
