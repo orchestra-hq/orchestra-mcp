@@ -135,6 +135,7 @@ export ORCHESTRA_ENABLE_DELETE="true"
 Only the following values are recognized:
 
 - `"true"`
+- `"TRUE"`
 - `"1"`
 
 ### Run the server

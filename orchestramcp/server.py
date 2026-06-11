@@ -335,7 +335,7 @@ async def update_pipeline(
 def _delete_enabled() -> bool:
     """Whether the destructive delete_pipeline tool should be registered.
 
-    Disabled by default; set ORCHESTRA_ENABLE_DELETE to "true" or "1" to expose it.
+    Disabled by default; set ORCHESTRA_ENABLE_DELETE to "TRUE", "true" or "1" to expose it.
     """
 
     return os.getenv("ORCHESTRA_ENABLE_DELETE", "").strip().lower() in ("1", "true")
