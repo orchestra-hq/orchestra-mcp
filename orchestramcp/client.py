@@ -79,7 +79,7 @@ class OrchestraClient:
         page: int | None = None,
         page_size: int | None = None,
     ) -> PaginatedResponse:
-        """List pipeline runs.
+        """List pipeline runs (GET /pipeline_runs).
 
         Args:
             time_from: Start time for filtering (ISO 8601)
@@ -115,7 +115,7 @@ class OrchestraClient:
         page: int | None = None,
         page_size: int | None = None,
     ) -> PaginatedResponse:
-        """List task runs.
+        """List task runs (GET /task_runs).
 
         Args:
             time_from: Start time for filtering (ISO 8601)
@@ -156,7 +156,7 @@ class OrchestraClient:
         page: int | None = None,
         page_size: int | None = None,
     ) -> PaginatedResponse:
-        """List operations.
+        """List operations (GET /operations).
 
         Args:
             time_from: Start time for filtering (ISO 8601)
@@ -194,7 +194,7 @@ class OrchestraClient:
         page: int | None = None,
         page_size: int | None = None,
     ) -> PaginatedResponse:
-        """List assets.
+        """List assets (GET /assets).
 
         Args:
             asset_type: Asset type filter
@@ -220,9 +220,10 @@ class OrchestraClient:
         return PaginatedResponse(**response.json())
 
     async def list_pipelines(self) -> list[PipelineResponse]:
-        """List pipelines available to the current workspace API key.
+        """List pipelines available to the current workspace API key (GET /pipelines).
 
-        Reference: GET /pipelines
+        Returns:
+            List of pipelines available to the workspace
         """
 
         response = await self._client.get("/pipelines", params={})
@@ -239,9 +240,21 @@ class OrchestraClient:
         branch: str | None = None,
         commit: str | None = None,
     ) -> PipelineResponse:
-        """Fetch a single pipeline by selector.
+        """Fetch a single pipeline by selector (GET /pipeline).
 
-        Reference: GET /pipeline (get-a-pipeline-by-selector)
+        Provide exactly one selector: pipeline_id, alias, or repository + yaml_path.
+
+        Args:
+            pipeline_id: Pipeline ID selector (UUID)
+            alias: Pipeline alias selector
+            repository: Repository slug or URL selector (used with yaml_path)
+            yaml_path: Path to pipeline YAML file within repository (used with repository)
+            version: Optional pipeline version number
+            branch: Optional branch name
+            commit: Optional commit SHA
+
+        Returns:
+            The matching pipeline with metadata
         """
 
         selectors = [pipeline_id, alias, repository or yaml_path]
@@ -280,7 +293,7 @@ class OrchestraClient:
         alias: str | None = None,
         working_branch: str | None = None,
     ) -> PipelineImportResponse:
-        """Import a pipeline from Git.
+        """Import a pipeline from a Git repository (POST /pipelines/import).
 
         Args:
             storage_provider: Storage provider (e.g., GITHUB)
@@ -318,25 +331,22 @@ class OrchestraClient:
         pipeline_id: str | None = None,
         alias: str | None = None,
     ) -> dict[str, Any]:
-        """Migrate an Orchestra-backed pipeline to git-backed storage.
+        """Migrate an Orchestra-backed pipeline to git-backed storage (PATCH /pipelines/storage-settings).
 
-        PATCH /pipelines/storage-settings.
-
-        This repoints Orchestra at a Git-backed pipeline YAML that must already exist
-        in the target repository. Only Orchestra-backed pipelines can be migrated.
+        This repoints Orchestra at a Git-backed pipeline YAML that must already exist in the
+        target repository. Only Orchestra-backed pipelines can be migrated.
 
         Args:
-            path: Path to the pipeline YAML within the repository.
-            repository: Repository slug or URL.
-            storage_provider: Git storage provider (e.g. GITHUB, GITLAB, BITBUCKET).
-            default_branch: Default branch to store the pipeline in.
-            working_branch: Optional working branch. If set and differs from default_branch,
-                it will be included in the request body.
-            pipeline_id: Pipeline ID selector.
-            alias: Pipeline alias selector.
+            path: Path to the pipeline YAML within the repository
+            repository: Repository slug or URL
+            storage_provider: Git storage provider (e.g. GITHUB, GITLAB, BITBUCKET)
+            default_branch: Default branch to store the pipeline in
+            working_branch: Optional working branch; included only when it differs from default_branch
+            pipeline_id: Pipeline ID selector
+            alias: Pipeline alias selector
 
         Returns:
-            The API response JSON payload (or `{}` when the response has no body).
+            The API response JSON payload (or `{}` when the response has no body)
         """
         if not (pipeline_id or alias):
             raise ValueError("Provide one of pipeline_id or alias to identify the pipeline")
@@ -500,9 +510,15 @@ class OrchestraClient:
     async def validate_pipeline_schema(
         self, pipeline_definition: dict[str, Any]
     ) -> ValidatePipelineSchemaResponse:
-        """Validate a pipeline definition (JSON) against the Orchestra schema (POST /pipelines/schema).
+        """Validate a pipeline definition against the Orchestra schema (POST /pipelines/schema).
 
         Does not create or update a pipeline. This endpoint can be called without authentication.
+
+        Args:
+            pipeline_definition: Pipeline definition object (e.g. from YAML converted to JSON)
+
+        Returns:
+            Validation result payload
         """
         response = await self._client.post("/pipelines/schema", json=pipeline_definition)
         self._raise_for_status(response)
@@ -516,7 +532,7 @@ class OrchestraClient:
         environment: str | None = None,
         run_inputs: dict[str, Any] | None = None,
     ) -> PipelineStartResponse:
-        """Start a pipeline run.
+        """Start a pipeline run (POST /pipelines/{alias_or_pipeline_id}/start).
 
         Args:
             alias_or_pipeline_id: Pipeline alias or pipeline ID (UUID)
@@ -543,7 +559,7 @@ class OrchestraClient:
         return PipelineStartResponse(**response.json())
 
     async def get_pipeline_run_status(self, pipeline_run_id: str) -> PipelineRunProgress:
-        """Get pipeline run status.
+        """Get pipeline run status (GET /pipeline_runs/{pipeline_run_id}/status).
 
         Args:
             pipeline_run_id: Pipeline run UUID
@@ -556,7 +572,7 @@ class OrchestraClient:
         return PipelineRunProgress(**response.json())
 
     async def cancel_pipeline_run(self, pipeline_run_id: str) -> None:
-        """Cancel a pipeline run.
+        """Cancel a pipeline run (POST /pipeline_runs/{pipeline_run_id}/cancel).
 
         Args:
             pipeline_run_id: Pipeline run UUID
@@ -569,7 +585,7 @@ class OrchestraClient:
         pipeline_run_id: str,
         task_run_id: str,
     ) -> dict[str, list[str]]:
-        """List log filenames for a task run.
+        """List log filenames for a task run (GET /pipeline_runs/{pipeline_run_id}/task_runs/{task_run_id}/logs).
 
         Args:
             pipeline_run_id: Pipeline run ID
@@ -591,7 +607,7 @@ class OrchestraClient:
         filename: str,
         range_header: str | None = None,
     ) -> bytes:
-        """Download a task run log file.
+        """Download a task run log file (GET /pipeline_runs/{pipeline_run_id}/task_runs/{task_run_id}/logs/download).
 
         Args:
             pipeline_run_id: Pipeline run ID
@@ -619,7 +635,7 @@ class OrchestraClient:
         pipeline_run_id: str,
         task_run_id: str,
     ) -> dict[str, list[str]]:
-        """List artifact filenames for a task run.
+        """List artifact filenames for a task run (GET /pipeline_runs/{pipeline_run_id}/task_runs/{task_run_id}/artifacts).
 
         Args:
             pipeline_run_id: Pipeline run ID
@@ -640,7 +656,7 @@ class OrchestraClient:
         task_run_id: str,
         filename: str,
     ) -> bytes:
-        """Download a task run artifact file.
+        """Download a task run artifact file (GET /pipeline_runs/{pipeline_run_id}/task_runs/{task_run_id}/artifacts/download).
 
         Args:
             pipeline_run_id: Pipeline run ID
