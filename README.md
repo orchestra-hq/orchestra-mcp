@@ -124,6 +124,21 @@ Valid values:
 - `stage`
 - `dev`
 
+### (Optional) Enable destructive pipeline deletion
+
+By default, the MCP `delete_pipeline` tool is not registered to avoid accidental destructive actions.
+To expose it, set `ORCHESTRA_ENABLE_DELETE` before starting the server:
+
+```bash
+export ORCHESTRA_ENABLE_DELETE="true"
+```
+
+Only the following values are recognized:
+
+- `"true"`
+- `"TRUE"`
+- `"1"`
+
 ### Run the server
 
 ```bash

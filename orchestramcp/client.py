@@ -7,6 +7,7 @@ import httpx
 from orchestramcp.errors import OrchestraAPIError, parse_error_response
 from orchestramcp.models import (
     AssetType,
+    DeletePipelineResponse,
     OperationStatus,
     OperationType,
     PaginatedResponse,
@@ -462,6 +463,39 @@ class OrchestraClient:
         response = await self._client.put(f"/pipelines/{alias}", json=payload)
         self._raise_for_status(response)
         return PipelineResponse.model_validate(response.json())
+
+    async def delete_pipeline(
+        self,
+        pipeline_id: str | None = None,
+        alias: str | None = None,
+        repository: str | None = None,
+        yaml_path: str | None = None,
+    ) -> DeletePipelineResponse:
+        """Delete a pipeline by selector (DELETE /pipelines).
+
+        Args:
+            pipeline_id: Pipeline ID selector (UUID)
+            alias: Pipeline alias selector
+            repository: Repository slug or URL selector (used with yaml_path)
+            yaml_path: Path to the pipeline YAML file within the repository (used with repository)
+
+        Returns:
+            Deletion result. For HTTP `204 No Content`, this returns `{"is_deleted": true}`.
+        """
+        if (repository is None) != (yaml_path is None):
+            raise ValueError("repository and yaml_path must be provided together")
+        if not (pipeline_id or alias or (repository and yaml_path)):
+            raise ValueError("Provide one of pipeline_id, alias, or repository + yaml_path")
+
+        params = self._build_query_params(
+            pipeline_id=pipeline_id,
+            alias=alias,
+            repository=repository,
+            yaml_path=yaml_path,
+        )
+        response = await self._client.delete("/pipelines", params=params)
+        self._raise_for_status(response)
+        return DeletePipelineResponse(is_deleted=response.status_code == 204)
 
     async def validate_pipeline_schema(
         self, pipeline_definition: dict[str, Any]
