@@ -220,14 +220,13 @@ async def test_create_pipeline_full_config(client):
 
     client._client.post = AsyncMock(return_value=mock_response)
 
-    # Use a richer definition shape than the minimal test above.
     pipeline_definition = {
         "version": "v1",
         "name": "Full Pipeline",
         "tasks": {
             "extract": {"type": "python", "command": "python -c 'print(1)'"},
-            "transform": {"type": "python", "command": "python -c 'print(2)'"},
-            "load": {"type": "python", "command": "python -c 'print(3)'"},
+            "transform": {"type": "dbt", "command": "dbt run --select model+transform"},
+            "load": {"type": "http", "command": "curl -X POST https://example.com/ingest"},
         },
     }
 
