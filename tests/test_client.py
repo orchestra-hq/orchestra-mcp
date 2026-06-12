@@ -309,7 +309,7 @@ async def test_update_pipeline_sends_only_data_and_published(client):
 
     client._client.put.assert_called_once()
     args, kwargs = client._client.put.call_args
-    assert args[0] == "/pipelines/updated_pipeline" 
+    assert args[0] == "/pipelines/updated_pipeline"
     body = kwargs["json"]
     assert body == {"data": pipeline_definition, "published": True}
     for forbidden in (
