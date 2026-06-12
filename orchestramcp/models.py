@@ -92,7 +92,7 @@ class PipelineImportResponse(BaseModel):
     storage_provider: str = Field(alias="storageProvider")
     repository: str
     default_branch: str = Field(alias="defaultBranch")
-    alias: str
+    alias: str | None = None
     data: dict[str, Any]
 
 
