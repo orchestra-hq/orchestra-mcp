@@ -1,3 +1,5 @@
+<!-- mcp-name: io.github.orchestra-hq/orchestra-mcp -->
+
 # Orchestra MCP Server
 
 A Model Context Protocol (MCP) server for the [Orchestra API](https://docs.getorchestra.io/docs/api/). End users can connect directly to Orchestra's hosted MCP endpoint and authenticate with their Orchestra API key.
@@ -72,6 +74,24 @@ Any MCP client that supports remote HTTP/SSE servers can connect with this shape
       "url": "https://mcp.getorchestra.io/orchestra",
       "headers": {
         "Authorization": "Bearer <YOUR_ORCHESTRA_API_KEY>"
+      }
+    }
+  }
+}
+```
+
+### Local install from PyPI
+
+The server is also published to PyPI as [`orchestramcp`](https://pypi.org/project/orchestramcp/) and listed in the [MCP Registry](https://registry.modelcontextprotocol.io) as `io.github.orchestra-hq/orchestra-mcp`. To run it locally over stdio:
+
+```json
+{
+  "mcpServers": {
+    "orchestra": {
+      "command": "uvx",
+      "args": ["orchestramcp"],
+      "env": {
+        "ORCHESTRA_API_KEY": "<YOUR_ORCHESTRA_API_KEY>"
       }
     }
   }

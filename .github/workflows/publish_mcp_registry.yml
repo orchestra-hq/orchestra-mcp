@@ -1,0 +1,39 @@
+name: Publish to PyPI and MCP Registry
+on:
+  push:
+    tags: ["v*"]
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write # OIDC for PyPI trusted publishing and MCP registry login
+      contents: read
+    steps:
+      - uses: actions/checkout@v5
+      - name: Check versions match the tag
+        run: |
+          TAG_VERSION="${GITHUB_REF_NAME#v}"
+          PYPROJECT_VERSION=$(grep -m1 '^version' pyproject.toml | sed 's/.*"\(.*\)"/\1/')
+          SERVER_JSON_VERSION=$(python3 -c "import json; print(json.load(open('server.json'))['version'])")
+          PACKAGE_VERSION=$(python3 -c "import json; print(json.load(open('server.json'))['packages'][0]['version'])")
+          if [ "$TAG_VERSION" != "$PYPROJECT_VERSION" ] || [ "$TAG_VERSION" != "$SERVER_JSON_VERSION" ] || [ "$TAG_VERSION" != "$PACKAGE_VERSION" ]; then
+            echo "Version mismatch: tag=$TAG_VERSION pyproject=$PYPROJECT_VERSION server.json=$SERVER_JSON_VERSION package=$PACKAGE_VERSION"
+            exit 1
+          fi
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          version: "latest"
+      - name: Build distribution
+        run: uv build
+      # Requires a PyPI "trusted publisher" configured for this repo and
+      # workflow at https://pypi.org/manage/project/orchestramcp/settings/publishing/
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+      - name: Install mcp-publisher
+        run: |
+          curl -L "https://github.com/modelcontextprotocol/registry/releases/latest/download/mcp-publisher_$(uname -s | tr '[:upper:]' '[:lower:]')_$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/').tar.gz" | tar xz mcp-publisher
+      - name: Authenticate to MCP Registry
+        run: ./mcp-publisher login github-oidc
+      - name: Publish to MCP Registry
+        run: ./mcp-publisher publish

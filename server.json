@@ -1,0 +1,58 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.orchestra-hq/orchestra-mcp",
+  "title": "Orchestra",
+  "description": "MCP server for the Orchestra API: create, run, and observe data pipelines, logs, and artifacts",
+  "repository": {
+    "url": "https://github.com/orchestra-hq/orchestra-mcp",
+    "source": "github"
+  },
+  "websiteUrl": "https://www.getorchestra.io",
+  "version": "0.1.0",
+  "packages": [
+    {
+      "registryType": "pypi",
+      "registryBaseUrl": "https://pypi.org",
+      "identifier": "orchestramcp",
+      "version": "0.1.0",
+      "runtimeHint": "uvx",
+      "transport": {
+        "type": "stdio"
+      },
+      "environmentVariables": [
+        {
+          "name": "ORCHESTRA_API_KEY",
+          "description": "Orchestra API key from your workspace settings (https://app.getorchestra.io/settings/workspace)",
+          "isRequired": true,
+          "isSecret": true
+        },
+        {
+          "name": "ORCHESTRA_ENV",
+          "description": "Orchestra environment to target",
+          "isRequired": false,
+          "default": "app",
+          "choices": ["app", "stage", "dev"]
+        },
+        {
+          "name": "ORCHESTRA_ENABLE_DELETE",
+          "description": "Set to 'true' to expose the delete_pipeline tool (disabled by default)",
+          "isRequired": false
+        }
+      ]
+    }
+  ],
+  "remotes": [
+    {
+      "type": "streamable-http",
+      "url": "https://mcp.getorchestra.io/orchestra",
+      "headers": [
+        {
+          "name": "Authorization",
+          "description": "Bearer token using your Orchestra API key, e.g. 'Bearer <ORCHESTRA_API_KEY>'",
+          "isRequired": true,
+          "isSecret": true
+        }
+      ]
+    }
+  ]
+}
