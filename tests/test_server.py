@@ -8,26 +8,27 @@ from orchestramcp.server import get_client, mcp, parse_iso_datetime
 
 @pytest.fixture
 def set_api_key():
-    get_client.cache_clear()
     os.environ["ORCHESTRA_API_KEY"] = "test-api-key"
     yield
     os.environ.pop("ORCHESTRA_API_KEY", None)
-    get_client.cache_clear()
 
 
-def test_get_client_missing_api_key():
-    get_client.cache_clear()
-    if "ORCHESTRA_API_KEY" in os.environ:
-        del os.environ["ORCHESTRA_API_KEY"]
+@pytest.mark.asyncio
+async def test_get_client_missing_api_key(monkeypatch):
+    monkeypatch.delenv("ORCHESTRA_API_KEY", raising=False)
+    with pytest.raises(ValueError, match="ORCHESTRA_API_KEY"):
+        await get_client()
+
+
+@pytest.mark.asyncio
+async def test_get_client_falls_back_to_env(set_api_key):
+    """With no authenticated request context (local stdio dev), the upstream
+    credential comes from the ORCHESTRA_API_KEY environment variable."""
+    client = await get_client()
     try:
-        with pytest.raises(ValueError, match="ORCHESTRA_API_KEY"):
-            get_client()
+        assert client.api_key == "test-api-key"
     finally:
-        get_client.cache_clear()
-
-
-def test_get_client_with_api_key(set_api_key):
-    assert get_client().api_key == "test-api-key"
+        await client.close()
 
 
 def test_parse_iso_datetime_accepts_z_suffix():
@@ -110,7 +111,6 @@ async def test_delete_pipeline_enabled_when_env_var_set(set_api_key, monkeypatch
     import orchestramcp.server as server_module
 
     server_module = importlib.reload(server_module)
-    server_module.get_client.cache_clear()
 
     tool_names = {tool.name for tool in await server_module.mcp.list_tools()}
     assert "delete_pipeline" in tool_names

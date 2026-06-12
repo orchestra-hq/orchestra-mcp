@@ -10,6 +10,22 @@ Use Orchestra's hosted MCP endpoint:
 - Required header: `Authorization: Bearer <YOUR_ORCHESTRA_API_KEY>`
 - API key location: [Orchestra workspace settings](https://app.getorchestra.io/settings/workspace)
 
+## Authentication
+
+The hosted server accepts two kinds of bearer credential:
+
+1. **Orchestra API key (header auth)** — pass `Authorization: Bearer <YOUR_ORCHESTRA_API_KEY>`
+   as shown in the examples below. This is the simplest option for editors like Cursor and Claude
+   Code and continues to work unchanged.
+2. **OAuth 2.1** — supported clients (e.g. Claude connectors) run the browser login flow
+   automatically; you do not paste an API key. The server advertises
+   [RFC 9728 Protected Resource Metadata](https://datatracker.ietf.org/doc/html/rfc9728) at
+   `https://mcp.getorchestra.io/.well-known/oauth-protected-resource/orchestra`, and returns a
+   `WWW-Authenticate` challenge on `401` so clients can discover the authorization server.
+   OAuth is inert until the `MCP_OAUTH_*` environment variables are configured on the server.
+
+Both paths resolve to your Orchestra workspace; tools you can call are scoped to that workspace.
+
 ## Available Tools
 
 | Tool | Auth required | Purpose | Category |
@@ -167,6 +183,29 @@ Or with FastMCP CLI:
 ```bash
 uv run fastmcp run orchestramcp/server.py
 ```
+
+## Server configuration (hosting)
+
+The hosted server is deployed to AWS Lambda and runs FastMCP's streamable-HTTP ASGI app via
+[Mangum](https://github.com/Kludex/mangum) behind API Gateway (handler:
+`orchestramcp.lambda_handler.handler`). API Gateway must forward both the MCP path and
+`/.well-known/*` to the Lambda with **no** gateway-level authorizer — authentication is enforced
+inside the app.
+
+Environment variables:
+
+| Variable | Required | Purpose |
+| --- | --- | --- |
+| `ORCHESTRA_ENV` | yes (hosted) | Orchestra environment: `app`, `stage`, `dev`. The Lambda refuses requests without it so a misconfigured deployment cannot silently hit production. |
+| `MCP_PUBLIC_BASE_URL` | for OAuth | Full public URL of the MCP endpoint, e.g. `https://mcp.getorchestra.io/orchestra`. Defines the mount path and the RFC 9728 resource identifier. Without it the endpoint mounts at `/orchestra`. |
+| `MCP_OAUTH_ISSUER` | for OAuth | Authorization server issuer URL (advertised in the protected-resource metadata). |
+| `MCP_OAUTH_JWKS_URI` | for OAuth | JWKS endpoint used to validate OAuth access tokens. |
+| `MCP_OAUTH_AUDIENCE` | no | Expected token audience. Defaults to `MCP_PUBLIC_BASE_URL`. |
+| `ORCHESTRA_MCP_EXCHANGE_URL` | for OAuth | Orchestra server-to-server endpoint that exchanges a validated OAuth identity for a workspace API key. |
+| `ORCHESTRA_MCP_SERVICE_CREDENTIAL` | for OAuth | Confidential credential the MCP server uses to call the exchange endpoint. |
+
+OAuth only activates when `MCP_OAUTH_ISSUER`, `MCP_OAUTH_JWKS_URI` and `MCP_PUBLIC_BASE_URL` are
+all set; otherwise the server runs in API-key-only mode.
 
 ## Development
 
