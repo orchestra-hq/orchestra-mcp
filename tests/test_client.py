@@ -1,11 +1,11 @@
 import uuid
 from datetime import datetime
+from enum import Enum
 from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 
 from orchestramcp.client import OrchestraAPIError, OrchestraClient
-from orchestramcp.models import PipelineRunStatus, TaskRunStatus
 
 
 @pytest.fixture
@@ -76,23 +76,18 @@ async def test_list_pipeline_runs_with_filters(client):
 
 @pytest.mark.asyncio
 async def test_enum_filters_serialize_to_value(client):
-    """Enum filters must serialize to their value, not their repr.
-
-    Through the MCP layer, FastMCP coerces a string arg into the declared Enum
-    (e.g. ``TaskRunStatus``); the API then rejects ``"TaskRunStatus.SUCCEEDED"``
-    with a 400. The query params must carry the plain value ``"SUCCEEDED"``.
-    """
     mock_response = Mock()
     mock_response.json.return_value = {"page": 1, "pageSize": 50, "total": 0, "results": []}
     mock_response.raise_for_status = Mock()
     client._client.get = AsyncMock(return_value=mock_response)
+    test_enum = Enum("TestEnum", ["SUCCEEDED", "FAILED"])
 
-    await client.list_task_runs(status=TaskRunStatus.SUCCEEDED)
+    await client.list_task_runs(status=test_enum.SUCCEEDED)
     status = client._client.get.call_args.kwargs["params"]["status"]
     assert status == "SUCCEEDED"
-    assert "." not in str(status)  # not "TaskRunStatus.SUCCEEDED"
+    assert isinstance(status, str)
 
-    await client.list_pipeline_runs(status=PipelineRunStatus.FAILED)
+    await client.list_pipeline_runs(status=test_enum.FAILED)
     assert client._client.get.call_args.kwargs["params"]["status"] == "FAILED"
 
 
@@ -282,9 +277,6 @@ async def test_create_pipeline_full_config(client):
 
 @pytest.mark.asyncio
 async def test_update_pipeline_sends_only_data_and_published(client):
-    """Only Orchestra-backed pipelines can be updated; the PUT body carries only
-    ``data`` and ``published``. Storage/git fields are rejected by the API
-    (extra_forbidden), so the client must never send them."""
     mock_response = Mock()
     mock_response.json.return_value = {
         "id": str(uuid.uuid4()),
@@ -317,10 +309,9 @@ async def test_update_pipeline_sends_only_data_and_published(client):
 
     client._client.put.assert_called_once()
     args, kwargs = client._client.put.call_args
-    assert args[0] == "/pipelines/updated_pipeline"  # alias is a path parameter only
+    assert args[0] == "/pipelines/updated_pipeline" 
     body = kwargs["json"]
     assert body == {"data": pipeline_definition, "published": True}
-    # storage/git fields are forbidden by PUT /pipelines/{alias} (extra_forbidden)
     for forbidden in (
         "storageProvider",
         "defaultBranch",
@@ -386,11 +377,6 @@ async def test_create_pipeline_parses_json_error(client):
 
 @pytest.mark.asyncio
 async def test_import_pipeline_response_without_alias(client):
-    """POST /pipelines/import does not return an alias; the response must still parse.
-
-    The real API response carries id/name/numTasks/yamlPath/storageProvider/etc. but
-    no ``alias`` (unlike GET /pipelines). The model must accept that.
-    """
     mock_response = Mock()
     mock_response.json.return_value = {
         "id": str(uuid.uuid4()),
@@ -404,7 +390,6 @@ async def test_import_pipeline_response_without_alias(client):
         "repository": "orchestra-hq/orchestra-blueprints",
         "defaultBranch": "main",
         "data": {"version": "v1", "name": "Imported Pipeline"},
-        # extra fields the API returns and the model should tolerate:
         "inputs": {},
         "schedule": "[]",
         "sensors": "[]",
