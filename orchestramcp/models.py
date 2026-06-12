@@ -92,7 +92,9 @@ class PipelineImportResponse(BaseModel):
     storage_provider: str = Field(alias="storageProvider")
     repository: str
     default_branch: str = Field(alias="defaultBranch")
-    alias: str
+    # POST /pipelines/import does not return an alias (unlike GET /pipelines), so it
+    # must be optional or the model fails to validate a successful import response.
+    alias: str | None = None
     data: dict[str, Any]
 
 

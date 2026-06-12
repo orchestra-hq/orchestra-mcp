@@ -385,6 +385,47 @@ async def test_create_pipeline_parses_json_error(client):
 
 
 @pytest.mark.asyncio
+async def test_import_pipeline_response_without_alias(client):
+    """POST /pipelines/import does not return an alias; the response must still parse.
+
+    The real API response carries id/name/numTasks/yamlPath/storageProvider/etc. but
+    no ``alias`` (unlike GET /pipelines). The model must accept that.
+    """
+    mock_response = Mock()
+    mock_response.json.return_value = {
+        "id": str(uuid.uuid4()),
+        "name": "Imported Pipeline #python",
+        "numTasks": 1,
+        "yamlPath": "orchestra/agents/claude_dbt.yml",
+        "createdAt": "2026-06-12T11:30:08Z",
+        "updatedAt": "2026-06-12T11:30:08Z",
+        "paused": False,
+        "storageProvider": "GITHUB",
+        "repository": "orchestra-hq/orchestra-blueprints",
+        "defaultBranch": "main",
+        "data": {"version": "v1", "name": "Imported Pipeline"},
+        # extra fields the API returns and the model should tolerate:
+        "inputs": {},
+        "schedule": "[]",
+        "sensors": "[]",
+        "webhook": "{}",
+    }
+    mock_response.raise_for_status = Mock()
+    client._client.post = AsyncMock(return_value=mock_response)
+
+    result = await client.import_pipeline(
+        storage_provider="GITHUB",
+        repository="orchestra-hq/orchestra-blueprints",
+        default_branch="main",
+        yaml_path="orchestra/agents/claude_dbt.yml",
+    )
+
+    assert result.alias is None
+    assert result.num_tasks == 1
+    assert result.storage_provider == "GITHUB"
+
+
+@pytest.mark.asyncio
 async def test_delete_pipeline(client):
     mock_response = Mock()
     mock_response.is_success = True
