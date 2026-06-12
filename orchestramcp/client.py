@@ -62,9 +62,6 @@ class OrchestraClient:
 
         for key, value in kwargs.items():
             if value is not None:
-                # Enum filters (e.g. TaskRunStatus) must serialize as their value
-                # ("SUCCEEDED"), not their repr ("TaskRunStatus.SUCCEEDED"), which is
-                # what httpx would emit for an Enum member passed straight through.
                 params[key] = value.value if isinstance(value, Enum) else value
 
         return params
