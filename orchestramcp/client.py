@@ -387,13 +387,6 @@ class OrchestraClient:
     ) -> PipelineResponse:
         """Update an existing Orchestra-backed pipeline by alias (PUT /pipelines/{alias}).
 
-        Only Orchestra-backed pipelines can be updated here. Git-backed pipelines are
-        managed in their repository, not via this endpoint. Accordingly, the PUT schema
-        accepts only ``data`` and ``published`` — git/storage fields (``storageProvider``,
-        ``repository``, ``defaultBranch``, ``workingBranch``, ``yamlPath``, commit
-        ``message``) are rejected with ``422 extra_forbidden``. To change a pipeline's
-        storage (Orchestra -> git), use ``migrate_pipeline_storage``.
-
         Returns:
             Updated pipeline with metadata
         """
