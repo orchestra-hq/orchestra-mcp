@@ -315,11 +315,7 @@ async def update_pipeline(
     published: bool,
 ) -> dict:
     """Update an existing Orchestra-backed pipeline by alias (PUT /pipelines/{alias}).
-
-    Only Orchestra-backed pipelines can be updated with this tool. Git-backed pipelines
-    are managed in their repository and cannot be updated here. The endpoint accepts only
-    the pipeline definition and published flag; storage/git fields are not permitted. To
-    move an Orchestra-backed pipeline to git-backed storage, use ``migrate_pipeline``.
+    To move an Orchestra-backed pipeline to git-backed storage, use ``migrate_pipeline``.
 
     Args:
         alias: Pipeline alias identifier (must be an Orchestra-backed pipeline)
