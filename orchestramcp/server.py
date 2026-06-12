@@ -313,27 +313,18 @@ async def update_pipeline(
     alias: str,
     pipeline_definition: dict[str, Any],
     published: bool,
-    storage_provider: Literal["ORCHESTRA", "AZURE_DEVOPS", "GITHUB", "GITLAB", "BITBUCKET"] = "ORCHESTRA",
-    default_branch: str | None = None,
-    repository: str | None = None,
-    working_branch: str | None = None,
-    yaml_path: str | None = None,
-    message: str | None = None,
-    message_is_custom: bool | None = None,
 ) -> dict:
     """Update an existing Orchestra-backed pipeline by alias (PUT /pipelines/{alias}).
 
+    Only Orchestra-backed pipelines can be updated with this tool. Git-backed pipelines
+    are managed in their repository and cannot be updated here. The endpoint accepts only
+    the pipeline definition and published flag; storage/git fields are not permitted. To
+    move an Orchestra-backed pipeline to git-backed storage, use ``migrate_pipeline``.
+
     Args:
-        alias: Pipeline alias identifier
+        alias: Pipeline alias identifier (must be an Orchestra-backed pipeline)
         pipeline_definition: Pipeline definition object (e.g. from YAML converted to JSON)
         published: Whether to publish the pipeline on update
-        storage_provider: Where the pipeline definition is stored (default ORCHESTRA)
-        default_branch: Default branch name (Git-backed pipelines)
-        repository: Repository slug or URL (Git-backed pipelines)
-        working_branch: Working branch to commit to (Git-backed pipelines)
-        yaml_path: Path to pipeline YAML file within repository (Git-backed pipelines)
-        message: Commit message (Git-backed pipelines)
-        message_is_custom: Whether the commit message is custom (Git-backed pipelines)
 
     Returns:
         Updated pipeline with metadata
@@ -346,13 +337,6 @@ async def update_pipeline(
             alias=alias,
             pipeline_definition=pipeline_definition,
             published=published,
-            storage_provider=storage_provider,
-            default_branch=default_branch,
-            repository=repository,
-            working_branch=working_branch,
-            yaml_path=yaml_path,
-            message=message,
-            message_is_custom=message_is_custom,
         )
         return response.model_dump()
 

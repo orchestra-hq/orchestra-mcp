@@ -1,5 +1,6 @@
 import os
 from datetime import datetime
+from enum import Enum
 from typing import Any, Literal
 
 import httpx
@@ -61,7 +62,10 @@ class OrchestraClient:
 
         for key, value in kwargs.items():
             if value is not None:
-                params[key] = value
+                # Enum filters (e.g. TaskRunStatus) must serialize as their value
+                # ("SUCCEEDED"), not their repr ("TaskRunStatus.SUCCEEDED"), which is
+                # what httpx would emit for an Enum member passed straight through.
+                params[key] = value.value if isinstance(value, Enum) else value
 
         return params
 
@@ -383,15 +387,15 @@ class OrchestraClient:
         alias: str,
         pipeline_definition: dict[str, Any],
         published: bool,
-        storage_provider: Literal["ORCHESTRA", "AZURE_DEVOPS", "GITHUB", "GITLAB", "BITBUCKET"] = "ORCHESTRA",
-        default_branch: str | None = None,
-        repository: str | None = None,
-        working_branch: str | None = None,
-        yaml_path: str | None = None,
-        message: str | None = None,
-        message_is_custom: bool | None = None,
     ) -> PipelineResponse:
         """Update an existing Orchestra-backed pipeline by alias (PUT /pipelines/{alias}).
+
+        Only Orchestra-backed pipelines can be updated here. Git-backed pipelines are
+        managed in their repository, not via this endpoint. Accordingly, the PUT schema
+        accepts only ``data`` and ``published`` — git/storage fields (``storageProvider``,
+        ``repository``, ``defaultBranch``, ``workingBranch``, ``yamlPath``, commit
+        ``message``) are rejected with ``422 extra_forbidden``. To change a pipeline's
+        storage (Orchestra -> git), use ``migrate_pipeline_storage``.
 
         Returns:
             Updated pipeline with metadata
@@ -400,20 +404,7 @@ class OrchestraClient:
         payload: dict[str, Any] = {
             "data": pipeline_definition,
             "published": published,
-            "storageProvider": storage_provider,
         }
-        if default_branch is not None:
-            payload["defaultBranch"] = default_branch
-        if repository is not None:
-            payload["repository"] = repository
-        if working_branch is not None:
-            payload["workingBranch"] = working_branch
-        if yaml_path is not None:
-            payload["yamlPath"] = yaml_path
-        if message is not None:
-            payload["message"] = message
-        if message_is_custom is not None:
-            payload["messageIsCustom"] = message_is_custom
 
         response = await self._client.put(f"/pipelines/{alias}", json=payload)
         self._raise_for_status(response)

@@ -5,6 +5,7 @@ from unittest.mock import AsyncMock, Mock, patch
 import pytest
 
 from orchestramcp.client import OrchestraAPIError, OrchestraClient
+from orchestramcp.models import PipelineRunStatus, TaskRunStatus
 
 
 @pytest.fixture
@@ -71,6 +72,28 @@ async def test_list_pipeline_runs_with_filters(client):
     assert "time_from" in call_args.kwargs["params"]
     assert "time_to" in call_args.kwargs["params"]
     assert call_args.kwargs["params"]["status"] == "SUCCEEDED"
+
+
+@pytest.mark.asyncio
+async def test_enum_filters_serialize_to_value(client):
+    """Enum filters must serialize to their value, not their repr.
+
+    Through the MCP layer, FastMCP coerces a string arg into the declared Enum
+    (e.g. ``TaskRunStatus``); the API then rejects ``"TaskRunStatus.SUCCEEDED"``
+    with a 400. The query params must carry the plain value ``"SUCCEEDED"``.
+    """
+    mock_response = Mock()
+    mock_response.json.return_value = {"page": 1, "pageSize": 50, "total": 0, "results": []}
+    mock_response.raise_for_status = Mock()
+    client._client.get = AsyncMock(return_value=mock_response)
+
+    await client.list_task_runs(status=TaskRunStatus.SUCCEEDED)
+    status = client._client.get.call_args.kwargs["params"]["status"]
+    assert status == "SUCCEEDED"
+    assert "." not in str(status)  # not "TaskRunStatus.SUCCEEDED"
+
+    await client.list_pipeline_runs(status=PipelineRunStatus.FAILED)
+    assert client._client.get.call_args.kwargs["params"]["status"] == "FAILED"
 
 
 @pytest.mark.asyncio
@@ -258,7 +281,10 @@ async def test_create_pipeline_full_config(client):
 
 
 @pytest.mark.asyncio
-async def test_update_pipeline_full_config(client):
+async def test_update_pipeline_sends_only_data_and_published(client):
+    """Only Orchestra-backed pipelines can be updated; the PUT body carries only
+    ``data`` and ``published``. Storage/git fields are rejected by the API
+    (extra_forbidden), so the client must never send them."""
     mock_response = Mock()
     mock_response.json.return_value = {
         "id": str(uuid.uuid4()),
@@ -287,28 +313,24 @@ async def test_update_pipeline_full_config(client):
         alias="updated_pipeline",
         pipeline_definition=pipeline_definition,
         published=True,
-        storage_provider="AZURE_DEVOPS",
-        default_branch="main",
-        repository="my-org/my-repo",
-        working_branch="feature/pipeline-update",
-        yaml_path="pipelines/updated_pipeline.yaml",
-        message="Update pipeline import",
-        message_is_custom=False,
     )
 
     client._client.put.assert_called_once()
-    _, kwargs = client._client.put.call_args
+    args, kwargs = client._client.put.call_args
+    assert args[0] == "/pipelines/updated_pipeline"  # alias is a path parameter only
     body = kwargs["json"]
-    assert "alias" not in body  # alias is a path parameter only
-    assert body["published"] is True
-    assert body["storageProvider"] == "AZURE_DEVOPS"
-    assert body["defaultBranch"] == "main"
-    assert body["repository"] == "my-org/my-repo"
-    assert body["workingBranch"] == "feature/pipeline-update"
-    assert body["yamlPath"] == "pipelines/updated_pipeline.yaml"
-    assert body["message"] == "Update pipeline import"
-    assert body["messageIsCustom"] is False
-    assert body["data"] == pipeline_definition
+    assert body == {"data": pipeline_definition, "published": True}
+    # storage/git fields are forbidden by PUT /pipelines/{alias} (extra_forbidden)
+    for forbidden in (
+        "storageProvider",
+        "defaultBranch",
+        "repository",
+        "workingBranch",
+        "yamlPath",
+        "message",
+        "messageIsCustom",
+    ):
+        assert forbidden not in body
 
 
 @pytest.mark.asyncio
@@ -329,7 +351,6 @@ async def test_update_pipeline_parses_json_error(client):
             alias="bad_pipeline",
             pipeline_definition={"version": "v1", "name": "Bad Pipeline"},
             published=False,
-            storage_provider="ORCHESTRA",
         )
 
     assert exc_info.value.status_code == 422
