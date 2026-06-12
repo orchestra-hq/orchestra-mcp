@@ -80,7 +80,7 @@ async def test_enum_filters_serialize_to_value(client):
     mock_response.json.return_value = {"page": 1, "pageSize": 50, "total": 0, "results": []}
     mock_response.raise_for_status = Mock()
     client._client.get = AsyncMock(return_value=mock_response)
-    test_enum = Enum("TestEnum", ["SUCCEEDED", "FAILED"])
+    test_enum = Enum("TestEnum", {"SUCCEEDED": "SUCCEEDED", "FAILED": "FAILED"})
 
     await client.list_task_runs(status=test_enum.SUCCEEDED)
     status = client._client.get.call_args.kwargs["params"]["status"]
