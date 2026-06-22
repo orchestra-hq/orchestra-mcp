@@ -59,7 +59,6 @@ async def test_tool_registration():
         "import_pipeline",
         "list_assets",
         "list_integration_connections",
-        "list_integrations",
         "list_operations",
         "list_pipeline_runs",
         "list_pipelines",
