@@ -387,14 +387,6 @@ if _delete_enabled():
     )(delete_pipeline)
 
 
-@mcp.tool(annotations=ToolAnnotations(title="Import Pipeline", destructiveHint=False))
-@mcp.tool()
-async def list_integrations() -> list[dict[str, Any]]:
-    """List all integrations supported by Orchestra."""
-    async with get_client() as client:
-        return await client.list_integrations()
-
-
 @mcp.tool()
 async def list_integration_connections(
     integration: str | None = None,

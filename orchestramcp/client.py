@@ -273,12 +273,6 @@ class OrchestraClient:
         response = await self._client.get("/pipeline", params=params)
         self._raise_for_status(response)
         return PipelineResponse.model_validate(response.json())
-        
-    async def list_integrations(self) -> list[dict[str, Any]]:
-        """List all supported integrations."""
-        response = await self._client.get("/integrations")
-        self._raise_for_status(response)
-        return response.json()
 
     async def list_integration_connections(
         self,

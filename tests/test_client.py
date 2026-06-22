@@ -656,28 +656,6 @@ async def test_migrate_pipeline_storage_requires_selector(client):
 
 
 @pytest.mark.asyncio
-async def test_list_integrations(client):
-    mock_response = Mock()
-    mock_response.is_success = True
-    mock_response.json.return_value = [
-        {
-            "id": "SNOWFLAKE",
-            "displayName": "Snowflake",
-            "authSchema": {"fields": []},
-            "jobTypes": [],
-        }
-    ]
-
-    client._client.get = AsyncMock(return_value=mock_response)
-
-    result = await client.list_integrations()
-
-    assert len(result) == 1
-    assert result[0]["id"] == "SNOWFLAKE"
-    client._client.get.assert_called_once_with("/integrations")
-
-
-@pytest.mark.asyncio
 async def test_list_integration_connections_with_filters(client):
     mock_response = Mock()
     mock_response.is_success = True
