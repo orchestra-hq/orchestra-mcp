@@ -273,6 +273,28 @@ class OrchestraClient:
         response = await self._client.get("/pipeline", params=params)
         self._raise_for_status(response)
         return PipelineResponse.model_validate(response.json())
+        
+    async def list_integrations(self) -> list[dict[str, Any]]:
+        """List all supported integrations."""
+        response = await self._client.get("/integrations")
+        self._raise_for_status(response)
+        return response.json()
+
+    async def list_integration_connections(
+        self,
+        integration: str | None = None,
+        auth_status: str | None = None,
+    ) -> list[dict[str, Any]]:
+        """List integration connections for the workspace linked to the API key."""
+        params: dict[str, Any] = {}
+        if integration is not None:
+            params["integration"] = integration
+        if auth_status is not None:
+            params["authStatus"] = auth_status
+
+        response = await self._client.get("/integrations/connections", params=params)
+        self._raise_for_status(response)
+        return response.json()
 
     async def import_pipeline(
         self,
