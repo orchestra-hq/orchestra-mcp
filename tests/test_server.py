@@ -58,6 +58,7 @@ async def test_tool_registration():
         "get_pipeline",
         "import_pipeline",
         "list_assets",
+        "list_integration_connections",
         "list_operations",
         "list_pipeline_runs",
         "list_pipelines",
@@ -114,3 +115,11 @@ async def test_delete_pipeline_enabled_when_env_var_set(set_api_key, monkeypatch
 
     tool_names = {tool.name for tool in await server_module.mcp.list_tools()}
     assert "delete_pipeline" in tool_names
+
+@pytest.mark.asyncio
+async def test_list_integration_connections_tool_exposes_filters():
+    tools = {tool.name: tool for tool in await mcp.list_tools()}
+    tool = tools["list_integration_connections"]
+
+    assert "integration" in tool.parameters["properties"]
+    assert "auth_status" in tool.parameters["properties"]

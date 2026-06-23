@@ -387,7 +387,20 @@ if _delete_enabled():
     )(delete_pipeline)
 
 
-@mcp.tool(annotations=ToolAnnotations(title="Import Pipeline", destructiveHint=False))
+@mcp.tool()
+async def list_integration_connections(
+    integration: str | None = None,
+    auth_status: str | None = None,
+) -> list[dict[str, Any]]:
+    """List integration connections for the workspace linked to the API key."""
+    async with get_client() as client:
+        return await client.list_integration_connections(
+            integration=integration,
+            auth_status=auth_status,
+        )
+
+
+@mcp.tool()
 async def import_pipeline(
     storage_provider: str,
     repository: str,

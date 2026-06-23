@@ -441,6 +441,7 @@ async def test_delete_pipeline_requires_repository_and_yaml_path_together(client
 @pytest.mark.asyncio
 async def test_list_assets(client):
     mock_response = Mock()
+    mock_response.is_success = True
     mock_response.json.return_value = {
         "page": 1,
         "pageSize": 50,
@@ -531,7 +532,6 @@ async def test_get_pipeline_by_alias(client):
     client._client.get.assert_called_once_with(
         "/pipeline", params={"alias": "daily_etl"}
     )
-
 
 @pytest.mark.asyncio
 async def test_get_pipeline_passes_optional_selectors(client):
@@ -653,6 +653,33 @@ async def test_migrate_pipeline_storage_requires_selector(client):
             storage_provider="GITHUB",
             default_branch="main",
         )
+
+
+@pytest.mark.asyncio
+async def test_list_integration_connections_with_filters(client):
+    mock_response = Mock()
+    mock_response.is_success = True
+    mock_response.json.return_value = [
+        {
+            "integration": "SNOWFLAKE",
+            "authStatus": "AUTHENTICATED",
+            "connectionId": "connection-id",
+        }
+    ]
+
+    client._client.get = AsyncMock(return_value=mock_response)
+
+    result = await client.list_integration_connections(
+        integration="SNOWFLAKE",
+        auth_status="AUTHENTICATED",
+    )
+
+    assert len(result) == 1
+    assert result[0]["integration"] == "SNOWFLAKE"
+    client._client.get.assert_called_once_with(
+        "/integrations/connections",
+        params={"integration": "SNOWFLAKE", "authStatus": "AUTHENTICATED"},
+    )
 
 
 @pytest.mark.asyncio

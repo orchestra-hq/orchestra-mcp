@@ -34,6 +34,7 @@ Use Orchestra's hosted MCP endpoint:
 | `download_task_run_log` | Yes | Download a log file (optional HTTP Range); content is base64-encoded in the result. | Logs and artifacts |
 | `list_task_run_artifacts` | Yes | List artifact filenames for a task run. | Logs and artifacts |
 | `download_task_run_artifact` | Yes | Download an artifact file; content is base64-encoded in the result. | Logs and artifacts |
+| `list_integration_connections` | Yes | List integration connections with optional filter on integration and connection status | Integrations |
 
 
 ### Cursor
