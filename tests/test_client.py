@@ -708,8 +708,9 @@ async def test_list_operations_with_integration_filter(client):
 async def test_client_context_manager():
     async with OrchestraClient(api_key="test-key") as client:
         assert client.api_key == "test-key"
-    # __aexit__ is a no-op so cached client (e.g. from lru_cache get_client) is not closed
-    assert client._client.is_closed is False
+        assert client._client.is_closed is False
+    # __aexit__ closes the per-request client so connections are not leaked
+    assert client._client.is_closed is True
 
 
 @pytest.mark.asyncio

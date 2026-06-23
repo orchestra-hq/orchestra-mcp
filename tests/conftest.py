@@ -3,8 +3,6 @@ import os
 
 import pytest
 
-from orchestramcp.server import get_client
-
 EXPECTED_TOOLS = {
     "cancel_pipeline_run",
     "download_task_run_artifact",
@@ -25,7 +23,7 @@ EXPECTED_TOOLS = {
 }
 
 MCP_HEADERS = {
-    "Accept": "application/json",
+    "Accept": "application/json, text/event-stream",
     "Content-Type": "application/json",
 }
 
@@ -36,22 +34,31 @@ def orchestra_env():
     yield
     os.environ.pop("ORCHESTRA_ENV", None)
     os.environ.pop("ORCHESTRA_API_KEY", None)
-    get_client.cache_clear()
 
 
 def api_gateway_event(
     method: str = "POST",
+    path: str = "/orchestra",
     headers: dict[str, str] | None = None,
     body: str | None = None,
 ) -> dict:
     return {
         "version": "2.0",
-        "routeKey": f"{method} /orchestra",
-        "rawPath": "/orchestra",
+        "routeKey": f"{method} {path}",
+        "rawPath": path,
         "rawQueryString": "",
         "headers": headers or {},
-        "requestContext": {"http": {"method": method, "path": "/orchestra"}},
+        "requestContext": {
+            "http": {
+                "method": method,
+                "path": path,
+                "protocol": "HTTP/1.1",
+                "sourceIp": "127.0.0.1",
+            },
+            "stage": "$default",
+        },
         "body": body,
+        "isBase64Encoded": False,
     }
 
 

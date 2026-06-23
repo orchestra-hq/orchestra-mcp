@@ -1,7 +1,6 @@
 import os
 import sys
 from datetime import datetime
-from functools import lru_cache
 from pathlib import Path
 from typing import Any, Literal
 
@@ -11,8 +10,10 @@ if str(_project_root) not in sys.path:
     sys.path.insert(0, str(_project_root))
 
 from fastmcp import FastMCP  # noqa: E402
+from fastmcp.server.dependencies import get_access_token  # noqa: E402
 from mcp.types import ToolAnnotations  # noqa: E402
 
+from orchestramcp.auth import build_auth, resolve_orchestra_credential  # noqa: E402
 from orchestramcp.client import OrchestraClient  # noqa: E402
 from orchestramcp.models import (  # noqa: E402
     AssetType,
@@ -35,14 +36,17 @@ def parse_iso_datetime(dt_str: str) -> datetime:
         )
 
 
-mcp = FastMCP("Orchestra MCP Server")
+mcp = FastMCP("Orchestra MCP Server", auth=build_auth())
 
 
-@lru_cache
-def get_client() -> OrchestraClient:
-    api_key = os.getenv("ORCHESTRA_API_KEY")
-    if not api_key:
-        raise ValueError("ORCHESTRA_API_KEY environment variable is required")
+async def get_client() -> OrchestraClient:
+    """Build an Orchestra client for the current request.
+
+    The upstream credential is resolved per request from the authenticated
+    access token (API key or OAuth identity), so the client must not be cached
+    across requests — one server process serves many users concurrently.
+    """
+    api_key = await resolve_orchestra_credential(get_access_token())
     return OrchestraClient(api_key=api_key)
 
 
@@ -71,7 +75,7 @@ async def list_pipeline_runs(
     Reference:
         https://docs.getorchestra.io/api/pipeline-runs/list-pipeline-runs
     """
-    async with get_client() as client:
+    async with await get_client() as client:
         response = await client.list_pipeline_runs(
             time_from=parse_iso_datetime(time_from) if time_from else None,
             time_to=parse_iso_datetime(time_to) if time_to else None,
@@ -112,7 +116,7 @@ async def list_task_runs(
     Reference:
         https://docs.getorchestra.io/api/task-runs/list-task-runs
     """
-    async with get_client() as client:
+    async with await get_client() as client:
         response = await client.list_task_runs(
             time_from=parse_iso_datetime(time_from) if time_from else None,
             time_to=parse_iso_datetime(time_to) if time_to else None,
@@ -157,7 +161,7 @@ async def list_operations(
     Reference:
         https://docs.getorchestra.io/api/operations/list-operations
     """
-    async with get_client() as client:
+    async with await get_client() as client:
         response = await client.list_operations(
             time_from=parse_iso_datetime(time_from) if time_from else None,
             time_to=parse_iso_datetime(time_to) if time_to else None,
@@ -193,7 +197,7 @@ async def list_assets(
     Reference:
         https://docs.getorchestra.io/api/assets/list-assets
     """
-    async with get_client() as client:
+    async with await get_client() as client:
         response = await client.list_assets(
             asset_type=asset_type,
             integration=integration,
@@ -214,7 +218,7 @@ async def list_pipelines() -> list[dict[str, Any]]:
         https://docs.getorchestra.io/api/pipelines/list-pipelines
     """
 
-    async with get_client() as client:
+    async with await get_client() as client:
         response = await client.list_pipelines()
         return [pipeline.model_dump() for pipeline in response]
 
@@ -248,7 +252,7 @@ async def get_pipeline(
     Reference:
         https://docs.getorchestra.io/api/pipelines/get-a-pipeline-by-selector
     """
-    async with get_client() as client:
+    async with await get_client() as client:
         response = await client.get_pipeline(
             pipeline_id=pipeline_id,
             alias=alias,
@@ -293,7 +297,7 @@ async def create_pipeline(
     Reference:
         https://docs.getorchestra.io/api/pipelines/create-a-pipeline
     """
-    async with get_client() as client:
+    async with await get_client() as client:
         response = await client.create_pipeline(
             pipeline_definition=pipeline_definition,
             alias=alias,
@@ -328,7 +332,7 @@ async def update_pipeline(
     Reference:
         https://docs.getorchestra.io/api/pipelines/update-a-pipeline
     """
-    async with get_client() as client:
+    async with await get_client() as client:
         response = await client.update_pipeline(
             alias=alias,
             pipeline_definition=pipeline_definition,
@@ -370,7 +374,7 @@ async def delete_pipeline(
         https://docs.getorchestra.io/api/pipelines/delete-a-pipeline
     """
 
-    async with get_client() as client:
+    async with await get_client() as client:
         response = await client.delete_pipeline(
             pipeline_id=pipeline_id,
             alias=alias,
@@ -425,7 +429,7 @@ async def import_pipeline(
     Reference:
         https://docs.getorchestra.io/api/pipelines/import-a-pipeline
     """
-    async with get_client() as client:
+    async with await get_client() as client:
         response = await client.import_pipeline(
             storage_provider=storage_provider,
             repository=repository,
@@ -468,7 +472,7 @@ async def migrate_pipeline(
     Reference:
         https://docs.getorchestra.io/api/pipelines/update-pipeline-storage-settings
     """
-    async with get_client() as client:
+    async with await get_client() as client:
         return await client.migrate_pipeline_storage(
             path=path,
             repository=repository,
@@ -495,7 +499,7 @@ async def validate_pipeline(pipeline_definition: dict[str, Any]) -> dict:
     Reference:
         https://docs.getorchestra.io/api/pipelines/validate-pipeline-schema
     """
-    async with get_client() as client:
+    async with await get_client() as client:
         response = await client.validate_pipeline_schema(
             pipeline_definition=pipeline_definition
         )
@@ -525,7 +529,7 @@ async def start_pipeline(
     Reference:
         https://docs.getorchestra.io/api/pipelines/start-a-pipeline-run
     """
-    async with get_client() as client:
+    async with await get_client() as client:
         response = await client.start_pipeline(
             alias_or_pipeline_id=alias_or_pipeline_id,
             branch=branch,
@@ -549,7 +553,7 @@ async def get_pipeline_run_status(pipeline_run_id: str) -> dict:
     Reference:
         https://docs.getorchestra.io/api/pipeline-runs/get-pipeline-run-status
     """
-    async with get_client() as client:
+    async with await get_client() as client:
         response = await client.get_pipeline_run_status(pipeline_run_id=pipeline_run_id)
         return response.model_dump()
 
@@ -567,7 +571,7 @@ async def cancel_pipeline_run(pipeline_run_id: str) -> dict:
     Reference:
         https://docs.getorchestra.io/api/pipeline-runs/cancel-a-pipeline-run
     """
-    async with get_client() as client:
+    async with await get_client() as client:
         await client.cancel_pipeline_run(pipeline_run_id=pipeline_run_id)
         return {"message": f"Pipeline run {pipeline_run_id} cancellation requested"}
 
@@ -589,7 +593,7 @@ async def list_task_run_logs(
     Reference:
         https://docs.getorchestra.io/api/logs/list-task-run-logs
     """
-    async with get_client() as client:
+    async with await get_client() as client:
         response = await client.list_task_run_logs(
             pipeline_run_id=pipeline_run_id,
             task_run_id=task_run_id,
@@ -620,7 +624,7 @@ async def download_task_run_log(
     """
     import base64
 
-    async with get_client() as client:
+    async with await get_client() as client:
         content = await client.download_task_run_log(
             pipeline_run_id=pipeline_run_id,
             task_run_id=task_run_id,
@@ -651,7 +655,7 @@ async def list_task_run_artifacts(
     Reference:
         https://docs.getorchestra.io/api/artifacts/list-task-run-artifacts
     """
-    async with get_client() as client:
+    async with await get_client() as client:
         response = await client.list_task_run_artifacts(
             pipeline_run_id=pipeline_run_id,
             task_run_id=task_run_id,
@@ -680,7 +684,7 @@ async def download_task_run_artifact(
     """
     import base64
 
-    async with get_client() as client:
+    async with await get_client() as client:
         content = await client.download_task_run_artifact(
             pipeline_run_id=pipeline_run_id,
             task_run_id=task_run_id,

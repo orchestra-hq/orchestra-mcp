@@ -1,21 +1,37 @@
+import asyncio
 import logging
 import os
 from datetime import UTC, datetime
 from typing import Any
 
-from mcp_lambda import APIGatewayProxyEventV2Handler
+from mangum import Mangum
+from starlette.middleware.cors import CORSMiddleware
 
-from orchestramcp.in_process_request_handler import FastMCPInProcessRequestHandler
-from orchestramcp.server import get_client
+from orchestramcp.auth import get_mcp_path
+from orchestramcp.server import mcp
 
 logger = logging.getLogger("orchestramcp.lambda_handler")
 logger.setLevel(logging.ERROR)
 
-_event_handler = APIGatewayProxyEventV2Handler(FastMCPInProcessRequestHandler())
-
 
 class ConfigInvalidError(ValueError):
     pass
+
+
+# FastMCP's streamable-HTTP ASGI app serves the MCP endpoint and, when OAuth is
+# configured, the RFC 9728 Protected Resource Metadata at /.well-known/* plus
+# the WWW-Authenticate 401 challenge. Lambda invocations are independent, so
+# the transport is stateless, and responses are buffered, so plain JSON beats
+# SSE framing.
+_app = mcp.http_app(path=get_mcp_path(), transport="http", stateless_http=True, json_response=True)
+_app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+    expose_headers=["mcp-session-id", "mcp-protocol-version"],
+)
+_mangum = Mangum(_app, lifespan="auto")
 
 
 def _timestamp_utc() -> str:
@@ -41,69 +57,29 @@ def _log_error_event(event_name: str, context: Any, error: BaseException) -> Non
     )
 
 
-def _resolve_orchestra_env() -> str:
-    env = os.getenv("ORCHESTRA_ENV", "").strip()
-    if env:
-        return env
-    raise ConfigInvalidError("Missing ORCHESTRA_ENV environment variable")
+def _ensure_event_loop() -> None:
+    # Mangum resolves its loop via asyncio.get_event_loop(), which on Python
+    # 3.12+ no longer creates one. The Lambda runtime is single-threaded, so a
+    # persistent loop per process is safe (and lets warm invocations reuse it).
+    try:
+        if asyncio.get_event_loop().is_closed():
+            raise RuntimeError
+    except RuntimeError:
+        asyncio.set_event_loop(asyncio.new_event_loop())
 
 
-def _apply_request_credentials(api_key: str | None) -> None:
-    if api_key:
-        os.environ["ORCHESTRA_API_KEY"] = api_key
-    else:
-        os.environ.pop("ORCHESTRA_API_KEY", None)
-    get_client.cache_clear()
-
-
-def _log_mcp_internal_failure_if_present(response: dict[str, Any], context: Any) -> None:
-    body = response.get("body")
-    if (
-        not isinstance(body, str)
-        or "Internal failure, please check Lambda function logs" not in body
-    ):
-        return
-    _log_error_event(
-        "mcp_in_process_internal_failure",
-        context,
-        RuntimeError("MCP in-process handler returned internal failure"),
-    )
-
-
-def _get_http_method(event: dict[str, Any]) -> str:
-    return event["requestContext"]["http"]["method"].upper()
-
-
-def _extract_bearer_token(event: dict[str, Any]) -> str | None:
-    headers = {key.lower(): value for key, value in event.get("headers", {}).items()}
-    authorization = headers.get("authorization")
-    if not authorization:
-        return None
-
-    parts = authorization.strip().split(maxsplit=1)
-    if len(parts) != 2 or parts[0].lower() != "bearer":
-        return None
-
-    token = parts[1].strip()
-    return token or None
+def _require_orchestra_env() -> None:
+    # Without this the client would default to the production API, so a
+    # misconfigured stage Lambda would silently serve production data.
+    if not os.getenv("ORCHESTRA_ENV", "").strip():
+        raise ConfigInvalidError("Missing ORCHESTRA_ENV environment variable")
 
 
 def handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
     try:
-        method = _get_http_method(event)
-        api_key = _extract_bearer_token(event)
-        if method == "POST" and not api_key:
-            return {
-                "statusCode": 401,
-                "headers": {"content-type": "application/json"},
-                "body": '{"message":"Missing or invalid Authorization header"}',
-            }
-
-        _resolve_orchestra_env()
-        _apply_request_credentials(api_key)
-        response = _event_handler.handle(event, context)
-        _log_mcp_internal_failure_if_present(response, context)
-        return response
+        _require_orchestra_env()
+        _ensure_event_loop()
+        return _mangum(event, context)
     except Exception as exc:
         if isinstance(exc, ConfigInvalidError):
             event_name = "config_invalid"
