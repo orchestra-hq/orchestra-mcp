@@ -111,6 +111,36 @@ class DeletePipelineResponse(BaseModel):
     is_deleted: bool
 
 
+class EnvironmentValueType(BaseModel):
+    type: Literal["string", "int", "bool", "integration_credential"]
+    value: str | bool | int | float
+
+
+class ProtectedEnvironmentResponse(BaseModel):
+    """An Orchestra environment without its variable values."""
+
+    account_id: UUID4 = Field(alias="accountId")
+    environment_id: UUID4 = Field(alias="environmentId")
+    name: str
+    default_env: bool = Field(alias="defaultEnv")
+
+
+class EnvironmentResponse(BaseModel):
+    """An Orchestra environment including its variable values."""
+
+    account_id: UUID4 = Field(alias="accountId")
+    environment_id: UUID4 = Field(alias="environmentId")
+    name: str
+    default_env: bool = Field(alias="defaultEnv")
+    values: dict[str, EnvironmentValueType]
+    created_at: str = Field(alias="createdAt")
+    updated_at: str = Field(alias="updatedAt")
+
+
+class DeleteEnvironmentResponse(BaseModel):
+    is_deleted: bool
+
+
 class PipelineInputModel(BaseModel):
     type: Literal["string", "number", "boolean", "dict", "list"]
     default: Any | None = None

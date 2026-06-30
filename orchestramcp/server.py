@@ -400,6 +400,133 @@ async def list_integration_connections(
         )
 
 
+@mcp.tool(annotations=ToolAnnotations(title="List Environments", readOnlyHint=True))
+async def list_environments() -> list[dict[str, Any]]:
+    """List environments for the workspace linked to the API key (GET /environments).
+
+    Returns environment metadata only (id, name, default flag). Use `get_environment`
+    to retrieve a single environment's variable values.
+
+    Returns:
+        List of environments without their variable values
+
+    Reference:
+        https://docs.getorchestra.io/api/environments/list-environments
+    """
+    async with get_client() as client:
+        response = await client.list_environments()
+        return [environment.model_dump() for environment in response]
+
+
+@mcp.tool(annotations=ToolAnnotations(title="Get Environment", readOnlyHint=True))
+async def get_environment(environment_id: str) -> dict:
+    """Fetch a single environment by its ID, including its variable values (GET /environments/{environment_id}).
+
+    Args:
+        environment_id: Environment ID (UUID)
+
+    Returns:
+        The environment with its variable values
+
+    Reference:
+        https://docs.getorchestra.io/api/environments/get-an-environment
+    """
+    async with get_client() as client:
+        response = await client.get_environment(environment_id=environment_id)
+        return response.model_dump()
+
+
+@mcp.tool(annotations=ToolAnnotations(title="Create Environment", destructiveHint=False))
+async def create_environment(
+    name: str,
+    values: dict[str, dict[str, Any]],
+) -> dict:
+    """Create a new environment with an initial set of variable values (POST /environments).
+
+    The first environment created for a workspace is automatically marked as the default.
+
+    Args:
+        name: Environment name
+        values: Mapping of variable name to a typed value object of the form
+            `{"type": <"string"|"int"|"bool"|"integration_credential">, "value": <value>}`.
+            For example: `{"WAREHOUSE": {"type": "string", "value": "COMPUTE_WH"},
+            "RETRIES": {"type": "int", "value": 3}}`
+
+    Returns:
+        The created environment with its variable values
+
+    Reference:
+        https://docs.getorchestra.io/api/environments/create-an-environment
+    """
+    async with get_client() as client:
+        response = await client.create_environment(name=name, values=values)
+        return response.model_dump()
+
+
+@mcp.tool(annotations=ToolAnnotations(title="Update Environment", destructiveHint=False))
+async def update_environment(
+    environment_id: str,
+    name: str,
+    values: dict[str, dict[str, Any]],
+    default_env: bool,
+) -> dict:
+    """Update an environment's name, default flag, and variable values (PATCH /environments/{environment_id}).
+
+    The supplied `values` replace the existing values in full — they are not merged, so
+    fetch the environment first with `get_environment` if you only mean to change some of
+    them. Marking an environment as the default automatically unsets the previous default.
+
+    Args:
+        environment_id: Environment ID (UUID)
+        name: Environment name
+        values: Mapping of variable name to a typed value object of the form
+            `{"type": <"string"|"int"|"bool"|"integration_credential">, "value": <value>}`.
+            Replaces the existing values in full.
+        default_env: Whether this environment should be the workspace default
+
+    Returns:
+        The updated environment with its variable values
+
+    Reference:
+        https://docs.getorchestra.io/api/environments/update-an-environment
+    """
+    async with get_client() as client:
+        response = await client.update_environment(
+            environment_id=environment_id,
+            name=name,
+            values=values,
+            default_env=default_env,
+        )
+        return response.model_dump()
+
+
+async def delete_environment(environment_id: str) -> dict:
+    """Delete an environment entirely (DELETE /environments/{environment_id}).
+
+    Disabled by default; set the `ORCHESTRA_ENABLE_DELETE` environment variable to
+    either `1` or `true` to expose this tool. The default environment cannot be deleted
+    while other environments still exist.
+
+    Args:
+        environment_id: Environment ID (UUID)
+
+    Returns:
+        Deletion result, e.g. `{"is_deleted": true}`
+
+    Reference:
+        https://docs.getorchestra.io/api/environments/delete-an-environment
+    """
+    async with get_client() as client:
+        response = await client.delete_environment(environment_id=environment_id)
+        return response.model_dump()
+
+
+if _delete_enabled():
+    delete_environment = mcp.tool(
+        annotations=ToolAnnotations(title="Delete Environment", destructiveHint=True)
+    )(delete_environment)
+
+
 @mcp.tool()
 async def import_pipeline(
     storage_provider: str,
