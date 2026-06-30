@@ -8,7 +8,9 @@ import httpx
 from orchestramcp.errors import OrchestraAPIError, parse_error_response
 from orchestramcp.models import (
     AssetType,
+    DeleteEnvironmentResponse,
     DeletePipelineResponse,
+    EnvironmentResponse,
     OperationStatus,
     OperationType,
     PaginatedResponse,
@@ -17,6 +19,7 @@ from orchestramcp.models import (
     PipelineRunProgress,
     PipelineRunStatus,
     PipelineStartResponse,
+    ProtectedEnvironmentResponse,
     TaskRunStatus,
     ValidatePipelineSchemaResponse,
 )
@@ -289,6 +292,62 @@ class OrchestraClient:
         response = await self._client.get("/integrations/connections", params=params)
         self._raise_for_status(response)
         return response.json()
+
+    async def list_environments(self) -> list[ProtectedEnvironmentResponse]:
+        """List environments for the workspace linked to the API key (GET /environments).
+
+        Returns environment metadata only — use ``get_environment`` to retrieve variable values.
+        """
+        response = await self._client.get("/environments", params={})
+        self._raise_for_status(response)
+        return [ProtectedEnvironmentResponse.model_validate(item) for item in response.json()]
+
+    async def get_environment(self, environment_id: str) -> EnvironmentResponse:
+        """Fetch a single environment, including its variable values (GET /environments/{environment_id})."""
+        response = await self._client.get(f"/environments/{environment_id}")
+        self._raise_for_status(response)
+        return EnvironmentResponse.model_validate(response.json())
+
+    async def create_environment(
+        self,
+        name: str,
+        values: dict[str, Any],
+    ) -> EnvironmentResponse:
+        """Create a new environment (POST /environments).
+
+        The first environment created for a workspace is automatically marked as the default.
+        """
+        payload: dict[str, Any] = {"name": name, "values": values}
+        response = await self._client.post("/environments", json=payload)
+        self._raise_for_status(response)
+        return EnvironmentResponse.model_validate(response.json())
+
+    async def update_environment(
+        self,
+        environment_id: str,
+        name: str,
+        values: dict[str, Any],
+        default_env: bool,
+    ) -> EnvironmentResponse:
+        """Update an environment (PATCH /environments/{environment_id}).
+
+        The supplied ``values`` replace the existing values in full — they are not merged.
+        Marking an environment as the default automatically unsets the previous default.
+        """
+        payload: dict[str, Any] = {"name": name, "values": values, "defaultEnv": default_env}
+        response = await self._client.patch(f"/environments/{environment_id}", json=payload)
+        self._raise_for_status(response)
+        return EnvironmentResponse.model_validate(response.json())
+
+    async def delete_environment(self, environment_id: str) -> DeleteEnvironmentResponse:
+        """Delete an environment (DELETE /environments/{environment_id}).
+
+        The default environment cannot be deleted while other environments still exist.
+        For HTTP ``204 No Content``, this returns ``{"is_deleted": true}``.
+        """
+        response = await self._client.delete(f"/environments/{environment_id}")
+        self._raise_for_status(response)
+        return DeleteEnvironmentResponse(is_deleted=response.status_code == 204)
 
     async def import_pipeline(
         self,

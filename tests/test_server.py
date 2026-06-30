@@ -59,6 +59,10 @@ async def test_tool_registration():
         "import_pipeline",
         "list_assets",
         "list_integration_connections",
+        "list_environments",
+        "get_environment",
+        "create_environment",
+        "update_environment",
         "list_operations",
         "list_pipeline_runs",
         "list_pipelines",
@@ -123,3 +127,34 @@ async def test_list_integration_connections_tool_exposes_filters():
 
     assert "integration" in tool.parameters["properties"]
     assert "auth_status" in tool.parameters["properties"]
+
+
+@pytest.mark.asyncio
+async def test_delete_environment_disabled_by_default():
+    tool_names = {tool.name for tool in await mcp.list_tools()}
+    assert "delete_environment" not in tool_names
+
+
+@pytest.mark.asyncio
+async def test_delete_environment_enabled_when_env_var_set(set_api_key, monkeypatch):
+    monkeypatch.setenv("ORCHESTRA_ENABLE_DELETE", "true")
+
+    import orchestramcp.server as server_module
+
+    server_module = importlib.reload(server_module)
+    server_module.get_client.cache_clear()
+
+    tool_names = {tool.name for tool in await server_module.mcp.list_tools()}
+    assert "delete_environment" in tool_names
+
+
+@pytest.mark.asyncio
+async def test_update_environment_tool_exposes_params():
+    tools = {tool.name: tool for tool in await mcp.list_tools()}
+    tool = tools["update_environment"]
+
+    properties = tool.parameters["properties"]
+    assert "environment_id" in properties
+    assert "name" in properties
+    assert "values" in properties
+    assert "default_env" in properties

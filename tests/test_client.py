@@ -682,6 +682,123 @@ async def test_list_integration_connections_with_filters(client):
     )
 
 
+def _environment_response(name="Production", default_env=True):
+    return {
+        "accountId": str(uuid.uuid4()),
+        "environmentId": str(uuid.uuid4()),
+        "name": name,
+        "defaultEnv": default_env,
+        "values": {
+            "WAREHOUSE": {"type": "string", "value": "COMPUTE_WH"},
+            "RETRIES": {"type": "int", "value": 3},
+            "ENABLED": {"type": "bool", "value": True},
+        },
+        "createdAt": "2025-01-01T00:00:00Z",
+        "updatedAt": "2025-01-02T00:00:00Z",
+    }
+
+
+@pytest.mark.asyncio
+async def test_list_environments(client):
+    mock_response = Mock()
+    mock_response.is_success = True
+    mock_response.json.return_value = [
+        {
+            "accountId": str(uuid.uuid4()),
+            "environmentId": str(uuid.uuid4()),
+            "name": "Production",
+            "defaultEnv": True,
+        },
+        {
+            "accountId": str(uuid.uuid4()),
+            "environmentId": str(uuid.uuid4()),
+            "name": "Staging",
+            "defaultEnv": False,
+        },
+    ]
+
+    client._client.get = AsyncMock(return_value=mock_response)
+
+    result = await client.list_environments()
+    assert len(result) == 2
+    assert result[0].name == "Production"
+    assert result[0].default_env is True
+    assert result[1].name == "Staging"
+    client._client.get.assert_called_once_with("/environments", params={})
+
+
+@pytest.mark.asyncio
+async def test_get_environment(client):
+    payload = _environment_response()
+    mock_response = Mock()
+    mock_response.is_success = True
+    mock_response.json.return_value = payload
+
+    client._client.get = AsyncMock(return_value=mock_response)
+
+    result = await client.get_environment(payload["environmentId"])
+    assert result.name == "Production"
+    assert result.values["WAREHOUSE"].value == "COMPUTE_WH"
+    assert result.values["RETRIES"].type == "int"
+    client._client.get.assert_called_once_with(f"/environments/{payload['environmentId']}")
+
+
+@pytest.mark.asyncio
+async def test_create_environment(client):
+    mock_response = Mock()
+    mock_response.is_success = True
+    mock_response.json.return_value = _environment_response(name="Dev", default_env=False)
+
+    client._client.post = AsyncMock(return_value=mock_response)
+
+    values = {"WAREHOUSE": {"type": "string", "value": "COMPUTE_WH"}}
+    result = await client.create_environment(name="Dev", values=values)
+
+    assert result.name == "Dev"
+    client._client.post.assert_called_once_with(
+        "/environments", json={"name": "Dev", "values": values}
+    )
+
+
+@pytest.mark.asyncio
+async def test_update_environment(client):
+    payload = _environment_response(name="Production", default_env=True)
+    mock_response = Mock()
+    mock_response.is_success = True
+    mock_response.json.return_value = payload
+
+    client._client.patch = AsyncMock(return_value=mock_response)
+
+    values = {"RETRIES": {"type": "int", "value": 5}}
+    result = await client.update_environment(
+        environment_id=payload["environmentId"],
+        name="Production",
+        values=values,
+        default_env=True,
+    )
+
+    assert result.name == "Production"
+    client._client.patch.assert_called_once_with(
+        f"/environments/{payload['environmentId']}",
+        json={"name": "Production", "values": values, "defaultEnv": True},
+    )
+
+
+@pytest.mark.asyncio
+async def test_delete_environment(client):
+    environment_id = str(uuid.uuid4())
+    mock_response = Mock()
+    mock_response.is_success = True
+    mock_response.status_code = 204
+    mock_response.content = b""
+
+    client._client.delete = AsyncMock(return_value=mock_response)
+
+    result = await client.delete_environment(environment_id)
+    assert result.is_deleted is True
+    client._client.delete.assert_called_once_with(f"/environments/{environment_id}")
+
+
 @pytest.mark.asyncio
 async def test_list_operations_with_integration_filter(client):
     mock_response = Mock()

@@ -35,6 +35,11 @@ Use Orchestra's hosted MCP endpoint:
 | `list_task_run_artifacts` | Yes | List artifact filenames for a task run. | Logs and artifacts |
 | `download_task_run_artifact` | Yes | Download an artifact file; content is base64-encoded in the result. | Logs and artifacts |
 | `list_integration_connections` | Yes | List integration connections with optional filter on integration and connection status | Integrations |
+| `list_environments` | Yes | List environments for the workspace, metadata only (`GET /environments`). | Environments |
+| `get_environment` | Yes | Fetch a single environment including its variable values (`GET /environments/{id}`). | Environments |
+| `create_environment` | Yes | Create an environment with an initial set of typed variable values (`POST /environments`). | Environments |
+| `update_environment` | Yes | Update an environment's name, default flag, and variable values, replacing values in full (`PATCH /environments/{id}`). | Environments |
+| `delete_environment` | Yes | **Disabled by default.** Delete an environment (`DELETE /environments/{id}`). Set `ORCHESTRA_ENABLE_DELETE` to expose it. | Environments |
 
 
 ### Cursor
@@ -142,10 +147,10 @@ Valid values:
 - `stage`
 - `dev`
 
-### (Optional) Enable destructive pipeline deletion
+### (Optional) Enable destructive deletion
 
-By default, the MCP `delete_pipeline` tool is not registered to avoid accidental destructive actions.
-To expose it, set `ORCHESTRA_ENABLE_DELETE` before starting the server:
+By default, the destructive `delete_pipeline` and `delete_environment` tools are not registered to avoid accidental destructive actions.
+To expose them, set `ORCHESTRA_ENABLE_DELETE` before starting the server:
 
 ```bash
 export ORCHESTRA_ENABLE_DELETE="true"
