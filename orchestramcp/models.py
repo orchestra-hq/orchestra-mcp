@@ -1,11 +1,11 @@
 from datetime import datetime
-from enum import Enum
+from enum import StrEnum
 from typing import Any, Literal
 
 from pydantic import UUID4, BaseModel, Field
 
 
-class PipelineRunStatus(str, Enum):
+class PipelineRunStatus(StrEnum):
     CREATED = "CREATED"
     RUNNING = "RUNNING"
     SUCCEEDED = "SUCCEEDED"
@@ -15,7 +15,7 @@ class PipelineRunStatus(str, Enum):
     CANCELLED = "CANCELLED"
 
 
-class TaskRunStatus(str, Enum):
+class TaskRunStatus(StrEnum):
     CREATED = "CREATED"
     SKIPPED = "SKIPPED"
     QUEUED = "QUEUED"
@@ -27,7 +27,7 @@ class TaskRunStatus(str, Enum):
     CANCELLED = "CANCELLED"
 
 
-class OperationType(str, Enum):
+class OperationType(StrEnum):
     AGGREGATION = "AGGREGATION"
     ANALYSIS = "ANALYSIS"
     DEPLOY = "DEPLOY"
@@ -47,7 +47,7 @@ class OperationType(str, Enum):
     UNKNOWN = "UNKNOWN"
 
 
-class OperationStatus(str, Enum):
+class OperationStatus(StrEnum):
     SUCCEEDED = "SUCCEEDED"
     FAILED = "FAILED"
     SKIPPED = "SKIPPED"
@@ -56,7 +56,7 @@ class OperationStatus(str, Enum):
     CANCELLED = "CANCELLED"
 
 
-class AssetType(str, Enum):
+class AssetType(StrEnum):
     DASHBOARD = "DASHBOARD"
     DASHBOARD_VIEWS = "DASHBOARD_VIEWS"
     DATASET = "DATASET"
