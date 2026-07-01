@@ -4,6 +4,7 @@ import os
 import pytest
 
 from orchestramcp.server import get_client, mcp, parse_iso_datetime
+from tests.conftest import CONDITIONAL_TOOLS, EXPECTED_TOOLS
 
 
 @pytest.fixture
@@ -48,32 +49,10 @@ def test_parse_iso_datetime_invalid_message_is_actionable():
 @pytest.mark.asyncio
 async def test_tool_registration():
     tool_names = {tool.name for tool in await mcp.list_tools()}
-    expected_tools = {
-        "cancel_pipeline_run",
-        "create_pipeline",
-        "update_pipeline",
-        "download_task_run_artifact",
-        "download_task_run_log",
-        "get_pipeline_run_status",
-        "get_pipeline",
-        "import_pipeline",
-        "list_assets",
-        "list_integration_connections",
-        "list_environments",
-        "get_environment",
-        "create_environment",
-        "update_environment",
-        "list_operations",
-        "list_pipeline_runs",
-        "list_pipelines",
-        "list_task_run_artifacts",
-        "list_task_run_logs",
-        "list_task_runs",
-        "migrate_pipeline",
-        "start_pipeline",
-        "validate_pipeline",
-    }
-    assert expected_tools.issubset(tool_names)
+    # Equality (not just subset) so a tool added to server.py without a matching
+    # api_contract entry — or vice versa — fails here instead of drifting silently.
+    assert tool_names == EXPECTED_TOOLS
+    assert not (tool_names & CONDITIONAL_TOOLS), "delete tools must be off by default"
 
 
 @pytest.mark.asyncio
@@ -119,6 +98,7 @@ async def test_delete_pipeline_enabled_when_env_var_set(set_api_key, monkeypatch
 
     tool_names = {tool.name for tool in await server_module.mcp.list_tools()}
     assert "delete_pipeline" in tool_names
+
 
 @pytest.mark.asyncio
 async def test_list_integration_connections_tool_exposes_filters():

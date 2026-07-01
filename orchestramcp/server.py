@@ -60,7 +60,7 @@ async def list_pipeline_runs(
     Args:
         time_from: Start time in ISO 8601 format (e.g., 2025-04-01T00:00:00Z)
         time_to: End time in ISO 8601 format (e.g., 2025-04-05T00:00:00Z)
-        status: Comma-separated statuses (CREATED, RUNNING, SUCCEEDED, WARNING, FAILED, CANCELLING, CANCELLED)
+        status: Comma-separated statuses (CREATED, RUNNING, SUCCEEDED, WARNING, FAILED, SKIPPED, CANCELLING, CANCELLED)
         pipeline_run_ids: Comma-separated pipeline run IDs
         page: 1-based page number to retrieve (default 1)
         page_size: Number of results per page (default 50, max 100)
@@ -147,7 +147,7 @@ async def list_operations(
         integration: Integration filter
         external_id: External ID to filter on
         task_run_id: Task run ID to filter on
-        status: Operation status (SUCCEEDED, FAILED, SKIPPED, UNKNOWN, WARNING, CANCELLED)
+        status: Operation status (SUCCEEDED, FAILED, REUSED, SKIPPED, UNKNOWN, WARNING, CANCELLED)
         page: 1-based page number to retrieve (default 1)
         page_size: Number of results per page (default 50, max 100)
 
@@ -182,7 +182,7 @@ async def list_assets(
     """List data assets (GET /assets).
 
     Args:
-        asset_type: Asset type filter (DASHBOARD, DASHBOARD_VIEWS, DATASET, QUERIES, TABLE, VIEW, WORKBOOK, UNKNOWN)
+        asset_type: Asset type filter (CHART, DASHBOARD, DASHBOARD_VIEWS, DATASET, QUERIES, TABLE, VIEW, WORKBOOK, UNKNOWN)
         integration: Integration filter
         page: 1-based page number to retrieve (default 1)
         page_size: Number of results per page (default 50, max 100)

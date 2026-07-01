@@ -10,38 +10,6 @@ Use Orchestra's hosted MCP endpoint:
 - Required header: `Authorization: Bearer <YOUR_ORCHESTRA_API_KEY>`
 - API key location: [Orchestra workspace settings](https://app.getorchestra.io/settings/workspace)
 
-## Available Tools
-
-| Tool | Auth required | Purpose | Category |
-|------|---------------|---------|------|
-| `validate_pipeline` | No | Check a pipeline definition (JSON object) against the Orchestra schema (`POST /pipelines/schema`). Does not persist anything. | Pipeline lifecycle |
-| `list_pipelines` | Yes | List all pipelines for the workspace with latest run metadata (`GET /pipelines`). | Pipeline lifecycle |
-| `get_pipeline` | Yes | Fetch a single pipeline by selector (`GET /pipeline`). | Pipeline lifecycle |
-| `create_pipeline` | Yes | Create an Orchestra-backed pipeline from a definition object (`POST /pipelines`). | Pipeline lifecycle |
-| `update_pipeline` | Yes | Update an Orchestra-backed pipeline by alias (`PUT /pipelines/{alias}`). Git-backed pipelines cannot be updated here. | Pipeline lifecycle |
-| `migrate_pipeline` | Yes | Migrate an Orchestra-backed pipeline to git-backed storage (`PATCH /pipelines/storage-settings`). The YAML must already exist in the repo. | Pipeline lifecycle |
-| `delete_pipeline` | Yes | **Disabled by default.** Delete a pipeline by selector (`DELETE /pipelines`). Set `ORCHESTRA_ENABLE_DELETE` to expose it. | Pipeline lifecycle |
-| `import_pipeline` | Yes | Import a pipeline whose YAML lives in a Git repository (`POST /pipelines/import`). | Pipeline lifecycle |
-| `start_pipeline` | Yes | Start a run by alias or pipeline ID (`POST /pipelines/{alias_or_id}/start`). Optionally target a `version_number`. | Pipeline running |
-| `get_pipeline_run_status` | Yes | Poll a single pipeline run’s status. | Pipeline running |
-| `cancel_pipeline_run` | Yes | Request cancellation of a pipeline run. | Pipeline running |
-| `get_pipeline_run_lineage_url` | No | Return the UI URL for a pipeline run’s lineage graph (derived from `ORCHESTRA_ENV`). | Pipeline running |
-| `list_pipeline_runs` | Yes | List runs with optional time range plus comma-separated status and ID filters. | Observability |
-| `list_task_runs` | Yes | List task runs with optional comma-separated filters (including integration). | Observability |
-| `list_operations` | Yes | List operations with optional comma-separated filters. | Observability |
-| `list_assets` | Yes | List data assets with optional comma-separated type and integration filters. | Observability |
-| `list_task_run_logs` | Yes | List log filenames for a task run. | Logs and artifacts |
-| `download_task_run_log` | Yes | Download a log file (optional HTTP Range); content is base64-encoded in the result. | Logs and artifacts |
-| `list_task_run_artifacts` | Yes | List artifact filenames for a task run. | Logs and artifacts |
-| `download_task_run_artifact` | Yes | Download an artifact file; content is base64-encoded in the result. | Logs and artifacts |
-| `list_integration_connections` | Yes | List integration connections with optional filter on integration and connection status | Integrations |
-| `list_environments` | Yes | List environments for the workspace, metadata only (`GET /environments`). | Environments |
-| `get_environment` | Yes | Fetch a single environment including its variable values (`GET /environments/{id}`). | Environments |
-| `create_environment` | Yes | Create an environment with an initial set of typed variable values (`POST /environments`). | Environments |
-| `update_environment` | Yes | Update an environment's name, default flag, and variable values, replacing values in full (`PATCH /environments/{id}`). | Environments |
-| `delete_environment` | Yes | **Disabled by default.** Delete an environment (`DELETE /environments/{id}`). Set `ORCHESTRA_ENABLE_DELETE` to expose it. | Environments |
-
-
 ### Cursor
 
 Add this to `.cursor/mcp.json` (project) or `~/.cursor/mcp.json` (global):
@@ -172,6 +140,36 @@ Or with FastMCP CLI:
 
 ```bash
 uv run fastmcp run orchestramcp/server.py
+```
+
+## Staying in sync with the Orchestra API
+
+This MCP is a **curated** surface over the Orchestra API — hand-written tools with tuned
+descriptions, selective exposure, and custom logic (base64 log/artifact handling, the
+lineage URL, selector validation, delete-gating). It is deliberately *not* generated from
+OpenAPI, because that curation is the value.
+
+To keep the curated surface from silently drifting away from the API, a lightweight
+conformance system links each tool to the operation it wraps and checks that link against
+the live spec:
+
+- **[`orchestramcp/api_contract.py`](orchestramcp/api_contract.py)** — the single source of
+  truth mapping each MCP tool to its `(method, path, query params)` plus the model enums
+  that mirror API enums. Update it whenever you add or change a tool.
+- **[`scripts/check_api_conformance.py`](scripts/check_api_conformance.py)** — pulls the live
+  OpenAPI spec and reports drift: renamed/removed paths or params, and enum values the API
+  added or dropped. Exits non-zero on actionable drift, so it doubles as a check.
+- **[`API_CONFORMANCE.md`](API_CONFORMANCE.md)** — auto-generated status report (do not edit).
+- **`.github/workflows/api_conformance.yml`** — runs daily, auto-applies additive enum
+  changes to `models.py`, refreshes the report, and opens a `[chore]` PR when the surface
+  drifts. It does **not** run on pull requests, so live-API changes never block merges.
+
+```bash
+# Check against the live API
+uv run python scripts/check_api_conformance.py
+
+# Check a local spec, and auto-apply newly added enum values to models.py
+uv run python scripts/check_api_conformance.py --spec openapi.json --apply-enums
 ```
 
 ## Development
