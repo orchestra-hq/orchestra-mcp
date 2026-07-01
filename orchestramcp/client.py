@@ -88,6 +88,8 @@ class OrchestraClient:
         pipeline_run_ids: str | None = None,
         page: int | None = None,
         page_size: int | None = None,
+        pipeline_ids: str | None = None,
+        environments: str | None = None,
     ) -> PaginatedResponse:
         """List pipeline runs (GET /pipeline_runs).
 
@@ -98,6 +100,8 @@ class OrchestraClient:
             pipeline_run_ids: Comma-separated pipeline run UUIDs
             page: 1-based page number (default 1)
             page_size: Results per page (default 50, max 100)
+            pipeline_ids: Comma-separated pipeline UUIDs
+            environments: Comma-separated environment UUIDs
 
         Returns:
             Paginated response with pipeline runs
@@ -109,6 +113,8 @@ class OrchestraClient:
             pipeline_run_ids=pipeline_run_ids,
             page=page,
             page_size=page_size,
+            pipeline_ids=pipeline_ids,
+            environments=environments,
         )
         response = await self._client.get("/pipeline_runs", params=params)
         self._raise_for_status(response)
@@ -661,3 +667,29 @@ class OrchestraClient:
         )
         self._raise_for_status(response)
         return response.content
+
+    async def get_pipeline_data(
+        self,
+        pipeline_id: str | None = None,
+        alias: str | None = None,
+        repository: str | None = None,
+        yaml_path: str | None = None,
+        version: int | None = None,
+        branch: str | None = None,
+        commit: str | None = None,
+    ) -> dict:
+        """Get pipeline data (GET /pipelines/data)"""
+        response = await self._client.get(
+            "/pipelines/data",
+            params=self._build_query_params(
+                pipeline_id=pipeline_id,
+                alias=alias,
+                repository=repository,
+                yaml_path=yaml_path,
+                version=version,
+                branch=branch,
+                commit=commit,
+            ),
+        )
+        self._raise_for_status(response)
+        return response.json()

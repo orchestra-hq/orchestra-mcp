@@ -7,5 +7,4 @@ No outstanding drift. ✅
 ### Informational (no action required)
 
 - `list_assets`: spec accepts query params the MCP does not expose: asset_ids, database_name, integration_account_id, schema_name, sort_column, sort_direction, status, workspace_id.
-- `list_pipeline_runs`: spec accepts query params the MCP does not expose: environments, pipeline_ids.
 - `validate_pipeline`: spec accepts query params the MCP does not expose: canonicalize.

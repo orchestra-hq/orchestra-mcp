@@ -71,6 +71,8 @@ TOOL_CONTRACTS: tuple[ToolContract, ...] = (
             QueryParam("pipeline_run_ids"),
             QueryParam("page"),
             QueryParam("page_size"),
+            QueryParam("pipeline_ids"),
+            QueryParam("environments"),
         ),
     ),
     ToolContract(
@@ -233,6 +235,20 @@ TOOL_CONTRACTS: tuple[ToolContract, ...] = (
         tool="delete_environment",
         method="delete",
         path="/environments/{environment_id}",
+    ),
+    ToolContract(
+        tool="get_pipeline_data",
+        method="get",
+        path="/pipelines/data",
+        query_params=(
+            QueryParam("pipeline_id"),
+            QueryParam("alias"),
+            QueryParam("repository"),
+            QueryParam("yaml_path"),
+            QueryParam("version"),
+            QueryParam("branch"),
+            QueryParam("commit"),
+        ),
     ),
 )
 
