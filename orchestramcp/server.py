@@ -54,6 +54,8 @@ async def list_pipeline_runs(
     pipeline_run_ids: str | None = None,
     page: int | None = None,
     page_size: int | None = None,
+    pipeline_ids: str | None = None,
+    environments: str | None = None,
 ) -> dict:
     """List pipeline runs with optional filters (GET /pipeline_runs).
 
@@ -64,6 +66,8 @@ async def list_pipeline_runs(
         pipeline_run_ids: Comma-separated pipeline run IDs
         page: 1-based page number to retrieve (default 1)
         page_size: Number of results per page (default 50, max 100)
+        pipeline_ids: Comma-separated pipeline UUIDs
+        environments: Comma-separated environment UUIDs
 
     Returns:
         Paginated list of pipeline runs
@@ -79,6 +83,8 @@ async def list_pipeline_runs(
             pipeline_run_ids=pipeline_run_ids,
             page=page,
             page_size=page_size,
+            pipeline_ids=pipeline_ids,
+            environments=environments,
         )
         return response.model_dump()
 
@@ -834,6 +840,44 @@ def get_pipeline_run_lineage_url(pipeline_run_id: str) -> str:
     """
     env = os.getenv("ORCHESTRA_ENV", "app").lower().strip()
     return f"https://{env}.getorchestra.io/pipeline-runs/{pipeline_run_id}/lineage"
+
+
+@mcp.tool(annotations=ToolAnnotations(title="Get pipeline data", readOnlyHint=True))
+async def get_pipeline_data(
+    pipeline_id: str | None = None,
+    alias: str | None = None,
+    repository: str | None = None,
+    yaml_path: str | None = None,
+    version: int | None = None,
+    branch: str | None = None,
+    commit: str | None = None,
+) -> dict:
+    """Fetch the full pipeline definition for a pipeline selected by `pipeline_id` or `alias`.
+    Optionally specify a `version`, `branch`, or `commit` to load a specific revision.
+
+    Args:
+            pipeline_id: Pipeline ID selector.
+            alias: Pipeline alias selector.
+            repository: Repository selector. Must be provided together with `yaml_path`.
+            yaml_path: Pipeline YAML path selector. Must be provided together with `repository`.
+            version: Pipeline version selector (used for versioned pipeline YAML).
+            branch: Pipeline branch selector (used for git-backed pipeline YAML).
+            commit: Pipeline commit selector (used for git-backed pipeline YAML).
+
+    Reference:
+        https://docs.getorchestra.io/api/pipelines/get-pipeline-data
+    """
+    async with get_client() as client:
+        result = await client.get_pipeline_data(
+            pipeline_id=pipeline_id,
+            alias=alias,
+            repository=repository,
+            yaml_path=yaml_path,
+            version=version,
+            branch=branch,
+            commit=commit,
+        )
+        return result
 
 
 if __name__ == "__main__":
