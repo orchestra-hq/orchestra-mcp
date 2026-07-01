@@ -172,6 +172,18 @@ uv run python scripts/check_api_conformance.py
 uv run python scripts/check_api_conformance.py --spec openapi.json --apply-enums
 ```
 
+### Adding a new tool
+
+Scaffold starting-point stubs from a spec operation, then hand-finish them (naming,
+docstring, response model, annotations):
+
+```bash
+uv run python scripts/scaffold_tool.py --path /assets/{asset_id} --method get
+```
+
+This prints a client method, a `@mcp.tool` function, and an `api_contract` entry to paste
+in. Fill in the `TODO`s, then run the conformance check to confirm the contract matches.
+
 ## Development
 
 - Run `uv run pytest` to run tests.
