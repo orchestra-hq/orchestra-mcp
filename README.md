@@ -1,6 +1,6 @@
 # Orchestra MCP Server
 
-A Model Context Protocol (MCP) server for the [Orchestra API](https://docs.getorchestra.io/docs/api/). End users can connect directly to Orchestra's hosted MCP endpoint and authenticate with their Orchestra API key.
+A Model Context Protocol (MCP) server for the [Orchestra API](https://docs.getorchestra.io/api/introduction). End users can connect directly to Orchestra's hosted MCP endpoint and authenticate with their Orchestra API key.
 
 ## Quick Start
 
