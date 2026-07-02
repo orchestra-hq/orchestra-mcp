@@ -43,12 +43,18 @@ class OrchestraClient:
         )
 
     async def close(self) -> None:
+        """Close the underlying HTTP client. Call this only when you own the instance;
+        the server reuses a cached client (see ``__aexit__``)."""
         await self._client.aclose()
 
     async def __aenter__(self):
         return self
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
+        # Intentionally does NOT close the client. Tools use ``async with
+        # get_client()``, and ``get_client`` is ``@lru_cache``d, so the same instance
+        # (and its connection pool) is shared across calls. Closing here would break
+        # that reuse. Explicit teardown is via ``close()``.
         pass
 
     def _build_query_params(
@@ -209,16 +215,12 @@ class OrchestraClient:
         Returns:
             Paginated response with assets
         """
-        params: dict[str, Any] = {}
-        if asset_type:
-            params["asset_type"] = asset_type
-        if integration:
-            params["integration"] = integration
-        if page is not None:
-            params["page"] = page
-        if page_size is not None:
-            params["page_size"] = page_size
-
+        params = self._build_query_params(
+            asset_type=asset_type,
+            integration=integration,
+            page=page,
+            page_size=page_size,
+        )
         response = await self._client.get("/assets", params=params)
         self._raise_for_status(response)
         return PaginatedResponse(**response.json())
@@ -252,7 +254,9 @@ class OrchestraClient:
 
         selectors = [pipeline_id, alias, repository or yaml_path]
         if sum(s is not None for s in selectors) != 1:
-            raise ValueError("Provide exactly one selector: pipeline_id, alias, or repository + yaml_path")
+            raise ValueError(
+                "Provide exactly one selector: pipeline_id, alias, or repository + yaml_path"
+            )
 
         if (repository is None) != (yaml_path is None):
             raise ValueError("repository and yaml_path must be provided together")
@@ -417,7 +421,9 @@ class OrchestraClient:
         pipeline_definition: dict[str, Any],
         alias: str,
         published: bool,
-        storage_provider: Literal["ORCHESTRA", "AZURE_DEVOPS", "GITHUB", "GITLAB", "BITBUCKET"] = "ORCHESTRA",
+        storage_provider: Literal[
+            "ORCHESTRA", "AZURE_DEVOPS", "GITHUB", "GITLAB", "BITBUCKET"
+        ] = "ORCHESTRA",
         default_branch: str | None = None,
         repository: str | None = None,
         working_branch: str | None = None,

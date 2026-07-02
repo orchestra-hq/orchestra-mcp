@@ -260,12 +260,15 @@ async def get_pipeline(
         )
         return response.model_dump()
 
+
 @mcp.tool(annotations=ToolAnnotations(title="Create Pipeline", destructiveHint=False))
 async def create_pipeline(
     pipeline_definition: dict[str, Any],
     alias: str,
     published: bool,
-    storage_provider: Literal["ORCHESTRA", "AZURE_DEVOPS", "GITHUB", "GITLAB", "BITBUCKET"] = "ORCHESTRA",
+    storage_provider: Literal[
+        "ORCHESTRA", "AZURE_DEVOPS", "GITHUB", "GITLAB", "BITBUCKET"
+    ] = "ORCHESTRA",
     default_branch: str | None = None,
     repository: str | None = None,
     working_branch: str | None = None,
@@ -307,6 +310,7 @@ async def create_pipeline(
             message_is_custom=message_is_custom,
         )
         return response.model_dump()
+
 
 @mcp.tool(annotations=ToolAnnotations(title="Update Pipeline", destructiveHint=False))
 async def update_pipeline(
@@ -623,9 +627,7 @@ async def validate_pipeline(pipeline_definition: dict[str, Any]) -> dict:
         https://docs.getorchestra.io/api/pipelines/validate-pipeline-schema
     """
     async with get_client() as client:
-        response = await client.validate_pipeline_schema(
-            pipeline_definition=pipeline_definition
-        )
+        response = await client.validate_pipeline_schema(pipeline_definition=pipeline_definition)
         return response.model_dump()
 
 
