@@ -1,0 +1,64 @@
+name: API Conformance
+run-name: Check MCP surface against the live Orchestra API
+
+# Guards against silent drift between the curated MCP tools and the Orchestra API.
+# Pulls the live OpenAPI spec, auto-applies additive enum changes, refreshes
+# API_CONFORMANCE.md, and opens a PR when anything changed. Runs on a schedule only —
+# NOT on pull requests — because live-API drift is outside a PR author's control and
+# must never block unrelated merges. Contract validity is covered by the test suite.
+
+on:
+  schedule:
+    - cron: "30 8 * * *" # Every day at 08:30 UTC (after the docs OpenAPI sync at 08:00).
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  conformance:
+    runs-on: blacksmith-2vcpu-ubuntu-2404-arm
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          version: "latest"
+
+      - name: Set up Python
+        run: uv python install 3.14
+
+      - name: Install dependencies
+        run: uv sync
+
+      - name: Check conformance and apply additive enum changes
+        id: check
+        run: |
+          set +e
+          uv run python scripts/check_api_conformance.py \
+            --apply-enums \
+            --report-md API_CONFORMANCE.md
+          echo "exit_code=$?" >> "$GITHUB_OUTPUT"
+          set -e
+
+      - name: Sanity-check that auto-applied changes still pass tests
+        run: uv run pytest -q
+
+      - name: Open a pull request when the surface drifted
+        uses: peter-evans/create-pull-request@v8
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          commit-message: "Sync MCP surface with Orchestra API"
+          branch: update-api-conformance
+          delete-branch: true
+          base: main
+          title: "[chore] MCP ↔ API conformance drift"
+          body-path: API_CONFORMANCE.md
+
+      - name: Fail if unresolved (non-auto-fixable) drift remains
+        if: ${{ steps.check.outputs.exit_code != '0' }}
+        run: |
+          echo "::warning::MCP surface has drifted from the live API. See the opened PR / API_CONFORMANCE.md."
+          exit 1

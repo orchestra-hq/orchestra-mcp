@@ -13,6 +13,7 @@ class PipelineRunStatus(StrEnum):
     FAILED = "FAILED"
     CANCELLING = "CANCELLING"
     CANCELLED = "CANCELLED"
+    SKIPPED = "SKIPPED"
 
 
 class TaskRunStatus(StrEnum):
@@ -54,6 +55,7 @@ class OperationStatus(StrEnum):
     UNKNOWN = "UNKNOWN"
     WARNING = "WARNING"
     CANCELLED = "CANCELLED"
+    REUSED = "REUSED"
 
 
 class AssetType(StrEnum):
@@ -65,6 +67,7 @@ class AssetType(StrEnum):
     UNKNOWN = "UNKNOWN"
     VIEW = "VIEW"
     WORKBOOK = "WORKBOOK"
+    CHART = "CHART"
 
 
 class PaginatedResponse(BaseModel):

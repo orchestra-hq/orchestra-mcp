@@ -3,26 +3,18 @@ import os
 
 import pytest
 
+from orchestramcp.api_contract import TOOL_CONTRACTS
 from orchestramcp.server import get_client
 
-EXPECTED_TOOLS = {
-    "cancel_pipeline_run",
-    "download_task_run_artifact",
-    "download_task_run_log",
-    "get_pipeline_run_status",
-    "get_pipeline",
-    "import_pipeline",
-    "list_assets",
-    "list_operations",
-    "list_pipeline_runs",
-    "list_pipelines",
-    "list_task_run_artifacts",
-    "list_task_run_logs",
-    "list_task_runs",
-    "migrate_pipeline",
-    "start_pipeline",
-    "update_pipeline",
-}
+# Tools gated behind ORCHESTRA_ENABLE_DELETE, so not registered by default.
+CONDITIONAL_TOOLS = {"delete_pipeline", "delete_environment"}
+# Tools that make no API call and so have no api_contract entry.
+NON_API_TOOLS = {"get_pipeline_run_lineage_url"}
+
+# The tools registered by default. Derived from the contract so that adding a tool
+# there (the required step for any new API-backed tool) keeps the tests in sync
+# automatically, instead of maintaining a hand-written list in two places.
+EXPECTED_TOOLS = ({c.tool for c in TOOL_CONTRACTS} - CONDITIONAL_TOOLS) | NON_API_TOOLS
 
 MCP_HEADERS = {
     "Accept": "application/json",
