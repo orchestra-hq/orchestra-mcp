@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 
 import httpx
@@ -8,6 +9,9 @@ from orchestramcp.openapi_server import build_server
 from orchestramcp.spec import load_spec, mcp_operations
 
 FIXTURE = str(Path(__file__).parent / "fixtures" / "openapi_sample.json")
+
+MAX_TOOLS = 40
+MAX_SCHEMA_BYTES = 20_000
 
 
 def _client(handler=None):
@@ -35,12 +39,25 @@ async def test_adaptation_overrides_description_and_annotations():
     assert tools["cancel_pipeline_run"].annotations.destructiveHint is True
 
 
-async def test_unadapted_tool_falls_back_to_spec_summary():
+async def test_unadapted_tool_falls_back_to_spec_summary_and_derived_hints():
     server = build_server(load_spec(FIXTURE), _client())
     tools = await _tools_by_name(server)
 
     assert "list_assets" not in ADAPTATIONS
     assert tools["list_assets"].description == "List data assets"
+    assert tools["list_assets"].annotations.readOnlyHint is True
+
+
+async def test_tool_surface_stays_within_budget():
+    server = build_server(load_spec(FIXTURE), _client())
+    tools = await server.list_tools()
+
+    assert len(tools) <= MAX_TOOLS
+    size = sum(
+        len(json.dumps({"name": t.name, "description": t.description, "parameters": t.parameters}))
+        for t in tools
+    )
+    assert size <= MAX_SCHEMA_BYTES
 
 
 async def test_generated_tool_calls_through_client():
