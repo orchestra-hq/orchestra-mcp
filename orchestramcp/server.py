@@ -1,6 +1,8 @@
+import base64
 import os
 import sys
 from datetime import datetime
+from enum import Enum
 from functools import lru_cache
 from pathlib import Path
 from typing import Any, Literal
@@ -16,10 +18,20 @@ from mcp.types import ToolAnnotations  # noqa: E402
 from orchestramcp.client import OrchestraClient  # noqa: E402
 from orchestramcp.models import (  # noqa: E402
     AssetType,
+    DeleteEnvironmentResponse,
+    DeletePipelineResponse,
+    EnvironmentResponse,
     OperationStatus,
     OperationType,
+    PaginatedResponse,
+    PipelineImportResponse,
+    PipelineResponse,
+    PipelineRunProgress,
     PipelineRunStatus,
+    PipelineStartResponse,
+    ProtectedEnvironmentResponse,
     TaskRunStatus,
+    ValidatePipelineSchemaResponse,
 )
 
 
@@ -33,6 +45,21 @@ def parse_iso_datetime(dt_str: str) -> datetime:
         raise ValueError(
             f"Invalid datetime '{dt_str}'. Expected ISO 8601 format, e.g. 2025-04-01T00:00:00Z"
         )
+
+
+def _query(**params: Any) -> dict[str, Any]:
+    """Build a query-param dict, dropping ``None`` and serializing enums/datetimes."""
+    result: dict[str, Any] = {}
+    for key, value in params.items():
+        if value is None:
+            continue
+        if isinstance(value, datetime):
+            result[key] = value.isoformat()
+        elif isinstance(value, Enum):
+            result[key] = value.value
+        else:
+            result[key] = value
+    return result
 
 
 mcp = FastMCP("Orchestra MCP Server")
@@ -71,16 +98,16 @@ async def list_pipeline_runs(
     Reference:
         https://docs.getorchestra.io/api/pipeline-runs/list-pipeline-runs
     """
-    async with get_client() as client:
-        response = await client.list_pipeline_runs(
-            time_from=parse_iso_datetime(time_from) if time_from else None,
-            time_to=parse_iso_datetime(time_to) if time_to else None,
-            status=status,
-            pipeline_run_ids=pipeline_run_ids,
-            page=page,
-            page_size=page_size,
-        )
-        return response.model_dump()
+    params = _query(
+        time_from=parse_iso_datetime(time_from) if time_from else None,
+        time_to=parse_iso_datetime(time_to) if time_to else None,
+        status=status,
+        pipeline_run_ids=pipeline_run_ids,
+        page=page,
+        page_size=page_size,
+    )
+    response = await get_client().get("/pipeline_runs", params=params)
+    return PaginatedResponse.model_validate(response.json()).model_dump()
 
 
 @mcp.tool(annotations=ToolAnnotations(title="List Task Runs", readOnlyHint=True))
@@ -112,18 +139,18 @@ async def list_task_runs(
     Reference:
         https://docs.getorchestra.io/api/task-runs/list-task-runs
     """
-    async with get_client() as client:
-        response = await client.list_task_runs(
-            time_from=parse_iso_datetime(time_from) if time_from else None,
-            time_to=parse_iso_datetime(time_to) if time_to else None,
-            status=status,
-            pipeline_ids=pipeline_ids,
-            integration=integration,
-            task_run_ids=task_run_ids,
-            page=page,
-            page_size=page_size,
-        )
-        return response.model_dump()
+    params = _query(
+        time_from=parse_iso_datetime(time_from) if time_from else None,
+        time_to=parse_iso_datetime(time_to) if time_to else None,
+        status=status,
+        pipeline_ids=pipeline_ids,
+        integration=integration,
+        task_run_ids=task_run_ids,
+        page=page,
+        page_size=page_size,
+    )
+    response = await get_client().get("/task_runs", params=params)
+    return PaginatedResponse.model_validate(response.json()).model_dump()
 
 
 @mcp.tool(annotations=ToolAnnotations(title="List Operations", readOnlyHint=True))
@@ -157,19 +184,19 @@ async def list_operations(
     Reference:
         https://docs.getorchestra.io/api/operations/list-operations
     """
-    async with get_client() as client:
-        response = await client.list_operations(
-            time_from=parse_iso_datetime(time_from) if time_from else None,
-            time_to=parse_iso_datetime(time_to) if time_to else None,
-            operation_type=operation_type,
-            integration=integration,
-            external_id=external_id,
-            task_run_id=task_run_id,
-            status=status,
-            page=page,
-            page_size=page_size,
-        )
-        return response.model_dump()
+    params = _query(
+        time_from=parse_iso_datetime(time_from) if time_from else None,
+        time_to=parse_iso_datetime(time_to) if time_to else None,
+        operation_type=operation_type,
+        integration=integration,
+        external_id=external_id,
+        task_run_id=task_run_id,
+        status=status,
+        page=page,
+        page_size=page_size,
+    )
+    response = await get_client().get("/operations", params=params)
+    return PaginatedResponse.model_validate(response.json()).model_dump()
 
 
 @mcp.tool(annotations=ToolAnnotations(title="List Assets", readOnlyHint=True))
@@ -193,14 +220,14 @@ async def list_assets(
     Reference:
         https://docs.getorchestra.io/api/assets/list-assets
     """
-    async with get_client() as client:
-        response = await client.list_assets(
-            asset_type=asset_type,
-            integration=integration,
-            page=page,
-            page_size=page_size,
-        )
-        return response.model_dump()
+    params = _query(
+        asset_type=asset_type,
+        integration=integration,
+        page=page,
+        page_size=page_size,
+    )
+    response = await get_client().get("/assets", params=params)
+    return PaginatedResponse.model_validate(response.json()).model_dump()
 
 
 @mcp.tool(annotations=ToolAnnotations(title="List Pipelines", readOnlyHint=True))
@@ -213,10 +240,8 @@ async def list_pipelines() -> list[dict[str, Any]]:
     Reference:
         https://docs.getorchestra.io/api/pipelines/list-pipelines
     """
-
-    async with get_client() as client:
-        response = await client.list_pipelines()
-        return [pipeline.model_dump() for pipeline in response]
+    response = await get_client().get("/pipelines", params={})
+    return [PipelineResponse.model_validate(item).model_dump() for item in response.json()]
 
 
 @mcp.tool(annotations=ToolAnnotations(title="Get Pipeline", readOnlyHint=True))
@@ -248,17 +273,23 @@ async def get_pipeline(
     Reference:
         https://docs.getorchestra.io/api/pipelines/get-a-pipeline-by-selector
     """
-    async with get_client() as client:
-        response = await client.get_pipeline(
-            pipeline_id=pipeline_id,
-            alias=alias,
-            repository=repository,
-            yaml_path=yaml_path,
-            version=version,
-            branch=branch,
-            commit=commit,
+    if sum(s is not None for s in (pipeline_id, alias, repository or yaml_path)) != 1:
+        raise ValueError(
+            "Provide exactly one selector: pipeline_id, alias, or repository + yaml_path"
         )
-        return response.model_dump()
+    if (repository is None) != (yaml_path is None):
+        raise ValueError("repository and yaml_path must be provided together")
+
+    if pipeline_id:
+        params: dict[str, Any] = {"pipeline_id": pipeline_id}
+    elif alias:
+        params = {"alias": alias}
+    else:
+        params = {"repository": repository, "yaml_path": yaml_path}
+    params.update(_query(version=version, branch=branch, commit=commit))
+
+    response = await get_client().get("/pipeline", params=params)
+    return PipelineResponse.model_validate(response.json()).model_dump()
 
 
 @mcp.tool(annotations=ToolAnnotations(title="Create Pipeline", destructiveHint=False))
@@ -296,20 +327,27 @@ async def create_pipeline(
     Reference:
         https://docs.getorchestra.io/api/pipelines/create-a-pipeline
     """
-    async with get_client() as client:
-        response = await client.create_pipeline(
-            pipeline_definition=pipeline_definition,
-            alias=alias,
-            published=published,
-            storage_provider=storage_provider,
-            default_branch=default_branch,
-            repository=repository,
-            working_branch=working_branch,
-            yaml_path=yaml_path,
-            message=message,
-            message_is_custom=message_is_custom,
-        )
-        return response.model_dump()
+    payload: dict[str, Any] = {
+        "data": pipeline_definition,
+        "published": published,
+        "storageProvider": storage_provider,
+        "alias": alias,
+    }
+    if default_branch is not None:
+        payload["defaultBranch"] = default_branch
+    if repository is not None:
+        payload["repository"] = repository
+    if working_branch is not None:
+        payload["workingBranch"] = working_branch
+    if yaml_path is not None:
+        payload["yamlPath"] = yaml_path
+    if message is not None:
+        payload["message"] = message
+    if message_is_custom is not None:
+        payload["messageIsCustom"] = message_is_custom
+
+    response = await get_client().post("/pipelines", json=payload)
+    return PipelineResponse.model_validate(response.json()).model_dump()
 
 
 @mcp.tool(annotations=ToolAnnotations(title="Update Pipeline", destructiveHint=False))
@@ -330,15 +368,11 @@ async def update_pipeline(
         Updated pipeline with metadata
 
     Reference:
-        https://docs.getorchestra.io/api/pipelines/update-a-pipeline
+        https://docs.getorchestra.io/api/pipelines/update-a-pipeline-by-selector
     """
-    async with get_client() as client:
-        response = await client.update_pipeline(
-            alias=alias,
-            pipeline_definition=pipeline_definition,
-            published=published,
-        )
-        return response.model_dump()
+    payload = {"data": pipeline_definition, "published": published}
+    response = await get_client().put(f"/pipelines/{alias}", json=payload)
+    return PipelineResponse.model_validate(response.json()).model_dump()
 
 
 def _delete_enabled() -> bool:
@@ -371,18 +405,18 @@ async def delete_pipeline(
         Confirmation message indicating the selected pipeline that was deleted
 
     Reference:
-        https://docs.getorchestra.io/api/pipelines/delete-a-pipeline
+        https://docs.getorchestra.io/api/pipelines/delete-a-pipeline-by-selector
     """
+    if (repository is None) != (yaml_path is None):
+        raise ValueError("repository and yaml_path must be provided together")
+    if not (pipeline_id or alias or (repository and yaml_path)):
+        raise ValueError("Provide one of pipeline_id, alias, or repository + yaml_path")
 
-    async with get_client() as client:
-        response = await client.delete_pipeline(
-            pipeline_id=pipeline_id,
-            alias=alias,
-            repository=repository,
-            yaml_path=yaml_path,
-        )
-
-    return response.model_dump()
+    params = _query(
+        pipeline_id=pipeline_id, alias=alias, repository=repository, yaml_path=yaml_path
+    )
+    response = await get_client().delete("/pipelines", params=params)
+    return DeletePipelineResponse(is_deleted=response.status_code == 204).model_dump()
 
 
 if _delete_enabled():
@@ -397,11 +431,9 @@ async def list_integration_connections(
     auth_status: str | None = None,
 ) -> list[dict[str, Any]]:
     """List integration connections for the workspace linked to the API key."""
-    async with get_client() as client:
-        return await client.list_integration_connections(
-            integration=integration,
-            auth_status=auth_status,
-        )
+    params = _query(integration=integration, authStatus=auth_status)
+    response = await get_client().get("/integrations/connections", params=params)
+    return response.json()
 
 
 @mcp.tool(annotations=ToolAnnotations(title="List Environments", readOnlyHint=True))
@@ -417,9 +449,10 @@ async def list_environments() -> list[dict[str, Any]]:
     Reference:
         https://docs.getorchestra.io/api/environments/list-environments
     """
-    async with get_client() as client:
-        response = await client.list_environments()
-        return [environment.model_dump() for environment in response]
+    response = await get_client().get("/environments", params={})
+    return [
+        ProtectedEnvironmentResponse.model_validate(item).model_dump() for item in response.json()
+    ]
 
 
 @mcp.tool(annotations=ToolAnnotations(title="Get Environment", readOnlyHint=True))
@@ -435,9 +468,8 @@ async def get_environment(environment_id: str) -> dict:
     Reference:
         https://docs.getorchestra.io/api/environments/get-an-environment
     """
-    async with get_client() as client:
-        response = await client.get_environment(environment_id=environment_id)
-        return response.model_dump()
+    response = await get_client().get(f"/environments/{environment_id}")
+    return EnvironmentResponse.model_validate(response.json()).model_dump()
 
 
 @mcp.tool(annotations=ToolAnnotations(title="Create Environment", destructiveHint=False))
@@ -462,9 +494,8 @@ async def create_environment(
     Reference:
         https://docs.getorchestra.io/api/environments/create-an-environment
     """
-    async with get_client() as client:
-        response = await client.create_environment(name=name, values=values)
-        return response.model_dump()
+    response = await get_client().post("/environments", json={"name": name, "values": values})
+    return EnvironmentResponse.model_validate(response.json()).model_dump()
 
 
 @mcp.tool(annotations=ToolAnnotations(title="Update Environment", destructiveHint=False))
@@ -494,14 +525,9 @@ async def update_environment(
     Reference:
         https://docs.getorchestra.io/api/environments/update-an-environment
     """
-    async with get_client() as client:
-        response = await client.update_environment(
-            environment_id=environment_id,
-            name=name,
-            values=values,
-            default_env=default_env,
-        )
-        return response.model_dump()
+    payload = {"name": name, "values": values, "defaultEnv": default_env}
+    response = await get_client().patch(f"/environments/{environment_id}", json=payload)
+    return EnvironmentResponse.model_validate(response.json()).model_dump()
 
 
 async def delete_environment(environment_id: str) -> dict:
@@ -520,9 +546,8 @@ async def delete_environment(environment_id: str) -> dict:
     Reference:
         https://docs.getorchestra.io/api/environments/delete-an-environment
     """
-    async with get_client() as client:
-        response = await client.delete_environment(environment_id=environment_id)
-        return response.model_dump()
+    response = await get_client().delete(f"/environments/{environment_id}")
+    return DeleteEnvironmentResponse(is_deleted=response.status_code == 204).model_dump()
 
 
 if _delete_enabled():
@@ -556,16 +581,19 @@ async def import_pipeline(
     Reference:
         https://docs.getorchestra.io/api/pipelines/import-a-pipeline
     """
-    async with get_client() as client:
-        response = await client.import_pipeline(
-            storage_provider=storage_provider,
-            repository=repository,
-            default_branch=default_branch,
-            yaml_path=yaml_path,
-            alias=alias,
-            working_branch=working_branch,
-        )
-        return response.model_dump()
+    payload: dict[str, Any] = {
+        "storage_provider": storage_provider,
+        "repository": repository,
+        "default_branch": default_branch,
+        "yaml_path": yaml_path,
+    }
+    if alias:
+        payload["alias"] = alias
+    if working_branch:
+        payload["working_branch"] = working_branch
+
+    response = await get_client().post("/pipelines/import", json=payload)
+    return PipelineImportResponse.model_validate(response.json()).model_dump()
 
 
 @mcp.tool(annotations=ToolAnnotations(title="Migrate Pipeline", destructiveHint=False))
@@ -599,16 +627,21 @@ async def migrate_pipeline(
     Reference:
         https://docs.getorchestra.io/api/pipelines/update-pipeline-storage-settings
     """
-    async with get_client() as client:
-        return await client.migrate_pipeline_storage(
-            path=path,
-            repository=repository,
-            storage_provider=storage_provider,
-            default_branch=default_branch,
-            working_branch=working_branch,
-            alias=alias,
-            pipeline_id=pipeline_id,
-        )
+    if not (pipeline_id or alias):
+        raise ValueError("Provide one of pipeline_id or alias to identify the pipeline")
+
+    params = _query(pipeline_id=pipeline_id, alias=alias)
+    payload: dict[str, Any] = {
+        "path": path,
+        "repository": repository,
+        "storage_provider": storage_provider,
+        "default_branch": default_branch,
+    }
+    if working_branch and working_branch != default_branch:
+        payload["working_branch"] = working_branch
+
+    response = await get_client().patch("/pipelines/storage-settings", params=params, json=payload)
+    return response.json() if response.content else {}
 
 
 @mcp.tool(annotations=ToolAnnotations(title="Validate Pipeline", readOnlyHint=True))
@@ -626,9 +659,8 @@ async def validate_pipeline(pipeline_definition: dict[str, Any]) -> dict:
     Reference:
         https://docs.getorchestra.io/api/pipelines/validate-pipeline-schema
     """
-    async with get_client() as client:
-        response = await client.validate_pipeline_schema(pipeline_definition=pipeline_definition)
-        return response.model_dump()
+    response = await get_client().post("/pipelines/schema", json=pipeline_definition)
+    return ValidatePipelineSchemaResponse.model_validate(response.json()).model_dump()
 
 
 @mcp.tool(annotations=ToolAnnotations(title="Start Pipeline", destructiveHint=False))
@@ -654,15 +686,18 @@ async def start_pipeline(
     Reference:
         https://docs.getorchestra.io/api/pipelines/start-a-pipeline-run
     """
-    async with get_client() as client:
-        response = await client.start_pipeline(
-            alias_or_pipeline_id=alias_or_pipeline_id,
-            branch=branch,
-            commit=commit,
-            environment=environment,
-            run_inputs=run_inputs,
-        )
-        return response.model_dump()
+    payload: dict[str, Any] = {}
+    if branch:
+        payload["branch"] = branch
+    if commit:
+        payload["commit"] = commit
+    if environment:
+        payload["environment"] = environment
+    if run_inputs:
+        payload["runInputs"] = run_inputs
+
+    response = await get_client().post(f"/pipelines/{alias_or_pipeline_id}/start", json=payload)
+    return PipelineStartResponse.model_validate(response.json()).model_dump()
 
 
 @mcp.tool(annotations=ToolAnnotations(title="Get Pipeline Run Status", readOnlyHint=True))
@@ -678,9 +713,8 @@ async def get_pipeline_run_status(pipeline_run_id: str) -> dict:
     Reference:
         https://docs.getorchestra.io/api/pipeline-runs/get-pipeline-run-status
     """
-    async with get_client() as client:
-        response = await client.get_pipeline_run_status(pipeline_run_id=pipeline_run_id)
-        return response.model_dump()
+    response = await get_client().get(f"/pipeline_runs/{pipeline_run_id}/status")
+    return PipelineRunProgress.model_validate(response.json()).model_dump()
 
 
 @mcp.tool(annotations=ToolAnnotations(title="Cancel Pipeline Run", destructiveHint=True))
@@ -696,9 +730,8 @@ async def cancel_pipeline_run(pipeline_run_id: str) -> dict:
     Reference:
         https://docs.getorchestra.io/api/pipeline-runs/cancel-a-pipeline-run
     """
-    async with get_client() as client:
-        await client.cancel_pipeline_run(pipeline_run_id=pipeline_run_id)
-        return {"message": f"Pipeline run {pipeline_run_id} cancellation requested"}
+    await get_client().post(f"/pipeline_runs/{pipeline_run_id}/cancel")
+    return {"message": f"Pipeline run {pipeline_run_id} cancellation requested"}
 
 
 @mcp.tool(annotations=ToolAnnotations(title="List Task Run Logs", readOnlyHint=True))
@@ -718,12 +751,10 @@ async def list_task_run_logs(
     Reference:
         https://docs.getorchestra.io/api/logs/list-task-run-logs
     """
-    async with get_client() as client:
-        response = await client.list_task_run_logs(
-            pipeline_run_id=pipeline_run_id,
-            task_run_id=task_run_id,
-        )
-        return response
+    response = await get_client().get(
+        f"/pipeline_runs/{pipeline_run_id}/task_runs/{task_run_id}/logs"
+    )
+    return response.json()
 
 
 @mcp.tool(annotations=ToolAnnotations(title="Download Task Run Log", readOnlyHint=True))
@@ -747,20 +778,17 @@ async def download_task_run_log(
     Reference:
         https://docs.getorchestra.io/api/logs/download-a-task-run-log
     """
-    import base64
-
-    async with get_client() as client:
-        content = await client.download_task_run_log(
-            pipeline_run_id=pipeline_run_id,
-            task_run_id=task_run_id,
-            filename=filename,
-            range_header=range_header,
-        )
-        return {
-            "filename": filename,
-            "content": base64.b64encode(content).decode("utf-8"),
-            "encoding": "base64",
-        }
+    headers = {"Range": range_header} if range_header else None
+    response = await get_client().get(
+        f"/pipeline_runs/{pipeline_run_id}/task_runs/{task_run_id}/logs/download",
+        params={"filename": filename},
+        headers=headers,
+    )
+    return {
+        "filename": filename,
+        "content": base64.b64encode(response.content).decode("utf-8"),
+        "encoding": "base64",
+    }
 
 
 @mcp.tool(annotations=ToolAnnotations(title="List Task Run Artifacts", readOnlyHint=True))
@@ -780,12 +808,10 @@ async def list_task_run_artifacts(
     Reference:
         https://docs.getorchestra.io/api/artifacts/list-task-run-artifacts
     """
-    async with get_client() as client:
-        response = await client.list_task_run_artifacts(
-            pipeline_run_id=pipeline_run_id,
-            task_run_id=task_run_id,
-        )
-        return response
+    response = await get_client().get(
+        f"/pipeline_runs/{pipeline_run_id}/task_runs/{task_run_id}/artifacts"
+    )
+    return response.json()
 
 
 @mcp.tool(annotations=ToolAnnotations(title="Download Task Run Artifact", readOnlyHint=True))
@@ -807,19 +833,15 @@ async def download_task_run_artifact(
     Reference:
         https://docs.getorchestra.io/api/artifacts/download-a-task-run-artifact
     """
-    import base64
-
-    async with get_client() as client:
-        content = await client.download_task_run_artifact(
-            pipeline_run_id=pipeline_run_id,
-            task_run_id=task_run_id,
-            filename=filename,
-        )
-        return {
-            "filename": filename,
-            "content": base64.b64encode(content).decode("utf-8"),
-            "encoding": "base64",
-        }
+    response = await get_client().get(
+        f"/pipeline_runs/{pipeline_run_id}/task_runs/{task_run_id}/artifacts/download",
+        params={"filename": filename},
+    )
+    return {
+        "filename": filename,
+        "content": base64.b64encode(response.content).decode("utf-8"),
+        "encoding": "base64",
+    }
 
 
 @mcp.tool(annotations=ToolAnnotations(title="Get Pipeline Run Lineage URL", readOnlyHint=True))

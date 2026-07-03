@@ -45,7 +45,6 @@ def test_parse_iso_datetime_invalid_message_is_actionable():
     assert "2025-04-01T00:00:00Z" in message
 
 
-@pytest.mark.asyncio
 async def test_tool_registration():
     tool_names = {tool.name for tool in await mcp.list_tools()}
     expected_tools = {
@@ -76,7 +75,6 @@ async def test_tool_registration():
     assert expected_tools.issubset(tool_names)
 
 
-@pytest.mark.asyncio
 async def test_list_operations_tool_exposes_integration_filter():
     tools = {tool.name: tool for tool in await mcp.list_tools()}
     tool = tools["list_operations"]
@@ -84,7 +82,6 @@ async def test_list_operations_tool_exposes_integration_filter():
     assert "integration" in tool.parameters["properties"]
 
 
-@pytest.mark.asyncio
 async def test_delete_pipeline_disabled_by_default():
     tool_names = {tool.name for tool in await mcp.list_tools()}
     assert "delete_pipeline" not in tool_names
@@ -108,7 +105,6 @@ def test_delete_enabled_flag(monkeypatch):
         assert _delete_enabled() is False
 
 
-@pytest.mark.asyncio
 async def test_delete_pipeline_enabled_when_env_var_set(set_api_key, monkeypatch):
     monkeypatch.setenv("ORCHESTRA_ENABLE_DELETE", "true")
 
@@ -120,7 +116,7 @@ async def test_delete_pipeline_enabled_when_env_var_set(set_api_key, monkeypatch
     tool_names = {tool.name for tool in await server_module.mcp.list_tools()}
     assert "delete_pipeline" in tool_names
 
-@pytest.mark.asyncio
+
 async def test_list_integration_connections_tool_exposes_filters():
     tools = {tool.name: tool for tool in await mcp.list_tools()}
     tool = tools["list_integration_connections"]
@@ -129,13 +125,11 @@ async def test_list_integration_connections_tool_exposes_filters():
     assert "auth_status" in tool.parameters["properties"]
 
 
-@pytest.mark.asyncio
 async def test_delete_environment_disabled_by_default():
     tool_names = {tool.name for tool in await mcp.list_tools()}
     assert "delete_environment" not in tool_names
 
 
-@pytest.mark.asyncio
 async def test_delete_environment_enabled_when_env_var_set(set_api_key, monkeypatch):
     monkeypatch.setenv("ORCHESTRA_ENABLE_DELETE", "true")
 
@@ -148,7 +142,6 @@ async def test_delete_environment_enabled_when_env_var_set(set_api_key, monkeypa
     assert "delete_environment" in tool_names
 
 
-@pytest.mark.asyncio
 async def test_update_environment_tool_exposes_params():
     tools = {tool.name: tool for tool in await mcp.list_tools()}
     tool = tools["update_environment"]
