@@ -14,7 +14,7 @@ from mcp.types import (
 )
 from mcp_lambda.handlers.request_handler import RequestHandler
 
-from orchestramcp.server import mcp
+from orchestramcp.server import get_mcp
 
 logger = logging.getLogger(__name__)
 
@@ -52,7 +52,7 @@ async def _forward_request(event: dict[str, Any]) -> dict[str, Any]:
     req_id = request.pop("id", None)
 
     try:
-        transport = FastMCPTransport(mcp)
+        transport = FastMCPTransport(get_mcp())
         async with transport.connect_session() as session:
             await session.initialize()
             result = await session.send_request(
@@ -76,9 +76,7 @@ async def _forward_request(event: dict[str, Any]) -> dict[str, Any]:
 
 
 class FastMCPInProcessRequestHandler(RequestHandler):
-    def handle_request(
-        self, request: JSONRPCRequest, context
-    ) -> JSONRPCResponse | JSONRPCError:
+    def handle_request(self, request: JSONRPCRequest, context) -> JSONRPCResponse | JSONRPCError:
         del context
         request_dict = request.model_dump(by_alias=True, exclude_none=True)
         try:

@@ -1,4 +1,4 @@
-from orchestramcp.server import mcp
+from orchestramcp.server import get_mcp
 
 if __name__ == "__main__":
-    mcp.run()
+    get_mcp().run()
