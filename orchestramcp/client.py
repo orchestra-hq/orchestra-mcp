@@ -28,10 +28,15 @@ async def _raise_on_error(response: httpx.Response) -> None:
 
 
 def build_http_client(base_url: str) -> httpx.AsyncClient:
-    """Build the httpx client the generated tools call through."""
+    """Build the httpx client the generated tools call through.
+
+    Keep-alive pooling is disabled: the Lambda handler runs each request in a fresh
+    event loop, and a connection pooled on a prior (now-closed) loop cannot be reused.
+    """
     return httpx.AsyncClient(
         base_url=base_url,
         auth=_BearerAuth(),
         timeout=30.0,
+        limits=httpx.Limits(max_keepalive_connections=0),
         event_hooks={"response": [_raise_on_error]},
     )

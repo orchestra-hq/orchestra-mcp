@@ -28,6 +28,24 @@ ADAPTATIONS: dict[str, Adaptation] = {
         description="Cancel a running pipeline run by its ID.",
         annotations=ToolAnnotations(title="Cancel Pipeline Run", destructiveHint=True),
     ),
+    "get_pipeline": Adaptation(
+        description=(
+            "Fetch a single pipeline. Provide exactly one selector: pipeline_id, alias, "
+            "or repository together with yaml_path."
+        ),
+    ),
+    "delete_pipeline": Adaptation(
+        description=(
+            "Delete a pipeline. Provide exactly one selector: pipeline_id, alias, "
+            "or repository together with yaml_path."
+        ),
+    ),
+    "migrate_pipeline": Adaptation(
+        description=(
+            "Migrate an Orchestra-backed pipeline to git-backed storage. Identify it with "
+            "pipeline_id or alias, and omit working_branch when it equals default_branch."
+        ),
+    ),
 }
 
 

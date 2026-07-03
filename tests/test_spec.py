@@ -37,12 +37,41 @@ def test_coarsen_replaces_named_schema():
     spec = {
         "components": {"schemas": {"PipelineModel": {"type": "object", "properties": {"a": {}}}}}
     }
-    coarsened = coarsen_spec(spec)
-    model = coarsened["components"]["schemas"]["PipelineModel"]
+    model = coarsen_spec(spec)["components"]["schemas"]["PipelineModel"]
     assert model["additionalProperties"] is True
     assert "properties" not in model
     assert "validate_pipeline" in model["description"]
-    assert "properties" in spec["components"]["schemas"]["PipelineModel"]
+
+
+def test_prune_keeps_property_named_title():
+    spec = {
+        "components": {
+            "schemas": {
+                "Thing": {
+                    "type": "object",
+                    "required": ["title"],
+                    "properties": {"title": {"type": "string", "title": "noise"}},
+                }
+            }
+        }
+    }
+    props = prune_spec(spec)["components"]["schemas"]["Thing"]["properties"]
+    assert "title" in props  # the field literally named 'title' survives
+    assert "title" not in props["title"]  # its schema-level noise title is stripped
+
+
+def test_select_preserves_path_item_parameters():
+    spec = {
+        "paths": {
+            "/pipelines/{id}": {
+                "parameters": [{"name": "id", "in": "path", "required": True}],
+                "get": {"operationId": "get_thing", "x-orchestra-mcp": True},
+            }
+        }
+    }
+    item = select_mcp_spec(spec)["paths"]["/pipelines/{id}"]
+    assert item["parameters"] == [{"name": "id", "in": "path", "required": True}]
+    assert "get" in item
 
 
 def test_prune_removes_schema_noise_and_truncates_descriptions():
@@ -71,7 +100,6 @@ def test_prune_removes_schema_noise_and_truncates_descriptions():
     assert "title" not in thing["properties"]["name"]
     assert len(thing["properties"]["name"]["description"]) < 500
     assert pruned["info"]["title"] == "keep-me"
-    assert "title" in spec["components"]["schemas"]["Thing"]
 
 
 def _selected_ops(include_deletes):

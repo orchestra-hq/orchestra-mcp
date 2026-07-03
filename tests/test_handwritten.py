@@ -6,19 +6,18 @@ from fastmcp import Client, FastMCP
 from orchestramcp.handwritten import register_handwritten
 
 
-def _server(handler=None):
+def _server(handler=None, ui_base_url="https://stage.getorchestra.io"):
     handler = handler or (lambda request: httpx.Response(200, content=b""))
     client = httpx.AsyncClient(
         base_url="https://example.com/api/engine", transport=httpx.MockTransport(handler)
     )
     server = FastMCP("test")
-    register_handwritten(server, client)
+    register_handwritten(server, client, ui_base_url)
     return server
 
 
-async def test_lineage_url_uses_env(monkeypatch):
-    monkeypatch.setenv("ORCHESTRA_ENV", "stage")
-    async with Client(_server()) as client:
+async def test_lineage_url_uses_ui_base():
+    async with Client(_server(ui_base_url="https://stage.getorchestra.io")) as client:
         result = await client.call_tool("get_pipeline_run_lineage_url", {"pipeline_run_id": "r1"})
     assert result.data == "https://stage.getorchestra.io/pipeline-runs/r1/lineage"
 

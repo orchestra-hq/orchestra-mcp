@@ -21,6 +21,10 @@ def _base_url() -> str:
     return f"https://{_env()}.getorchestra.io/api/engine"
 
 
+def _ui_base_url() -> str:
+    return f"https://{_env()}.getorchestra.io"
+
+
 def _spec_url() -> str:
     return os.getenv("ORCHESTRA_OPENAPI_URL") or f"{_base_url()}/openapi.json"
 
@@ -36,7 +40,12 @@ def get_client():
 
 @lru_cache
 def get_mcp() -> FastMCP:
-    return build_server(load_spec(_spec_url()), get_client(), include_deletes=_delete_enabled())
+    return build_server(
+        load_spec(_spec_url()),
+        get_client(),
+        include_deletes=_delete_enabled(),
+        ui_base_url=_ui_base_url(),
+    )
 
 
 if __name__ == "__main__":
