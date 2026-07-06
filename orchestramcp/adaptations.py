@@ -42,8 +42,8 @@ ADAPTATIONS: dict[str, Adaptation] = {
     ),
     "validate_pipeline": Adaptation(
         description=(
-            "Validate a pipeline model JSON without creating or updating a pipeline. "
-            "Use it to check a definition before create_pipeline or update_pipeline."
+            "Validate a full pipeline definition document without creating or updating a "
+            "pipeline. Use it to check a definition before create_pipeline or update_pipeline."
         ),
         annotations=ToolAnnotations(title="Validate Pipeline", readOnlyHint=True),
     ),

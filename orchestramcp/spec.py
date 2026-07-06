@@ -21,11 +21,13 @@ REQUEST_BODY_PATCHES: dict[str, dict] = {
         "content": {
             "application/json": {
                 "schema": {
-                    "title": "Pipeline",
+                    "title": "Pipeline Definition",
                     "description": (
-                        "Pipeline definition as JSON, matching the pipeline YAML structure — "
-                        "the same pipeline model accepted by create_pipeline and "
-                        "update_pipeline."
+                        "Full pipeline definition document as JSON, matching the pipeline "
+                        'YAML structure, e.g. {"version": "v1", "name": "...", "pipeline": '
+                        "{...task groups...}}. Pass the whole document — version, name and "
+                        "pipeline are required top-level keys; the task groups go under the "
+                        "nested 'pipeline' key. Same document create_pipeline accepts."
                     ),
                 }
             }
@@ -43,7 +45,8 @@ _SUBSCHEMA_MAPS = ("properties", "patternProperties", "$defs", "definitions")
 # structure is described instead of enumerated; the validate_pipeline tool checks it.
 COARSEN_SCHEMAS = {
     "PipelineModel": (
-        "Pipeline definition as JSON, matching the pipeline YAML structure. "
+        "Pipeline definition as JSON, matching the pipeline YAML structure "
+        "(required top-level keys: version, name, pipeline). "
         "Validate it with the validate_pipeline tool before submitting."
     ),
 }
