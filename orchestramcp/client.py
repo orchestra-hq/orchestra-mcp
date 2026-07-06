@@ -5,67 +5,38 @@ import httpx
 from orchestramcp.errors import OrchestraAPIError, parse_error_response
 
 
-class OrchestraClient:
-    """Thin async HTTP transport over the Orchestra public API.
+class _BearerAuth(httpx.Auth):
+    """Attach the current ORCHESTRA_API_KEY on each request.
 
-    Endpoint-agnostic: each MCP tool builds its own request and parses its own
-    response, so the tool is the single definition of the surface it exposes.
+    Reading the token per request (rather than baking it in) lets one cached
+    client serve requests whose credentials change, as the Lambda handler does.
     """
 
-    @staticmethod
-    def _build_base_url() -> str:
-        env = os.getenv("ORCHESTRA_ENV", "app").lower().strip()
-        if env not in ("app", "stage", "dev"):
-            raise ValueError(f"Invalid environment: {env}. Must be one of: app, stage, dev")
-        return f"https://{env}.getorchestra.io/api/engine/public"
+    def auth_flow(self, request):
+        token = os.getenv("ORCHESTRA_API_KEY")
+        if not token:
+            raise ValueError("ORCHESTRA_API_KEY environment variable is required")
+        request.headers["Authorization"] = f"Bearer {token}"
+        yield request
 
-    def __init__(self, api_key: str):
-        self.api_key = api_key
-        self.base_url = self._build_base_url()
-        self._client = httpx.AsyncClient(
-            base_url=self.base_url,
-            headers={"Authorization": f"Bearer {api_key}"},
-            timeout=30.0,
-        )
 
-    async def close(self) -> None:
-        await self._client.aclose()
+async def _raise_on_error(response: httpx.Response) -> None:
+    if response.is_success:
+        return
+    await response.aread()
+    raise OrchestraAPIError(response.status_code, parse_error_response(response))
 
-    def _raise_for_status(self, response: httpx.Response) -> None:
-        if not response.is_success:
-            raise OrchestraAPIError(response.status_code, parse_error_response(response))
 
-    async def request(
-        self,
-        method: str,
-        path: str,
-        params: dict | None = None,
-        json: object | None = None,
-        headers: dict | None = None,
-    ) -> httpx.Response:
-        response = await self._client.request(
-            method, path, params=params, json=json, headers=headers
-        )
-        self._raise_for_status(response)
-        return response
+def build_http_client(base_url: str) -> httpx.AsyncClient:
+    """Build the httpx client the generated tools call through.
 
-    async def get(
-        self, path: str, params: dict | None = None, headers: dict | None = None
-    ) -> httpx.Response:
-        return await self.request("GET", path, params=params, headers=headers)
-
-    async def post(
-        self, path: str, json: object | None = None, params: dict | None = None
-    ) -> httpx.Response:
-        return await self.request("POST", path, json=json, params=params)
-
-    async def put(self, path: str, json: object | None = None) -> httpx.Response:
-        return await self.request("PUT", path, json=json)
-
-    async def patch(
-        self, path: str, json: object | None = None, params: dict | None = None
-    ) -> httpx.Response:
-        return await self.request("PATCH", path, json=json, params=params)
-
-    async def delete(self, path: str, params: dict | None = None) -> httpx.Response:
-        return await self.request("DELETE", path, params=params)
+    Keep-alive pooling is disabled: the Lambda handler runs each request in a fresh
+    event loop, and a connection pooled on a prior (now-closed) loop cannot be reused.
+    """
+    return httpx.AsyncClient(
+        base_url=base_url,
+        auth=_BearerAuth(),
+        timeout=30.0,
+        limits=httpx.Limits(max_keepalive_connections=0),
+        event_hooks={"response": [_raise_on_error]},
+    )

@@ -5,7 +5,6 @@ from unittest.mock import MagicMock
 import pytest
 
 from orchestramcp.lambda_handler import handler
-from orchestramcp.server import get_client
 from tests.conftest import EXPECTED_TOOLS, api_gateway_event, mcp_post_event
 
 
@@ -57,12 +56,12 @@ def test_tools_list_via_lambda_handler(lambda_context):
     assert EXPECTED_TOOLS.issubset(tool_names)
 
 
-def test_api_key_isolated_between_requests(lambda_context):
+def test_api_key_applied_per_request(lambda_context):
     handler(mcp_post_event("initialize", _initialize_params(), api_key="key-a"), lambda_context)
-    assert get_client().api_key == "key-a"
+    assert os.environ["ORCHESTRA_API_KEY"] == "key-a"
 
     handler(mcp_post_event("initialize", _initialize_params(), api_key="key-b"), lambda_context)
-    assert get_client().api_key == "key-b"
+    assert os.environ["ORCHESTRA_API_KEY"] == "key-b"
 
 
 def _initialize_params() -> dict:

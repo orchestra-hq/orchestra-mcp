@@ -168,11 +168,9 @@ Only the following values are recognized:
 python -m orchestramcp.server
 ```
 
-Or with FastMCP CLI:
-
-```bash
-uv run fastmcp run orchestramcp/server.py
-```
+The server fetches the Orchestra OpenAPI spec on startup and exposes the operations
+the API flags for the MCP. Set `ORCHESTRA_OPENAPI_URL` to point at a specific spec
+(e.g. a local file) instead of the environment default.
 
 ## Development
 

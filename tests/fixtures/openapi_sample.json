@@ -1,0 +1,48 @@
+{
+  "openapi": "3.1.0",
+  "info": { "title": "Orchestra Public API (sample)", "version": "1.0.0" },
+  "servers": [{ "url": "https://app.getorchestra.io/api/engine/public" }],
+  "paths": {
+    "/pipeline_runs": {
+      "get": {
+        "operationId": "list_pipeline_runs",
+        "summary": "List pipeline runs",
+        "x-orchestra-mcp": true,
+        "parameters": [
+          { "name": "status", "in": "query", "required": false, "schema": { "type": "string" } },
+          { "name": "page", "in": "query", "required": false, "schema": { "type": "integer" } }
+        ],
+        "responses": { "200": { "description": "Paginated pipeline runs" } }
+      }
+    },
+    "/pipeline_runs/{pipeline_run_id}/cancel": {
+      "post": {
+        "operationId": "cancel_pipeline_run",
+        "summary": "Cancel a pipeline run",
+        "x-orchestra-mcp": true,
+        "parameters": [
+          { "name": "pipeline_run_id", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": { "200": { "description": "Cancellation requested" } }
+      }
+    },
+    "/assets": {
+      "get": {
+        "operationId": "list_assets",
+        "summary": "List data assets",
+        "x-orchestra-mcp": true,
+        "parameters": [
+          { "name": "asset_type", "in": "query", "required": false, "schema": { "type": "string" } }
+        ],
+        "responses": { "200": { "description": "Paginated assets" } }
+      }
+    },
+    "/health": {
+      "get": {
+        "operationId": "health_check",
+        "summary": "Health check (not exposed to MCP)",
+        "responses": { "200": { "description": "ok" } }
+      }
+    }
+  }
+}

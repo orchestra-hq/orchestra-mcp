@@ -1,67 +1,48 @@
-from unittest.mock import AsyncMock, Mock
+import os
 
+import httpx
 import pytest
 
-from orchestramcp.client import OrchestraAPIError, OrchestraClient
+from orchestramcp.client import build_http_client
+from orchestramcp.errors import OrchestraAPIError
 
 
-@pytest.fixture
-def client():
-    return OrchestraClient(api_key="test-api-key")
+def _client(handler, api_key="test-key"):
+    if api_key is None:
+        os.environ.pop("ORCHESTRA_API_KEY", None)
+    else:
+        os.environ["ORCHESTRA_API_KEY"] = api_key
+    client = build_http_client("https://example.com/api/engine")
+    client._transport = httpx.MockTransport(handler)
+    return client
 
 
-def _response(is_success=True, status_code=200, json=None, text=""):
-    response = Mock()
-    response.is_success = is_success
-    response.status_code = status_code
-    response.text = text
-    response.json.return_value = json
-    return response
+async def test_request_carries_current_bearer_token():
+    seen = {}
+
+    def handler(request):
+        seen["auth"] = request.headers.get("Authorization")
+        return httpx.Response(200, json={"ok": True})
+
+    client = _client(handler, api_key="key-a")
+    await client.get("/public/pipelines")
+    assert seen["auth"] == "Bearer key-a"
+
+    # A later request picks up a rotated token without rebuilding the client.
+    os.environ["ORCHESTRA_API_KEY"] = "key-b"
+    await client.get("/public/pipelines")
+    assert seen["auth"] == "Bearer key-b"
 
 
-def test_build_base_url_defaults_to_app(monkeypatch):
-    monkeypatch.delenv("ORCHESTRA_ENV", raising=False)
-    assert OrchestraClient(api_key="k").base_url.startswith("https://app.getorchestra.io")
+async def test_missing_token_raises():
+    client = _client(lambda r: httpx.Response(200, json={}), api_key=None)
+    with pytest.raises(ValueError, match="ORCHESTRA_API_KEY"):
+        await client.get("/public/pipelines")
 
 
-@pytest.mark.parametrize("env", ["app", "stage", "dev"])
-def test_build_base_url_accepts_known_environments(monkeypatch, env):
-    monkeypatch.setenv("ORCHESTRA_ENV", env)
-    expected = f"https://{env}.getorchestra.io/api/engine/public"
-    assert OrchestraClient(api_key="k").base_url == expected
-
-
-def test_build_base_url_rejects_unknown_environment(monkeypatch):
-    monkeypatch.setenv("ORCHESTRA_ENV", "prod")
-    with pytest.raises(ValueError, match="Invalid environment"):
-        OrchestraClient(api_key="k")
-
-
-async def test_verbs_delegate_to_httpx_and_return_response(client):
-    ok = _response(json={"ok": True})
-    client._client.request = AsyncMock(return_value=ok)
-
-    assert await client.get("/x", params={"a": 1}) is ok
-    client._client.request.assert_called_with("GET", "/x", params={"a": 1}, json=None, headers=None)
-
-    await client.post("/x", json={"b": 2})
-    client._client.request.assert_called_with(
-        "POST", "/x", params=None, json={"b": 2}, headers=None
-    )
-
-    await client.delete("/x", params={"id": "1"})
-    client._client.request.assert_called_with(
-        "DELETE", "/x", params={"id": "1"}, json=None, headers=None
-    )
-
-
-async def test_request_raises_orchestra_error_with_parsed_message(client):
-    client._client.request = AsyncMock(
-        return_value=_response(is_success=False, status_code=422, json={"detail": "bad input"})
-    )
-
+async def test_error_response_becomes_orchestra_error():
+    client = _client(lambda r: httpx.Response(422, json={"detail": "bad input"}))
     with pytest.raises(OrchestraAPIError) as exc_info:
-        await client.post("/pipelines", json={})
-
+        await client.post("/public/pipelines", json={})
     assert exc_info.value.status_code == 422
     assert exc_info.value.message == "bad input"
