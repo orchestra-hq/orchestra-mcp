@@ -40,6 +40,13 @@ ADAPTATIONS: dict[str, Adaptation] = {
             "or repository together with yaml_path."
         ),
     ),
+    "validate_pipeline": Adaptation(
+        description=(
+            "Validate a pipeline model JSON without creating or updating a pipeline. "
+            "Use it to check a definition before create_pipeline or update_pipeline."
+        ),
+        annotations=ToolAnnotations(title="Validate Pipeline", readOnlyHint=True),
+    ),
     "migrate_pipeline": Adaptation(
         description=(
             "Migrate an Orchestra-backed pipeline to git-backed storage. Identify it with "

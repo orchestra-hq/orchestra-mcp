@@ -91,6 +91,27 @@ async def test_coarsening_shrinks_pipeline_body_but_keeps_wrapper_fields():
     assert "published" in create["properties"]
 
 
+async def test_validate_pipeline_takes_a_pipeline_and_posts_it_raw():
+    calls = []
+
+    def handler(request):
+        calls.append((request.method, request.url.path, json.loads(request.content)))
+        return httpx.Response(200, json={"valid": True})
+
+    server = build_server(load_spec(LIVE), _client(handler))
+    parameters = (await _tools_by_name(server))["validate_pipeline"].parameters
+    assert "pipeline" in parameters["properties"]
+    assert "pipeline" in parameters["required"]
+
+    pipeline = {"version": "0.1", "name": "demo"}
+    async with Client(server) as client:
+        await client.call_tool("validate_pipeline", {"pipeline": pipeline})
+
+    method, path, body = calls[0]
+    assert method == "POST" and path.endswith("/pipelines/schema")
+    assert body == pipeline  # posted raw, not wrapped under a key
+
+
 async def test_live_surface_within_budget():
     tools = await build_server(load_spec(LIVE), _client()).list_tools()
     assert len(tools) <= MAX_TOOLS

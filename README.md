@@ -10,38 +10,6 @@ Use Orchestra's hosted MCP endpoint:
 - Required header: `Authorization: Bearer <YOUR_ORCHESTRA_API_KEY>`
 - API key location: [Orchestra workspace settings](https://app.getorchestra.io/settings/workspace)
 
-## Available Tools
-
-| Tool | Auth required | Purpose | Category |
-|------|---------------|---------|------|
-| `validate_pipeline` | No | Check a pipeline definition (JSON object) against the Orchestra schema (`POST /pipelines/schema`). Does not persist anything. | Pipeline lifecycle |
-| `list_pipelines` | Yes | List all pipelines for the workspace with latest run metadata (`GET /pipelines`). | Pipeline lifecycle |
-| `get_pipeline` | Yes | Fetch a single pipeline by selector (`GET /pipeline`). | Pipeline lifecycle |
-| `create_pipeline` | Yes | Create an Orchestra-backed pipeline from a definition object (`POST /pipelines`). | Pipeline lifecycle |
-| `update_pipeline` | Yes | Update an Orchestra-backed pipeline by alias (`PUT /pipelines/{alias}`). Git-backed pipelines cannot be updated here. | Pipeline lifecycle |
-| `migrate_pipeline` | Yes | Migrate an Orchestra-backed pipeline to git-backed storage (`PATCH /pipelines/storage-settings`). The YAML must already exist in the repo. | Pipeline lifecycle |
-| `delete_pipeline` | Yes | **Disabled by default.** Delete a pipeline by selector (`DELETE /pipelines`). Set `ORCHESTRA_ENABLE_DELETE` to expose it. | Pipeline lifecycle |
-| `import_pipeline` | Yes | Import a pipeline whose YAML lives in a Git repository (`POST /pipelines/import`). | Pipeline lifecycle |
-| `start_pipeline` | Yes | Start a run by alias or pipeline ID (`POST /pipelines/{alias_or_id}/start`). Optionally target a `version_number`. | Pipeline running |
-| `get_pipeline_run_status` | Yes | Poll a single pipeline run’s status. | Pipeline running |
-| `cancel_pipeline_run` | Yes | Request cancellation of a pipeline run. | Pipeline running |
-| `get_pipeline_run_lineage_url` | No | Return the UI URL for a pipeline run’s lineage graph (derived from `ORCHESTRA_ENV`). | Pipeline running |
-| `list_pipeline_runs` | Yes | List runs with optional time range plus comma-separated status and ID filters. | Observability |
-| `list_task_runs` | Yes | List task runs with optional comma-separated filters (including integration). | Observability |
-| `list_operations` | Yes | List operations with optional comma-separated filters. | Observability |
-| `list_assets` | Yes | List data assets with optional comma-separated type and integration filters. | Observability |
-| `list_task_run_logs` | Yes | List log filenames for a task run. | Logs and artifacts |
-| `download_task_run_log` | Yes | Download a log file (optional HTTP Range); content is base64-encoded in the result. | Logs and artifacts |
-| `list_task_run_artifacts` | Yes | List artifact filenames for a task run. | Logs and artifacts |
-| `download_task_run_artifact` | Yes | Download an artifact file; content is base64-encoded in the result. | Logs and artifacts |
-| `list_integration_connections` | Yes | List integration connections with optional filter on integration and connection status | Integrations |
-| `list_environments` | Yes | List environments for the workspace, metadata only (`GET /environments`). | Environments |
-| `get_environment` | Yes | Fetch a single environment including its variable values (`GET /environments/{id}`). | Environments |
-| `create_environment` | Yes | Create an environment with an initial set of typed variable values (`POST /environments`). | Environments |
-| `update_environment` | Yes | Update an environment's name, default flag, and variable values, replacing values in full (`PATCH /environments/{id}`). | Environments |
-| `delete_environment` | Yes | **Disabled by default.** Delete an environment (`DELETE /environments/{id}`). Set `ORCHESTRA_ENABLE_DELETE` to expose it. | Environments |
-
-
 ### Cursor
 
 Add this to `.cursor/mcp.json` (project) or `~/.cursor/mcp.json` (global):
