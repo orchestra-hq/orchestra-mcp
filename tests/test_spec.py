@@ -1,6 +1,14 @@
 from pathlib import Path
 
-from orchestramcp.spec import coarsen_spec, load_spec, mcp_operations, prune_spec, select_mcp_spec
+from orchestramcp.spec import (
+    REQUEST_BODY_PATCHES,
+    coarsen_spec,
+    load_spec,
+    mcp_operations,
+    patch_request_bodies,
+    prune_spec,
+    select_mcp_spec,
+)
 
 SAMPLE = str(Path(__file__).parent / "fixtures" / "openapi_sample.json")
 LIVE = str(Path(__file__).parent / "fixtures" / "openapi_live.json")
@@ -58,6 +66,37 @@ def test_prune_keeps_property_named_title():
     props = prune_spec(spec)["components"]["schemas"]["Thing"]["properties"]
     assert "title" in props  # the field literally named 'title' survives
     assert "title" not in props["title"]  # its schema-level noise title is stripped
+
+
+def test_patch_injects_missing_request_body():
+    patched = patch_request_bodies(load_spec(LIVE))
+    body = patched["paths"]["/public/pipelines/schema"]["post"]["requestBody"]
+    assert body["required"] is True
+    schema = body["content"]["application/json"]["schema"]
+    assert "type" not in schema  # typeless, so FastMCP posts the argument raw
+
+
+def test_patch_self_deactivates_once_upstream_declares_a_body():
+    declared = {"content": {"application/json": {"schema": {"type": "object"}}}}
+    spec = {
+        "paths": {
+            "/public/pipelines/schema": {
+                "post": {
+                    "operationId": "validate_pipeline",
+                    "x-orchestra-mcp": True,
+                    "requestBody": declared,
+                }
+            }
+        }
+    }
+    patched = patch_request_bodies(spec)
+    assert patched["paths"]["/public/pipelines/schema"]["post"]["requestBody"] == declared
+
+
+def test_every_body_patch_targets_a_flagged_operation():
+    flagged = {op["operationId"] for _, _, op in mcp_operations(load_spec(LIVE))}
+    stale = set(REQUEST_BODY_PATCHES) - flagged
+    assert not stale, f"body patches reference operations not flagged for the MCP: {stale}"
 
 
 def test_select_preserves_path_item_parameters():

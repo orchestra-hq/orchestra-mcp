@@ -1,4 +1,5 @@
 import json
+from copy import deepcopy
 from pathlib import Path
 
 import httpx
@@ -8,6 +9,31 @@ _HTTP_METHODS = ("get", "post", "put", "patch", "delete")
 
 _NOISE_KEYS = ("title", "example", "examples")
 _MAX_DESCRIPTION = 300
+
+# Request bodies injected by operationId for endpoints whose upstream handler reads
+# the raw request, so FastAPI declares no requestBody and the generated tool would
+# have no way to receive one. Schemas are typeless on purpose: FastMCP exposes a
+# typeless body as a single tool argument (named after the schema title) and posts
+# its value raw instead of wrapping it in an object.
+REQUEST_BODY_PATCHES: dict[str, dict] = {
+    "validate_pipeline": {
+        "required": True,
+        "content": {
+            "application/json": {
+                "schema": {
+                    "title": "Pipeline Definition",
+                    "description": (
+                        "Full pipeline definition document as JSON, matching the pipeline "
+                        'YAML structure, e.g. {"version": "v1", "name": "...", "pipeline": '
+                        "{...task groups...}}. Pass the whole document — version, name and "
+                        "pipeline are required top-level keys; the task groups go under the "
+                        "nested 'pipeline' key. Same document create_pipeline accepts."
+                    ),
+                }
+            }
+        },
+    },
+}
 
 # JSON Schema keywords whose values are subschemas, so pruning recurses into them
 # rather than treating name-keyed maps (e.g. properties) as schemas themselves.
@@ -19,7 +45,8 @@ _SUBSCHEMA_MAPS = ("properties", "patternProperties", "$defs", "definitions")
 # structure is described instead of enumerated; the validate_pipeline tool checks it.
 COARSEN_SCHEMAS = {
     "PipelineModel": (
-        "Pipeline definition as JSON, matching the pipeline YAML structure. "
+        "Pipeline definition as JSON, matching the pipeline YAML structure "
+        "(required top-level keys: version, name, pipeline). "
         "Validate it with the validate_pipeline tool before submitting."
     ),
 }
@@ -89,6 +116,14 @@ def coarsen_spec(spec: dict) -> dict:
                 "additionalProperties": True,
                 "description": description,
             }
+    return spec
+
+
+def patch_request_bodies(spec: dict) -> dict:
+    for _path, _method, operation in mcp_operations(spec):
+        patch = REQUEST_BODY_PATCHES.get(operation.get("operationId"))
+        if patch is not None and "requestBody" not in operation:
+            operation["requestBody"] = deepcopy(patch)
     return spec
 
 

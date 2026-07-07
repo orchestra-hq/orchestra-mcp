@@ -41,7 +41,6 @@ Use Orchestra's hosted MCP endpoint:
 | `update_environment` | Yes | Update an environment's name, default flag, and variable values, replacing values in full (`PATCH /environments/{id}`). | Environments |
 | `delete_environment` | Yes | **Disabled by default.** Delete an environment (`DELETE /environments/{id}`). Set `ORCHESTRA_ENABLE_DELETE` to expose it. | Environments |
 
-
 ### Cursor
 
 Add this to `.cursor/mcp.json` (project) or `~/.cursor/mcp.json` (global):
