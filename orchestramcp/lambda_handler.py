@@ -3,9 +3,11 @@ import os
 from datetime import UTC, datetime
 from typing import Any
 
+import anyio
 from mcp_lambda import APIGatewayProxyEventV2Handler
 
 from orchestramcp.in_process_request_handler import FastMCPInProcessRequestHandler
+from orchestramcp.oauth import OAuthTokenError, resolve_api_key
 from orchestramcp.server import get_client
 
 logger = logging.getLogger("orchestramcp.lambda_handler")
@@ -91,8 +93,8 @@ def _extract_bearer_token(event: dict[str, Any]) -> str | None:
 def handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
     try:
         method = _get_http_method(event)
-        api_key = _extract_bearer_token(event)
-        if method == "POST" and not api_key:
+        bearer_token = _extract_bearer_token(event)
+        if method == "POST" and not bearer_token:
             return {
                 "statusCode": 401,
                 "headers": {"content-type": "application/json"},
@@ -100,6 +102,15 @@ def handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
             }
 
         _resolve_orchestra_env()
+        try:
+            api_key = anyio.run(resolve_api_key, bearer_token) if bearer_token else None
+        except OAuthTokenError as exc:
+            _log_error_event("oauth_token_invalid", context, exc)
+            return {
+                "statusCode": 401,
+                "headers": {"content-type": "application/json"},
+                "body": '{"message":"Invalid or expired OAuth token"}',
+            }
         _apply_request_credentials(api_key)
         response = _event_handler.handle(event, context)
         _log_mcp_internal_failure_if_present(response, context)
