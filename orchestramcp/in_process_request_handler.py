@@ -19,13 +19,18 @@ from orchestramcp.server import get_mcp
 
 logger = logging.getLogger(__name__)
 
-_INTERNAL_FAILURE_MESSAGE = "Internal failure, please check Lambda function logs"
+INTERNAL_FAILURE_MESSAGE = "Internal failure, please check Lambda function logs"
 
 # Lambda rejects response payloads over ~6MB (6,291,556 bytes) with an opaque 413 the
 # handler never sees. The guard fires below that with headroom for the API Gateway
-# proxy wrapping and JSON string escaping of the body.
+# proxy wrapping.
 MAX_RESPONSE_BYTES = 5 * 1024 * 1024
 RESPONSE_TOO_LARGE_MESSAGE = "Response exceeds the maximum MCP payload size"
+
+# Bodies above this get a second measurement pass accounting for the JSON string
+# escaping the proxy envelope adds; smaller bodies cannot reach the limit even at
+# the maximum escaping inflation.
+_ESCAPE_CHECK_BYTES = 512 * 1024
 
 
 def _request_target(request: JSONRPCRequest) -> str:
@@ -36,13 +41,24 @@ def _request_target(request: JSONRPCRequest) -> str:
     return f"method '{request.method}'"
 
 
+def _response_size(response_dict: dict[str, Any]) -> int:
+    # Match mcp_lambda's serialization (default separators). The Lambda payload then
+    # embeds this body as a JSON string inside the proxy envelope, where every quote
+    # and backslash is escaped again — measure that inflated form for large bodies.
+    body = json.dumps(response_dict)
+    size = len(body.encode("utf-8"))
+    if size > _ESCAPE_CHECK_BYTES:
+        size = len(json.dumps(body).encode("utf-8"))
+    return size
+
+
 def _guard_response_size(
     request: JSONRPCRequest, response_dict: dict[str, Any]
 ) -> JSONRPCError | None:
-    size = len(json.dumps(response_dict, separators=(",", ":")).encode("utf-8"))
-    target = _request_target(request)
+    size = _response_size(response_dict)
     if size <= MAX_RESPONSE_BYTES:
         return None
+    target = _request_target(request)
     logger.error(
         f"MCP response too large: {size} bytes from {target} "
         f"(limit {MAX_RESPONSE_BYTES}); returning error to client"
@@ -83,7 +99,7 @@ def _internal_error_response(
     return types.JSONRPCError(
         jsonrpc=jsonrpc,
         id=req_id,
-        error=types.ErrorData(code=500, message=_INTERNAL_FAILURE_MESSAGE),
+        error=types.ErrorData(code=500, message=INTERNAL_FAILURE_MESSAGE),
     ).model_dump(by_alias=True, mode="json", exclude_none=True)
 
 
@@ -129,7 +145,7 @@ class FastMCPInProcessRequestHandler(RequestHandler):
             return JSONRPCError(
                 jsonrpc="2.0",
                 id=request.id,
-                error=ErrorData(code=INTERNAL_ERROR, message=_INTERNAL_FAILURE_MESSAGE),
+                error=ErrorData(code=INTERNAL_ERROR, message=INTERNAL_FAILURE_MESSAGE),
             )
 
         if "error" in response_dict:

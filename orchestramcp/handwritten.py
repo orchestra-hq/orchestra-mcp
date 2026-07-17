@@ -1,8 +1,10 @@
 import base64
+import json
 
 import httpx
 from fastmcp import FastMCP
 from fastmcp.exceptions import ToolError
+from fastmcp.tools.tool import ToolResult
 from mcp.types import ToolAnnotations
 
 # Operations excluded from generation because they are served by the hand-written
@@ -11,10 +13,19 @@ HANDWRITTEN_OPERATION_IDS = ("download_task_run_log", "download_task_run_artifac
 
 # Cap on raw file bytes returned per call. Base64 inflates content by ~33% and the
 # Lambda response payload is hard-limited to ~6MB, so 3MiB raw (~4MiB encoded)
-# leaves headroom for the JSON-RPC and API Gateway wrapping.
+# leaves headroom for the JSON-RPC and API Gateway wrapping. The result is returned
+# as a single text content block (no structuredContent) so the payload is not
+# duplicated in the response.
 MAX_DOWNLOAD_BYTES = 3 * 1024 * 1024
 
 _RANGE_EXAMPLE = f"bytes=0-{MAX_DOWNLOAD_BYTES - 1}"
+
+_DOWNLOAD_DESCRIPTION = (
+    "Download a task run {kind} file, returned base64-encoded.{note} At most "
+    f"{MAX_DOWNLOAD_BYTES // (1024 * 1024)}MiB of file content is returned per call; "
+    f"fetch larger files in chunks by passing range_header (e.g. '{_RANGE_EXAMPLE}') "
+    "and advancing the range each call."
+)
 
 
 def register_handwritten(server: FastMCP, client: httpx.AsyncClient, ui_base_url: str) -> None:
@@ -31,16 +42,33 @@ def register_handwritten(server: FastMCP, client: httpx.AsyncClient, ui_base_url
         """Build the URL of a pipeline run's lineage graph in the Orchestra UI."""
         return f"{ui_base_url}/pipeline-runs/{pipeline_run_id}/lineage"
 
-    async def _download(path: str, filename: str, range_header: str | None = None) -> dict:
+    async def _download(path: str, filename: str, range_header: str | None = None) -> ToolResult:
         headers = {"Range": range_header} if range_header else None
-        response = await client.get(path, params={"filename": filename}, headers=headers)
-        content = response.content
-        if len(content) > MAX_DOWNLOAD_BYTES:
-            raise ToolError(
-                f"{filename} chunk is {len(content)} bytes; at most {MAX_DOWNLOAD_BYTES} bytes "
-                f"of file content can be returned per call. Request the file in chunks with "
-                f"range_header, e.g. '{_RANGE_EXAMPLE}', then advance the range."
-            )
+        async with client.stream(
+            "GET", path, params={"filename": filename}, headers=headers
+        ) as response:
+            if response.status_code >= 400:
+                await response.aread()
+                hint = (
+                    " The requested range is not satisfiable; check it against the file size."
+                    if response.status_code == 416
+                    else ""
+                )
+                raise ToolError(
+                    f"Download of {filename} failed with HTTP {response.status_code}.{hint}"
+                )
+            chunks: list[bytes] = []
+            received = 0
+            async for chunk in response.aiter_bytes():
+                received += len(chunk)
+                if received > MAX_DOWNLOAD_BYTES:
+                    raise ToolError(
+                        f"{filename} chunk exceeds the {MAX_DOWNLOAD_BYTES} bytes of file "
+                        f"content that can be returned per call. Request the file in chunks "
+                        f"with range_header, e.g. '{_RANGE_EXAMPLE}', then advance the range."
+                    )
+                chunks.append(chunk)
+        content = b"".join(chunks)
         result = {
             "filename": filename,
             "content": base64.b64encode(content).decode("utf-8"),
@@ -50,25 +78,26 @@ def register_handwritten(server: FastMCP, client: httpx.AsyncClient, ui_base_url
         content_range = response.headers.get("content-range")
         if content_range:
             result["content_range"] = content_range
-        return result
+        return ToolResult(content=json.dumps(result))
 
-    @server.tool(annotations=ToolAnnotations(title="Download Task Run Log", readOnlyHint=True))
+    @server.tool(
+        description=_DOWNLOAD_DESCRIPTION.format(kind="log", note=""),
+        annotations=ToolAnnotations(title="Download Task Run Log", readOnlyHint=True),
+    )
     async def download_task_run_log(
         pipeline_run_id: str, task_run_id: str, filename: str, range_header: str | None = None
-    ) -> dict:
-        """Download a task run log file, returned base64-encoded. At most 3MiB of file
-        content is returned per call; fetch larger files in chunks by passing
-        range_header (e.g. 'bytes=0-1048575') and advancing the range each call."""
+    ) -> ToolResult:
         path = f"/public/pipeline_runs/{pipeline_run_id}/task_runs/{task_run_id}/logs/download"
         return await _download(path, filename, range_header)
 
-    @server.tool(annotations=ToolAnnotations(title="Download Task Run Artifact", readOnlyHint=True))
+    @server.tool(
+        description=_DOWNLOAD_DESCRIPTION.format(
+            kind="artifact", note=" Artifacts such as a dbt manifest.json are often tens of MB."
+        ),
+        annotations=ToolAnnotations(title="Download Task Run Artifact", readOnlyHint=True),
+    )
     async def download_task_run_artifact(
         pipeline_run_id: str, task_run_id: str, filename: str, range_header: str | None = None
-    ) -> dict:
-        """Download a task run artifact file, returned base64-encoded. Artifacts such as
-        a dbt manifest.json are often tens of MB; at most 3MiB of file content is returned
-        per call, so fetch large files in chunks by passing range_header
-        (e.g. 'bytes=0-1048575') and advancing the range each call."""
+    ) -> ToolResult:
         path = f"/public/pipeline_runs/{pipeline_run_id}/task_runs/{task_run_id}/artifacts/download"
         return await _download(path, filename, range_header)

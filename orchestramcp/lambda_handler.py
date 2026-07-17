@@ -1,3 +1,4 @@
+import json
 import logging
 import os
 from datetime import UTC, datetime
@@ -6,6 +7,7 @@ from typing import Any
 from mcp_lambda import APIGatewayProxyEventV2Handler
 
 from orchestramcp.in_process_request_handler import (
+    INTERNAL_FAILURE_MESSAGE,
     RESPONSE_TOO_LARGE_MESSAGE,
     FastMCPInProcessRequestHandler,
 )
@@ -59,17 +61,38 @@ def _apply_request_credentials(api_key: str | None) -> None:
     get_client.cache_clear()
 
 
-def _log_mcp_internal_failure_if_present(response: dict[str, Any], context: Any) -> None:
-    body = response.get("body")
-    if not isinstance(body, str):
+# The JSON-RPC error bodies produced by the in-process handler are small; anything
+# larger is a successful result and cannot be one of the alerted errors.
+_MAX_ERROR_BODY_BYTES = 4096
+
+
+def _extract_jsonrpc_error_message(body: Any) -> str:
+    if not isinstance(body, str) or len(body) > _MAX_ERROR_BODY_BYTES:
+        return ""
+    try:
+        parsed = json.loads(body)
+    except ValueError:
+        return ""
+    if not isinstance(parsed, dict):
+        return ""
+    error = parsed.get("error")
+    if not isinstance(error, dict):
+        return ""
+    message = error.get("message")
+    return message if isinstance(message, str) else ""
+
+
+def _log_mcp_error_event_if_present(response: dict[str, Any], context: Any) -> None:
+    message = _extract_jsonrpc_error_message(response.get("body"))
+    if not message:
         return
-    if "Internal failure, please check Lambda function logs" in body:
+    if INTERNAL_FAILURE_MESSAGE in message:
         _log_error_event(
             "mcp_in_process_internal_failure",
             context,
             RuntimeError("MCP in-process handler returned internal failure"),
         )
-    if RESPONSE_TOO_LARGE_MESSAGE in body:
+    if RESPONSE_TOO_LARGE_MESSAGE in message:
         _log_error_event(
             "mcp_response_too_large",
             context,
@@ -109,7 +132,7 @@ def handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
         _resolve_orchestra_env()
         _apply_request_credentials(api_key)
         response = _event_handler.handle(event, context)
-        _log_mcp_internal_failure_if_present(response, context)
+        _log_mcp_error_event_if_present(response, context)
         return response
     except Exception as exc:
         if isinstance(exc, ConfigInvalidError):

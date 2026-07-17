@@ -75,3 +75,19 @@ def test_oversized_response_returns_error_and_logs_tool(
         and "download_task_run_artifact" in record.message
         for record in caplog.records
     )
+
+
+def test_guard_accounts_for_proxy_envelope_escaping():
+    # 1.5MiB of quotes serializes to ~3MiB of body (under the 5MiB limit), but the
+    # proxy envelope escapes it again to ~6MiB — the guard must measure that form.
+    text = '"' * int(1.5 * 1024 * 1024)
+    response_dict = {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "result": {"content": [{"type": "text", "text": text}]},
+    }
+
+    error = iprh._guard_response_size(_make_request("tools/call", {"name": "t"}), response_dict)
+
+    assert error is not None
+    assert "Response exceeds the maximum MCP payload size" in error.error.message
