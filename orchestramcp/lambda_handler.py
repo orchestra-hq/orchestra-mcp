@@ -5,7 +5,10 @@ from typing import Any
 
 from mcp_lambda import APIGatewayProxyEventV2Handler
 
-from orchestramcp.in_process_request_handler import FastMCPInProcessRequestHandler
+from orchestramcp.in_process_request_handler import (
+    RESPONSE_TOO_LARGE_MESSAGE,
+    FastMCPInProcessRequestHandler,
+)
 from orchestramcp.server import get_client
 
 logger = logging.getLogger("orchestramcp.lambda_handler")
@@ -58,16 +61,20 @@ def _apply_request_credentials(api_key: str | None) -> None:
 
 def _log_mcp_internal_failure_if_present(response: dict[str, Any], context: Any) -> None:
     body = response.get("body")
-    if (
-        not isinstance(body, str)
-        or "Internal failure, please check Lambda function logs" not in body
-    ):
+    if not isinstance(body, str):
         return
-    _log_error_event(
-        "mcp_in_process_internal_failure",
-        context,
-        RuntimeError("MCP in-process handler returned internal failure"),
-    )
+    if "Internal failure, please check Lambda function logs" in body:
+        _log_error_event(
+            "mcp_in_process_internal_failure",
+            context,
+            RuntimeError("MCP in-process handler returned internal failure"),
+        )
+    if RESPONSE_TOO_LARGE_MESSAGE in body:
+        _log_error_event(
+            "mcp_response_too_large",
+            context,
+            RuntimeError("MCP response exceeded the maximum payload size"),
+        )
 
 
 def _get_http_method(event: dict[str, Any]) -> str:

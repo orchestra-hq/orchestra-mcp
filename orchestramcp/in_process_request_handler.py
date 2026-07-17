@@ -1,3 +1,4 @@
+import json
 import logging
 from copy import deepcopy
 from typing import Any
@@ -19,6 +20,46 @@ from orchestramcp.server import get_mcp
 logger = logging.getLogger(__name__)
 
 _INTERNAL_FAILURE_MESSAGE = "Internal failure, please check Lambda function logs"
+
+# Lambda rejects response payloads over ~6MB (6,291,556 bytes) with an opaque 413 the
+# handler never sees. The guard fires below that with headroom for the API Gateway
+# proxy wrapping and JSON string escaping of the body.
+MAX_RESPONSE_BYTES = 5 * 1024 * 1024
+RESPONSE_TOO_LARGE_MESSAGE = "Response exceeds the maximum MCP payload size"
+
+
+def _request_target(request: JSONRPCRequest) -> str:
+    if request.method == "tools/call" and isinstance(request.params, dict):
+        name = request.params.get("name")
+        if name:
+            return f"tool '{name}'"
+    return f"method '{request.method}'"
+
+
+def _guard_response_size(
+    request: JSONRPCRequest, response_dict: dict[str, Any]
+) -> JSONRPCError | None:
+    size = len(json.dumps(response_dict, separators=(",", ":")).encode("utf-8"))
+    target = _request_target(request)
+    if size <= MAX_RESPONSE_BYTES:
+        return None
+    logger.error(
+        f"MCP response too large: {size} bytes from {target} "
+        f"(limit {MAX_RESPONSE_BYTES}); returning error to client"
+    )
+    return JSONRPCError(
+        jsonrpc="2.0",
+        id=request.id,
+        error=ErrorData(
+            code=INTERNAL_ERROR,
+            message=(
+                f"{RESPONSE_TOO_LARGE_MESSAGE}: {target} returned {size} bytes "
+                f"(limit {MAX_RESPONSE_BYTES}). Narrow the request: use pagination or "
+                f"filter parameters, or for file downloads request a byte range with "
+                f"range_header, e.g. 'bytes=0-1048575'."
+            ),
+        ),
+    )
 
 
 def _unwrap_exception_group(error: BaseException) -> BaseException:
@@ -93,4 +134,7 @@ class FastMCPInProcessRequestHandler(RequestHandler):
 
         if "error" in response_dict:
             return JSONRPCError.model_validate(response_dict)
+        too_large = _guard_response_size(request, response_dict)
+        if too_large is not None:
+            return too_large
         return JSONRPCResponse.model_validate(response_dict)
