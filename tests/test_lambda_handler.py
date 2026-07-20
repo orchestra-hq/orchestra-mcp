@@ -70,3 +70,41 @@ def _initialize_params() -> dict:
         "capabilities": {},
         "clientInfo": {"name": "test", "version": "1.0"},
     }
+
+
+def test_error_event_logged_for_jsonrpc_error_body(lambda_context, caplog):
+    from orchestramcp.lambda_handler import _log_mcp_error_event_if_present
+
+    body = json.dumps(
+        {
+            "jsonrpc": "2.0",
+            "id": 1,
+            "error": {"code": -32603, "message": "Response exceeds the maximum MCP payload size"},
+        }
+    )
+
+    with caplog.at_level("ERROR"):
+        _log_mcp_error_event_if_present({"statusCode": 200, "body": body}, lambda_context)
+
+    assert any("mcp_response_too_large" in record.getMessage() for record in caplog.records)
+
+
+def test_no_error_event_for_success_body_containing_marker(lambda_context, caplog):
+    from orchestramcp.lambda_handler import _log_mcp_error_event_if_present
+
+    body = json.dumps(
+        {
+            "jsonrpc": "2.0",
+            "id": 1,
+            "result": {
+                "content": [
+                    {"type": "text", "text": "Response exceeds the maximum MCP payload size"}
+                ]
+            },
+        }
+    )
+
+    with caplog.at_level("ERROR"):
+        _log_mcp_error_event_if_present({"statusCode": 200, "body": body}, lambda_context)
+
+    assert not caplog.records
