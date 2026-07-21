@@ -147,6 +147,31 @@ jobs:
             --query Version --output text)
           echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
 
+      - name: Wait for new version to be ready
+        run: |
+          VERSION="${{ steps.update_lambda.outputs.version }}"
+
+          aws lambda wait function-updated \
+            --function-name "orchestra_mcp" \
+            --qualifier "$VERSION"
+
+          SNAPSTART_STATUS=$(aws lambda get-function-configuration \
+            --function-name "orchestra_mcp" \
+            --qualifier "$VERSION" \
+            --query "SnapStart.ApplyOn" --output text)
+
+          if [ "$SNAPSTART_STATUS" != "None" ]; then
+            echo "SnapStart enabled for version $VERSION, waiting for snapshot optimization to complete..."
+            until [ "$(aws lambda get-function-configuration \
+              --function-name "orchestra_mcp" \
+              --qualifier "$VERSION" \
+              --query "SnapStart.OptimizationStatus" --output text)" = "On" ]; do
+              echo "Snapshot not ready yet, retrying in 5s..."
+              sleep 5
+            done
+            echo "Snapshot ready for version $VERSION."
+          fi
+
       - name: Update lambda alias to use new version
         run: |
           aws lambda update-alias \
