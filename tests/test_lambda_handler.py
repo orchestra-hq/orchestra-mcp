@@ -7,6 +7,8 @@ import pytest
 from orchestramcp.lambda_handler import handler
 from tests.conftest import EXPECTED_TOOLS, api_gateway_event, mcp_post_event
 
+DISCOVERY_PATH = "/.well-known/oauth-protected-resource/orchestra"
+
 
 @pytest.fixture
 def lambda_context():
@@ -15,10 +17,60 @@ def lambda_context():
     return context
 
 
+@pytest.fixture(autouse=True)
+def _clear_discovery_env():
+    yield
+    for key in (
+        "ORCHESTRA_OAUTH_JWKS_URI",
+        "ORCHESTRA_OAUTH_ISSUER",
+        "ORCHESTRA_OAUTH_RESOURCE_URL",
+    ):
+        os.environ.pop(key, None)
+
+
+def _enable_discovery(monkeypatch):
+    monkeypatch.setenv(
+        "ORCHESTRA_OAUTH_JWKS_URI", "https://issuer.example.com/.well-known/jwks.json"
+    )
+    monkeypatch.setenv("ORCHESTRA_OAUTH_ISSUER", "https://issuer.example.com")
+    monkeypatch.setenv("ORCHESTRA_OAUTH_RESOURCE_URL", "https://mcp.example.com/orchestra")
+
+
 def test_post_without_bearer_returns_401(lambda_context):
     response = handler(api_gateway_event(method="POST"), lambda_context)
 
     assert response["statusCode"] == 401
+    assert "www-authenticate" not in response["headers"]
+
+
+def test_post_without_bearer_includes_www_authenticate_when_discovery_enabled(
+    lambda_context, monkeypatch
+):
+    _enable_discovery(monkeypatch)
+
+    response = handler(api_gateway_event(method="POST"), lambda_context)
+
+    assert response["statusCode"] == 401
+    assert (
+        'resource_metadata="https://mcp.example.com/.well-known/oauth-protected-resource/orchestra"'
+        in (response["headers"]["www-authenticate"])
+    )
+
+
+def test_discovery_request_returns_metadata_when_enabled(lambda_context, monkeypatch):
+    _enable_discovery(monkeypatch)
+
+    response = handler(api_gateway_event(method="GET", raw_path=DISCOVERY_PATH), lambda_context)
+
+    assert response["statusCode"] == 200
+    body = json.loads(response["body"])
+    assert body["resource"] == "https://mcp.example.com/orchestra"
+
+
+def test_get_on_mcp_path_still_405s_when_discovery_unconfigured(lambda_context):
+    response = handler(api_gateway_event(method="GET"), lambda_context)
+
+    assert response["statusCode"] == 405
 
 
 def test_options_returns_cors_and_clears_stale_api_key(lambda_context):

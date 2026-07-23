@@ -55,7 +55,11 @@ async def test_valid_oauth_token_is_exchanged_for_api_key(monkeypatch):
         async def verify_token(self, token):
             assert token == _jwt_shaped_token()
             return AccessToken(
-                token=token, client_id="client-a", scopes=[], subject="user-123", claims={"iss": ISSUER}
+                token=token,
+                client_id="client-a",
+                scopes=[],
+                subject="user-123",
+                claims={"iss": ISSUER},
             )
 
     monkeypatch.setattr(oauth, "_verifier", lambda: _StubVerifier())

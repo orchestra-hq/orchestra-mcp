@@ -7,6 +7,7 @@ from typing import Any
 import anyio
 from mcp_lambda import APIGatewayProxyEventV2Handler
 
+from orchestramcp import oauth_discovery
 from orchestramcp.in_process_request_handler import (
     INTERNAL_FAILURE_MESSAGE,
     RESPONSE_TOO_LARGE_MESSAGE,
@@ -120,27 +121,40 @@ def _extract_bearer_token(event: dict[str, Any]) -> str | None:
     return token or None
 
 
+def _unauthorized_response(message: str, error: str) -> dict[str, Any]:
+    headers = {"content-type": "application/json"}
+    www_authenticate = oauth_discovery.www_authenticate_header(error, message)
+    if www_authenticate:
+        headers["www-authenticate"] = www_authenticate
+    return {
+        "statusCode": 401,
+        "headers": headers,
+        "body": json.dumps({"message": message}),
+    }
+
+
 def handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
     try:
         method = _get_http_method(event)
+
+        discovery_response = oauth_discovery.handle_discovery_request(
+            method, event.get("rawPath", "")
+        )
+        if discovery_response is not None:
+            return discovery_response
+
         bearer_token = _extract_bearer_token(event)
         if method == "POST" and not bearer_token:
-            return {
-                "statusCode": 401,
-                "headers": {"content-type": "application/json"},
-                "body": '{"message":"Missing or invalid Authorization header"}',
-            }
+            return _unauthorized_response(
+                "Missing or invalid Authorization header", "invalid_request"
+            )
 
         _resolve_orchestra_env()
         try:
             api_key = anyio.run(resolve_api_key, bearer_token) if bearer_token else None
         except OAuthTokenError as exc:
             _log_error_event("oauth_token_invalid", context, exc)
-            return {
-                "statusCode": 401,
-                "headers": {"content-type": "application/json"},
-                "body": '{"message":"Invalid or expired OAuth token"}',
-            }
+            return _unauthorized_response("Invalid or expired OAuth token", "invalid_token")
         _apply_request_credentials(api_key)
         response = _event_handler.handle(event, context)
         _log_mcp_error_event_if_present(response, context)

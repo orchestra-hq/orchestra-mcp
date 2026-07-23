@@ -178,6 +178,48 @@ The server fetches the Orchestra OpenAPI spec on startup and exposes the operati
 the API flags for the MCP. Set `ORCHESTRA_OPENAPI_URL` to point at a specific spec
 (e.g. a local file) instead of the environment default.
 
+### OAuth login flow locally (Claude Desktop)
+
+The Lambda deployment can authenticate MCP clients via OAuth 2.1 instead of a raw
+Orchestra API key (see `orchestramcp/oauth.py`). To exercise that interactive
+flow locally — discovery, dynamic client registration, a real consent screen,
+and token exchange — with a real client like Claude Desktop, two throwaway dev
+servers stand in for the pieces this repo doesn't provide by itself: a remote
+authorization server, and a real HTTP-reachable copy of the Lambda.
+
+1. In one terminal, start the mock authorization server (requires a real
+   Orchestra API key so it can hand one back through the exchange endpoint):
+
+   ```bash
+   ORCHESTRA_TEST_API_KEY="your-real-orchestra-api-key" \
+       uv run python scripts/local_authorization_server.py
+   ```
+
+   It prints the env vars to export before the next step.
+
+2. In a second terminal, export those, plus `ORCHESTRA_ENV` and where this
+   server itself will be reachable, then start it:
+
+   ```bash
+   export ORCHESTRA_ENV=stage
+   export ORCHESTRA_OAUTH_RESOURCE_URL="http://127.0.0.1:8788/orchestra"
+   export ORCHESTRA_OAUTH_JWKS_URI="..."          # printed by step 1
+   export ORCHESTRA_OAUTH_ISSUER="..."            # printed by step 1
+   export ORCHESTRA_OAUTH_AUDIENCE="..."          # printed by step 1
+   export ORCHESTRA_MCP_EXCHANGE_URL="..."        # printed by step 1
+   export ORCHESTRA_MCP_SERVICE_CREDENTIAL="..."  # printed by step 1
+   uv run python scripts/local_resource_server.py
+   ```
+
+3. In Claude Desktop, go to Settings → Connectors → Add custom connector, and
+   add `http://127.0.0.1:8788/orchestra`. Connecting should trigger discovery,
+   client registration, and the consent screen from step 1 automatically —
+   approve it, then ask Claude to list Orchestra pipelines to confirm a real
+   tool call round-trips through the unmodified Lambda handler.
+
+Pointing this at a real remote authorization server later (once one exists) is
+a pure env-var change in step 2 — nothing in `orchestramcp/` needs to change.
+
 ## Development
 
 - Run `uv run pytest` to run tests.

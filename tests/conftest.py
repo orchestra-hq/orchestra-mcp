@@ -61,14 +61,15 @@ def api_gateway_event(
     method: str = "POST",
     headers: dict[str, str] | None = None,
     body: str | None = None,
+    raw_path: str = "/orchestra",
 ) -> dict:
     return {
         "version": "2.0",
-        "routeKey": f"{method} /orchestra",
-        "rawPath": "/orchestra",
+        "routeKey": f"{method} {raw_path}",
+        "rawPath": raw_path,
         "rawQueryString": "",
         "headers": headers or {},
-        "requestContext": {"http": {"method": method, "path": "/orchestra"}},
+        "requestContext": {"http": {"method": method, "path": raw_path}},
         "body": body,
     }
 
