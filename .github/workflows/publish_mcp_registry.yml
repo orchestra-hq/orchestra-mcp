@@ -6,11 +6,6 @@ on:
     tags:
       - "v*"
   workflow_dispatch:
-    inputs:
-      version:
-        description: "Version to publish (defaults to the version in server.json)"
-        type: string
-        required: false
 
 concurrency:
   group: ${{ github.workflow }}
@@ -27,25 +22,21 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
-      - name: Resolve version
-        id: version
+      # server.json is the single source of truth for the version, so a tag that
+      # disagrees with it is a mistake - fail here rather than publish the wrong
+      # version to the registry.
+      - name: Check version
         run: |
+          version="$(jq -er '.version' server.json)"
+          echo "server.json version: $version"
           if [[ "${{ github.event_name }}" == "push" ]]; then
-            version="${GITHUB_REF#refs/tags/v}"
-          else
-            version="${{ inputs.version }}"
+            tag_version="${GITHUB_REF#refs/tags/v}"
+            if [[ "$tag_version" != "$version" ]]; then
+              echo "::error::Tag v${tag_version} does not match server.json version ${version}." \
+                   "Bump server.json first, then tag to match."
+              exit 1
+            fi
           fi
-          if [[ -z "$version" ]]; then
-            version="$(jq -r '.version' server.json)"
-          fi
-          echo "version=$version" >> "$GITHUB_OUTPUT"
-          echo "Publishing version $version"
-
-      - name: Set version in server.json
-        run: |
-          jq --arg v "${{ steps.version.outputs.version }}" '.version = $v' server.json > server.tmp
-          mv server.tmp server.json
-          cat server.json
 
       - name: Install mcp-publisher
         run: |
