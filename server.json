@@ -1,0 +1,34 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.orchestra-hq/orchestra-mcp",
+  "description": "Manage Orchestra pipelines, runs, task logs, assets and environments",
+  "repository": {
+    "url": "https://github.com/orchestra-hq/orchestra-mcp",
+    "source": "github"
+  },
+  "version": "0.1.0",
+  "remotes": [
+    {
+      "type": "streamable-http",
+      "url": "https://mcp.getorchestra.io/orchestra",
+      "headers": [
+        {
+          "name": "Authorization",
+          "description": "Orchestra API key from your workspace settings (https://app.getorchestra.io/settings/workspace). A standard or read-only key both work; a standard key is required to trigger pipelines.",
+          "isRequired": true,
+          "isSecret": true,
+          "format": "string",
+          "value": "Bearer {orchestra_api_key}",
+          "variables": {
+            "orchestra_api_key": {
+              "description": "Your Orchestra API key",
+              "isRequired": true,
+              "isSecret": true,
+              "format": "string"
+            }
+          }
+        }
+      ]
+    }
+  ]
+}
