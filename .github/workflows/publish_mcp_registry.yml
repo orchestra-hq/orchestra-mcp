@@ -38,9 +38,22 @@ jobs:
             fi
           fi
 
+      # Pinned and checksum-verified rather than piping `releases/latest` straight
+      # into a shell: this job holds id-token: write, and mcp-publisher uses it to
+      # mint a credential for the whole io.github.orchestra-hq/* namespace, so a
+      # swapped binary would be an org-wide compromise. The asset is linux_amd64
+      # because ubuntu-latest runners are x86_64. Bump the version and digest
+      # together - the digest comes from registry_<version>_checksums.txt on the
+      # release.
       - name: Install mcp-publisher
+        env:
+          MCP_PUBLISHER_VERSION: v1.8.1
+          MCP_PUBLISHER_SHA256: a06c9096dcb9727c13555b6be26c7effa707b01f06a4c561ba7a3635443cf2cc
         run: |
-          curl -fsSL "https://github.com/modelcontextprotocol/registry/releases/latest/download/mcp-publisher_$(uname -s | tr '[:upper:]' '[:lower:]')_$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/').tar.gz" | tar xz mcp-publisher
+          curl -fsSL -o mcp-publisher.tar.gz \
+            "https://github.com/modelcontextprotocol/registry/releases/download/${MCP_PUBLISHER_VERSION}/mcp-publisher_linux_amd64.tar.gz"
+          echo "${MCP_PUBLISHER_SHA256}  mcp-publisher.tar.gz" | sha256sum --check --strict -
+          tar xzf mcp-publisher.tar.gz mcp-publisher
 
       - name: Authenticate to MCP Registry
         run: ./mcp-publisher login github-oidc
