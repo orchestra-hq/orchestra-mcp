@@ -45,6 +45,13 @@ Use Orchestra's hosted MCP endpoint:
 | `get_environment` | Yes | Get an environment (`GET /environments/{environment_id}`). | Environments |
 | `update_environment` | Yes | Update an environment (`PATCH /environments/{environment_id}`). | Environments |
 | `delete_environment` | Yes | **Disabled by default.** Delete an environment (`DELETE /environments/{environment_id}`). Set `ORCHESTRA_ENABLE_DELETE` to expose it. | Environments |
+| `list_incidents` | Yes | List incidents (`GET /incidents`). | Incidents |
+| `get_incident` | Yes | Get an incident (`GET /incidents/{incident_id}`). | Incidents |
+| `update_incident` | Yes | Update an incident (`PATCH /incidents/{incident_id}`). | Incidents |
+| `list_incident_events` | Yes | List an incident's timeline (`GET /incidents/{incident_id}/events`). | Incidents |
+| `merge_incidents` | Yes | Merge incidents (`POST /incidents/{incident_id}/merge`). | Incidents |
+| `unmerge_incidents` | Yes | Unmerge incidents (`POST /incidents/{incident_id}/unmerge`). | Incidents |
+| `create_incident_comment` | Yes | Write to an incident's timeline (`POST /incidents/{incident_id}/comments`). | Incidents |
 | `get_integration_state_for_state_aware` | Yes | Get integration state (`GET /state/{integration}`). | State |
 <!-- available-tools:end -->
 
