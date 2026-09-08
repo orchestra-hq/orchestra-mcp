@@ -70,12 +70,12 @@ def _window(hours: int) -> tuple[str, str, int]:
     return time_from.isoformat(), now.isoformat(), hours
 
 
-def _duration_seconds(started_at: str | None, completed_at: str | None) -> float | None:
-    """Seconds between two API timestamps, or None if either is absent or unparseable."""
+def _duration_seconds(started_at: str | None, completed_at: str | None) -> int | None:
+    """Whole seconds between two API timestamps, or None if either cannot be read."""
     try:
         started = datetime.fromisoformat(started_at)
         completed = datetime.fromisoformat(completed_at)
-        return (completed - started).total_seconds()
+        return round((completed - started).total_seconds())
     except (TypeError, ValueError):
         return None
 
@@ -504,7 +504,7 @@ def _register_triage(server: FastMCP, client: httpx.AsyncClient, ui_base_url: st
                         "pipelineRunId": run.get("id"),
                         "runStatus": run.get("runStatus"),
                         "startedAt": run.get("startedAt"),
-                        "durationSeconds": None if duration is None else round(duration),
+                        "durationSeconds": duration,
                         "message": run.get("message"),
                         "anomalies": _anomalies(run),
                     }
