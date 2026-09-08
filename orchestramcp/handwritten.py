@@ -57,19 +57,25 @@ def _lineage_url(ui_base_url: str, pipeline_run_id: str) -> str:
 
 
 def _window(hours: int) -> tuple[str, str, int]:
-    """Resolve a window of the last ``hours``, clamped to what the API serves."""
+    """Resolve a window of the last ``hours``, clamped to what the API serves.
+
+    The span asked for is a second short of the requested one, so a window clamped
+    to the maximum cannot be rejected by a range check on the boundary itself.
+    """
     hours = max(1, min(hours, MAX_WINDOW_HOURS))
     now = datetime.now(tz=UTC)
-    return (now - timedelta(hours=hours)).isoformat(), now.isoformat(), hours
+    time_from = now - timedelta(hours=hours) + timedelta(seconds=1)
+    return time_from.isoformat(), now.isoformat(), hours
 
 
 def _duration_seconds(started_at: str | None, completed_at: str | None) -> float | None:
+    """Seconds between two API timestamps, or None if either is absent or unparseable."""
     try:
         started = datetime.fromisoformat(started_at)
         completed = datetime.fromisoformat(completed_at)
+        return (completed - started).total_seconds()
     except (TypeError, ValueError):
         return None
-    return (completed - started).total_seconds()
 
 
 def _anomalies(record: dict) -> list[dict]:
@@ -254,18 +260,30 @@ def _register_triage(server: FastMCP, client: httpx.AsyncClient, ui_base_url: st
             return None
         files = listing.get("files") or {}
         newest = max(filenames, key=lambda name: (files.get(name) or {}).get("attemptNumber", 0))
+        # Streamed into a bounded buffer rather than read whole: the suffix range
+        # should make the body small, but a log ignoring it can run to hundreds of MB
+        # and the Lambda has no memory to buffer one.
         try:
-            response = await client.get(
+            received = 0
+            tail = b""
+            async with client.stream(
+                "GET",
                 f"{base_path}/logs/download",
                 params={"filename": newest},
                 headers={"Range": f"bytes=-{LOG_TAIL_BYTES}"},
-            )
+            ) as response:
+                async for chunk in response.aiter_bytes():
+                    received += len(chunk)
+                    tail = (tail + chunk)[-LOG_TAIL_BYTES:]
         except OrchestraAPIError as exc:
             return {"filename": newest, "unavailable": str(exc)}
         return {
             "filename": newest,
-            "tail": response.text[-LOG_TAIL_BYTES:],
-            "truncated": len(response.content) >= LOG_TAIL_BYTES,
+            "tail": tail.decode("utf-8", errors="replace"),
+            # A honoured range returns exactly the cap for any longer log, so treat a
+            # full buffer as truncated: over-reporting costs a download the agent did
+            # not need, under-reporting has it believe a cut log is the whole one.
+            "truncated": received >= LOG_TAIL_BYTES,
         }
 
     @server.tool(

@@ -14,6 +14,7 @@ from orchestramcp.handwritten import (
     LOG_TAIL_BYTES,
     MAX_DOWNLOAD_BYTES,
     MAX_WINDOW_HOURS,
+    _duration_seconds,
     register_handwritten,
 )
 
@@ -293,7 +294,7 @@ async def test_whats_broken_asks_for_a_bounded_window_without_superseded_attempt
     span = datetime.fromisoformat(run_params["time_to"]) - datetime.fromisoformat(
         run_params["time_from"]
     )
-    assert span <= timedelta(hours=MAX_WINDOW_HOURS)
+    assert span < timedelta(hours=MAX_WINDOW_HOURS)  # never lands on the API's own boundary
     assert run_params["status"] == "FAILED,WARNING"
 
     task_params = _params(requests, r"/public/task_runs$")[0]
@@ -525,3 +526,63 @@ async def test_pipeline_context_selects_by_id_when_given_a_uuid():
     assert result.data["medianSucceededDurationSeconds"] is None
     assert result.data["integrations"] == []
     assert _params(requests, r"/public/pipeline$")[0] == {"pipeline_id": pipeline_id}
+
+
+@pytest.mark.parametrize(
+    "started_at,completed_at",
+    [
+        (None, "2026-09-07T01:02:30+00:00"),
+        ("2026-09-07T01:00:00+00:00", None),
+        ("not a timestamp", "2026-09-07T01:02:30+00:00"),
+        # One naive, one offset-aware: subtracting these raises rather than failing to parse.
+        ("2026-09-07T01:00:00", "2026-09-07T01:02:30Z"),
+    ],
+)
+def test_duration_is_none_when_timestamps_cannot_be_subtracted(started_at, completed_at):
+    assert _duration_seconds(started_at, completed_at) is None
+
+
+async def test_diagnose_bounds_the_log_tail_when_the_range_header_is_ignored():
+    whole_log = b"".join(f"line {index}\n".encode() for index in range(20_000))
+    assert len(whole_log) > LOG_TAIL_BYTES
+    server, _ = _triage_server(
+        {
+            r"/pipeline_runs/[^/]+/task_runs$": _page([]),
+            r"/task_runs$": _page([{"id": "tr-1", "pipelineRunId": "run-1", "taskName": "load"}]),
+            # A server that ignores the suffix range and returns the entire log.
+            r"/logs/download$": lambda request: httpx.Response(200, content=whole_log),
+            r"/logs$": {"filenames": ["run.log"], "files": {}},
+            r"/artifacts$": {"filenames": []},
+        }
+    )
+
+    async with Client(server) as client:
+        result = await client.call_tool("diagnose", {"task_run_id": "tr-1"})
+
+    tail = result.data["logTail"]["tail"]
+    assert result.data["logTail"]["truncated"] is True
+    assert len(tail.encode()) <= LOG_TAIL_BYTES
+    assert tail.endswith("line 19999\n")
+
+
+async def test_diagnose_flags_a_truncated_tail_when_the_range_header_is_honoured():
+    server, _ = _triage_server(
+        {
+            r"/pipeline_runs/[^/]+/task_runs$": _page([]),
+            r"/task_runs$": _page([{"id": "tr-1", "pipelineRunId": "run-1", "taskName": "load"}]),
+            # A server honouring the suffix range returns exactly the cap, whatever the
+            # log's real size, so the tail is the only evidence that it was cut.
+            r"/logs/download$": lambda request: httpx.Response(
+                206,
+                content=b"x" * LOG_TAIL_BYTES,
+                headers={"Content-Range": f"bytes 100-{100 + LOG_TAIL_BYTES - 1}/900000"},
+            ),
+            r"/logs$": {"filenames": ["run.log"], "files": {}},
+            r"/artifacts$": {"filenames": []},
+        }
+    )
+
+    async with Client(server) as client:
+        result = await client.call_tool("diagnose", {"task_run_id": "tr-1"})
+
+    assert result.data["logTail"]["truncated"] is True
