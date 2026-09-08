@@ -15,7 +15,11 @@ class _BearerAuth(httpx.Auth):
     def auth_flow(self, request):
         token = os.getenv("ORCHESTRA_API_KEY")
         if not token:
-            raise ValueError("ORCHESTRA_API_KEY environment variable is required")
+            raise ValueError(
+                "No Orchestra API key: send 'Authorization: Bearer <key>' to the hosted MCP "
+                "endpoint, or set ORCHESTRA_API_KEY when running the server locally. Keys are "
+                "issued in Orchestra workspace settings."
+            )
         request.headers["Authorization"] = f"Bearer {token}"
         yield request
 

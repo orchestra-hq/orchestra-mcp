@@ -28,6 +28,7 @@ NO_AUTH_TOOLS = {"validate_pipeline", "get_pipeline_run_lineage_url"}
 # Display order for categories (spec tags). Unlisted tags sort last; within a
 # category, rows keep their spec order.
 CATEGORY_ORDER = (
+    "Triage",
     "Pipelines",
     "Pipeline Runs",
     "Task Runs",
@@ -39,12 +40,29 @@ CATEGORY_ORDER = (
     "Environments",
 )
 
-# Hand-written tool with no backing endpoint (see orchestramcp/handwritten.py),
-# so its row cannot be derived from the spec.
-LINEAGE_URL_ROW = (
-    "get_pipeline_run_lineage_url",
-    "Build the URL of a pipeline run's lineage graph in the Orchestra UI (derived from `ORCHESTRA_ENV`).",
-    "Pipeline Runs",
+# Hand-written tools with no single backing endpoint (see orchestramcp/handwritten.py),
+# so their rows cannot be derived from the spec.
+HANDWRITTEN_ROWS = (
+    (
+        "whats_broken",
+        "Failing and warning pipeline runs in a window, pre-joined to the task runs that failed inside them, with messages, platform links and duration anomalies.",
+        "Triage",
+    ),
+    (
+        "diagnose",
+        "Deep dive on one task run: parameters, upstream task statuses, log tail and artifact filenames.",
+        "Triage",
+    ),
+    (
+        "pipeline_context",
+        "A pipeline's metadata, full definition, integrations, recent run outcomes and median succeeded duration.",
+        "Triage",
+    ),
+    (
+        "get_pipeline_run_lineage_url",
+        "Build the URL of a pipeline run's lineage graph in the Orchestra UI (derived from `ORCHESTRA_ENV`).",
+        "Pipeline Runs",
+    ),
 )
 
 
@@ -72,7 +90,7 @@ def render_table(spec: dict) -> str:
         )
         for path, method, operation in mcp_operations(spec)
     ]
-    rows.append(LINEAGE_URL_ROW)
+    rows.extend(HANDWRITTEN_ROWS)
 
     def category_rank(row: tuple[str, str, str]) -> int:
         category = row[2]
