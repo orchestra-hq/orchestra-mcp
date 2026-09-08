@@ -24,7 +24,9 @@ class OrchestraAPIError(Exception):
         self.status_code = status_code
         self.message = message
         hint = STATUS_HINTS.get(status_code)
-        super().__init__(f"{status_code}: {message}" + (f" {hint}" if hint else ""))
+        # Dashed off rather than space-joined: the API's message may not end in
+        # punctuation, and the hint has to read as ours rather than the server's.
+        super().__init__(f"{status_code}: {message}" + (f" — {hint}" if hint else ""))
 
 
 def parse_error_response(response: httpx.Response) -> str:

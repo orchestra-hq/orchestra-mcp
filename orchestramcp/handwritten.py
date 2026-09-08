@@ -49,6 +49,8 @@ MAX_FAILING_RUNS = 20
 MAX_FAILED_TASKS_PER_RUN = 10
 MAX_SIBLING_TASK_RUNS = 100
 MAX_RECENT_RUNS = 20
+MAX_ARTIFACT_NAMES = 50
+MAX_PARAMETER_CHARS = 2 * 1024
 LOG_TAIL_BYTES = 8 * 1024
 
 
@@ -76,6 +78,24 @@ def _duration_seconds(started_at: str | None, completed_at: str | None) -> float
         return (completed - started).total_seconds()
     except (TypeError, ValueError):
         return None
+
+
+def _bound_strings(value, limit: int = MAX_PARAMETER_CHARS):
+    """Cut over-long strings anywhere inside a parameter object, keeping its shape.
+
+    Task parameters carry arbitrary payloads — an inline script, a rendered SQL
+    statement — and a digest cannot afford one verbatim. Structure survives so the
+    agent still sees which parameters were set; only the oversized values are cut.
+    A parameter object with a huge *number* of small keys is still passed whole, and
+    the response-size guard in the request handler remains the backstop for that.
+    """
+    if isinstance(value, str):
+        return value if len(value) <= limit else f"{value[:limit]}… ({len(value)} chars)"
+    if isinstance(value, dict):
+        return {key: _bound_strings(item, limit) for key, item in value.items()}
+    if isinstance(value, list):
+        return [_bound_strings(item, limit) for item in value]
+    return value
 
 
 def _anomalies(record: dict) -> list[dict]:
@@ -324,7 +344,7 @@ def _register_triage(server: FastMCP, client: httpx.AsyncClient, ui_base_url: st
                     "time_from": time_from,
                     "time_to": time_to,
                     "pipeline_ids": ",".join(pipeline_ids),
-                    "include_superseded": False,
+                    "include_superseded": "false",
                 },
                 RUNS_PAGE_SIZE,
                 MAX_FAILING_RUNS * MAX_FAILED_TASKS_PER_RUN,
@@ -334,8 +354,10 @@ def _register_triage(server: FastMCP, client: httpx.AsyncClient, ui_base_url: st
             tasks_by_run.setdefault(task_run.get("pipelineRunId"), []).append(task_run)
 
         failures = []
+        dropped_tasks = False
         for run in runs:
             tasks = tasks_by_run.get(run["id"], [])
+            dropped_tasks = dropped_tasks or len(tasks) > MAX_FAILED_TASKS_PER_RUN
             failure = _compact(
                 {
                     "pipeline": run.get("pipelineName"),
@@ -362,10 +384,13 @@ def _register_triage(server: FastMCP, client: httpx.AsyncClient, ui_base_url: st
             "environment": environment_record["name"] if environment_record else None,
             "failingRunCount": run_total,
             "failures": failures,
-            # The sweep is capped too, and it is ordered by task run rather than by
-            # pipeline run, so a very noisy window can leave a listed run showing
-            # fewer failed tasks than it really had. Say the digest is partial.
-            "truncated": run_total > len(failures) or failed_task_total > len(failed_tasks),
+            # Partial for any of three reasons: more failing runs than are listed,
+            # a task sweep that hit its own cap (it is ordered by task run, not by
+            # pipeline run, so a noisy window can starve a listed run), or a single
+            # run with more failed tasks than the per-run cap shows.
+            "truncated": (
+                run_total > len(failures) or failed_task_total > len(failed_tasks) or dropped_tasks
+            ),
         }
 
     @server.tool(
@@ -373,14 +398,16 @@ def _register_triage(server: FastMCP, client: httpx.AsyncClient, ui_base_url: st
             "Deep dive on one failed task run: its status and messages, taskParameters and "
             "runParameters, the statuses of the upstream tasks it depends on, the tail of its "
             "newest log, and its artifact filenames. Task runs are queryable for 7 days only. "
-            "Use download_task_run_log or download_task_run_artifact when the tail is not enough."
+            "Over-long parameter values, the log tail and the artifact list are capped, and the "
+            "response says which parts were cut. Use download_task_run_log or "
+            "download_task_run_artifact when the tail is not enough."
         ),
         annotations=ToolAnnotations(title="Diagnose Task Run", readOnlyHint=True),
     )
     async def diagnose(task_run_id: str) -> dict:
         matches, _ = await _paged(
             "/public/task_runs",
-            {"task_run_ids": task_run_id, "include_superseded": True},
+            {"task_run_ids": task_run_id, "include_superseded": "true"},
             RUNS_PAGE_SIZE,
             1,
         )
@@ -393,9 +420,9 @@ def _register_triage(server: FastMCP, client: httpx.AsyncClient, ui_base_url: st
         task_run = matches[0]
         pipeline_run_id = task_run["pipelineRunId"]
 
-        siblings, _ = await _paged(
+        siblings, sibling_total = await _paged(
             f"/public/pipeline_runs/{pipeline_run_id}/task_runs",
-            {"include_superseded": False},
+            {"include_superseded": "false"},
             RUN_TASK_RUNS_PAGE_SIZE,
             MAX_SIBLING_TASK_RUNS,
         )
@@ -428,13 +455,19 @@ def _register_triage(server: FastMCP, client: httpx.AsyncClient, ui_base_url: st
                 }
             )
         )
+        filenames = artifacts.get("filenames") or []
         return {
             "taskRun": detail,
-            "taskParameters": task_run.get("taskParameters") or {},
-            "runParameters": task_run.get("runParameters") or {},
+            "taskParameters": _bound_strings(task_run.get("taskParameters") or {}),
+            "runParameters": _bound_strings(task_run.get("runParameters") or {}),
             "upstream": upstream,
+            # A run with more task runs than the cap can leave a dependency's status
+            # unresolved, which would otherwise be indistinguishable from a dependency
+            # that has no task run at all.
+            "upstreamTruncated": sibling_total > len(siblings),
             "logTail": await _log_tail(base_path),
-            "artifacts": artifacts.get("filenames") or [],
+            "artifactCount": len(filenames),
+            "artifacts": filenames[:MAX_ARTIFACT_NAMES],
             "lineageUrl": _lineage_url(ui_base_url, pipeline_run_id),
         }
 

@@ -12,8 +12,12 @@ from fastmcp.exceptions import ToolError
 from orchestramcp.client import build_http_client
 from orchestramcp.handwritten import (
     LOG_TAIL_BYTES,
+    MAX_ARTIFACT_NAMES,
     MAX_DOWNLOAD_BYTES,
+    MAX_FAILED_TASKS_PER_RUN,
+    MAX_SIBLING_TASK_RUNS,
     MAX_WINDOW_HOURS,
+    RUN_TASK_RUNS_PAGE_SIZE,
     _duration_seconds,
     register_handwritten,
 )
@@ -586,3 +590,94 @@ async def test_diagnose_flags_a_truncated_tail_when_the_range_header_is_honoured
         result = await client.call_tool("diagnose", {"task_run_id": "tr-1"})
 
     assert result.data["logTail"]["truncated"] is True
+
+
+async def test_whats_broken_flags_truncation_when_a_run_exceeds_the_per_task_cap():
+    failed_tasks = [
+        {
+            "id": f"tr-{index}",
+            "pipelineRunId": "run-1",
+            "taskName": f"task-{index}",
+            "status": "FAILED",
+        }
+        for index in range(MAX_FAILED_TASKS_PER_RUN + 3)
+    ]
+    server, _ = _triage_server(
+        {
+            r"/pipeline_runs$": _page([{"id": "run-1", "pipelineId": "pipe-1"}]),
+            r"/task_runs$": _page(failed_tasks),
+        }
+    )
+
+    async with Client(server) as client:
+        result = await client.call_tool("whats_broken", {})
+
+    failure = result.data["failures"][0]
+    assert failure["failedTaskCount"] == MAX_FAILED_TASKS_PER_RUN + 3
+    assert len(failure["failedTasks"]) == MAX_FAILED_TASKS_PER_RUN
+    assert result.data["truncated"] is True  # the dropped tasks are declared
+
+
+async def test_diagnose_flags_an_unresolved_dependency_from_a_capped_sibling_listing():
+    siblings = [
+        {"id": f"tr-{index}", "taskId": f"task-{index}", "status": "SUCCEEDED"}
+        for index in range(RUN_TASK_RUNS_PAGE_SIZE)
+    ]
+    server, _ = _triage_server(
+        {
+            # More task runs in the run than the listing returns, so "extract" is
+            # unresolved because of the cap rather than because it does not exist.
+            r"/pipeline_runs/[^/]+/task_runs$": _page(siblings, total=MAX_SIBLING_TASK_RUNS + 50),
+            r"/task_runs$": _page(
+                [
+                    {
+                        "id": "tr-x",
+                        "pipelineRunId": "run-1",
+                        "taskName": "load",
+                        "dependsOn": ["extract"],
+                    }
+                ]
+            ),
+            r"/logs$": {"filenames": []},
+            r"/artifacts$": {"filenames": []},
+        }
+    )
+
+    async with Client(server) as client:
+        result = await client.call_tool("diagnose", {"task_run_id": "tr-x"})
+
+    assert result.data["upstream"] == [{"taskId": "extract"}]
+    assert result.data["upstreamTruncated"] is True
+
+
+async def test_diagnose_bounds_a_huge_parameter_value_and_caps_the_artifact_list():
+    script = "print('x')\n" * 5_000
+    server, _ = _triage_server(
+        {
+            r"/pipeline_runs/[^/]+/task_runs$": _page([]),
+            r"/task_runs$": _page(
+                [
+                    {
+                        "id": "tr-1",
+                        "pipelineRunId": "run-1",
+                        "taskName": "load",
+                        "taskParameters": {"command": script, "warehouse": "WH"},
+                    }
+                ]
+            ),
+            r"/logs$": {"filenames": []},
+            r"/artifacts$": {
+                "filenames": [f"artifact-{index}.json" for index in range(MAX_ARTIFACT_NAMES + 20)]
+            },
+        }
+    )
+
+    async with Client(server) as client:
+        result = await client.call_tool("diagnose", {"task_run_id": "tr-1"})
+
+    command = result.data["taskParameters"]["command"]
+    assert len(command) < len(script)
+    assert command.endswith(f"({len(script)} chars)")
+    assert result.data["taskParameters"]["warehouse"] == "WH"  # structure survives
+    assert len(result.data["artifacts"]) == MAX_ARTIFACT_NAMES
+    assert result.data["artifactCount"] == MAX_ARTIFACT_NAMES + 20
