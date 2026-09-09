@@ -3,12 +3,30 @@ import httpx
 MAX_ERROR_BODY_CHARS = 500
 MAX_ERROR_LIST_ITEMS = 5
 
+# Statuses whose API message names a problem but no next step. The hint is appended
+# to what the agent sees, so a call that fails on credentials or workspace
+# permissions says how to fix it instead of only that it failed.
+STATUS_HINTS = {
+    401: (
+        "The Orchestra API key is missing, invalid or expired. Check the key sent as "
+        "'Authorization: Bearer <key>' (ORCHESTRA_API_KEY when running the server locally); "
+        "keys are issued in Orchestra workspace settings."
+    ),
+    403: (
+        "The key is valid but this workspace cannot read that. The Metadata API may not be "
+        "enabled for it — ask an Orchestra workspace admin to enable it."
+    ),
+}
+
 
 class OrchestraAPIError(Exception):
     def __init__(self, status_code: int, message: str):
         self.status_code = status_code
         self.message = message
-        super().__init__(f"{status_code}: {message}")
+        hint = STATUS_HINTS.get(status_code)
+        # Dashed off rather than space-joined: the API's message may not end in
+        # punctuation, and the hint has to read as ours rather than the server's.
+        super().__init__(f"{status_code}: {message}" + (f" — {hint}" if hint else ""))
 
 
 def parse_error_response(response: httpx.Response) -> str:

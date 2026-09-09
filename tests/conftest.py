@@ -12,6 +12,7 @@ EXPECTED_TOOLS = {
     "cancel_pipeline_run",
     "create_environment",
     "create_pipeline",
+    "diagnose",
     "download_task_run_artifact",
     "download_task_run_log",
     "get_environment",
@@ -29,10 +30,12 @@ EXPECTED_TOOLS = {
     "list_task_run_logs",
     "list_task_runs",
     "migrate_pipeline",
+    "pipeline_context",
     "start_pipeline",
     "update_environment",
     "update_pipeline",
     "validate_pipeline",
+    "whats_broken",
 }
 
 MCP_HEADERS = {
