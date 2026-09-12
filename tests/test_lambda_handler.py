@@ -4,6 +4,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from orchestramcp import oauth
 from orchestramcp.lambda_handler import handler
 from tests.conftest import EXPECTED_TOOLS, api_gateway_event, mcp_post_event
 
@@ -15,10 +16,67 @@ def lambda_context():
     return context
 
 
+ISSUER = "https://app.getorchestra.io"
+RESOURCE_URL = "https://mcp.getorchestra.io/orchestra"
+METADATA_PATH = "/orchestra/.well-known/oauth-protected-resource"
+
+
+def _enable_oauth(monkeypatch):
+    monkeypatch.setenv("ORCHESTRA_OAUTH_ISSUER", ISSUER)
+    monkeypatch.setenv("ORCHESTRA_OAUTH_JWKS_URI", f"{ISSUER}/.well-known/jwks.json")
+    monkeypatch.setenv("ORCHESTRA_OAUTH_RESOURCE_URL", RESOURCE_URL)
+
+
 def test_post_without_bearer_returns_401(lambda_context):
     response = handler(api_gateway_event(method="POST"), lambda_context)
 
     assert response["statusCode"] == 401
+    assert "www-authenticate" not in response["headers"]
+
+
+def test_post_without_bearer_challenges_with_the_metadata_pointer(lambda_context, monkeypatch):
+    _enable_oauth(monkeypatch)
+
+    response = handler(api_gateway_event(method="POST"), lambda_context)
+
+    assert response["statusCode"] == 401
+    assert response["headers"]["www-authenticate"] == (
+        'Bearer error="invalid_request", error_description="Missing or invalid Authorization '
+        f'header", resource_metadata="{RESOURCE_URL}/.well-known/oauth-protected-resource"'
+    )
+
+
+def test_unverifiable_token_is_challenged_rather_than_forwarded(lambda_context, monkeypatch):
+    _enable_oauth(monkeypatch)
+
+    async def _reject(token):
+        raise oauth.OAuthTokenError("nope")
+
+    monkeypatch.setattr(oauth, "verify_token", _reject)
+
+    response = handler(
+        mcp_post_event("initialize", api_key="header.payload.signature"), lambda_context
+    )
+
+    assert response["statusCode"] == 401
+    assert 'error="invalid_token"' in response["headers"]["www-authenticate"]
+
+
+def test_discovery_document_served_under_the_routed_prefix(lambda_context, monkeypatch):
+    _enable_oauth(monkeypatch)
+
+    response = handler(api_gateway_event(method="GET", raw_path=METADATA_PATH), lambda_context)
+
+    assert response["statusCode"] == 200
+    assert json.loads(response["body"])["resource"] == RESOURCE_URL
+
+
+def test_get_on_the_mcp_path_still_405s(lambda_context, monkeypatch):
+    _enable_oauth(monkeypatch)
+
+    response = handler(api_gateway_event(method="GET"), lambda_context)
+
+    assert response["statusCode"] == 405
 
 
 def test_options_returns_cors_and_clears_stale_api_key(lambda_context):
