@@ -119,6 +119,20 @@ def test_metadata_matches_the_url_users_type_and_the_configured_issuer(monkeypat
     assert metadata["authorization_servers"] == [ISSUER]
 
 
+def test_metadata_echoes_a_trailing_slash_the_operator_configured(monkeypatch):
+    _enable(monkeypatch)
+    monkeypatch.setenv("ORCHESTRA_OAUTH_RESOURCE_URL", f"{RESOURCE_URL}/")
+
+    response = oauth.handle_discovery_request(
+        "GET", "/orchestra/.well-known/oauth-protected-resource"
+    )
+
+    assert json.loads(response["body"])["resource"] == f"{RESOURCE_URL}/"
+    assert oauth.www_authenticate_header("invalid_token", "bad").endswith(
+        f'resource_metadata="{METADATA_URL}"'
+    )
+
+
 def test_metadata_served_when_the_route_prefix_is_stripped(monkeypatch):
     _enable(monkeypatch)
 

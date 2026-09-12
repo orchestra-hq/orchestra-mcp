@@ -13,8 +13,6 @@ from functools import lru_cache
 from typing import Any
 
 from fastmcp.server.auth.providers.jwt import JWTVerifier
-from mcp.shared.auth import ProtectedResourceMetadata
-from pydantic import AnyHttpUrl
 
 # RFC 9728 serves this at the origin root, which never reaches a Lambda routed one prefix.
 _METADATA_PATH_SUFFIX = "/.well-known/oauth-protected-resource"
@@ -40,11 +38,11 @@ def _jwks_uri() -> str:
 
 def _resource_url() -> str:
     """The MCP URL exactly as users type it into a client, and the audience tokens carry."""
-    return _setting("ORCHESTRA_OAUTH_RESOURCE_URL").rstrip("/")
+    return _setting("ORCHESTRA_OAUTH_RESOURCE_URL")
 
 
 def _resource_metadata_url() -> str:
-    return f"{_resource_url()}{_METADATA_PATH_SUFFIX}"
+    return f"{_resource_url().rstrip('/')}{_METADATA_PATH_SUFFIX}"
 
 
 def enabled() -> bool:
@@ -85,15 +83,14 @@ def www_authenticate_header(error: str, description: str) -> str | None:
 
 
 def _protected_resource_metadata() -> dict[str, Any]:
-    metadata = ProtectedResourceMetadata(
-        resource=AnyHttpUrl(_resource_url()),
-        authorization_servers=[AnyHttpUrl(_issuer())],
-        resource_name=_RESOURCE_NAME,
-    )
-    payload = metadata.model_dump(mode="json", exclude_none=True)
-    # Only the first entry is tried, and pydantic would give it a trailing slash to mismatch on.
-    payload["authorization_servers"] = [_issuer()]
-    return payload
+    # Hand-built: clients match these two against what they were configured with, and a URL
+    # model would normalise a trailing slash onto either and break the comparison.
+    return {
+        "resource": _resource_url(),
+        "authorization_servers": [_issuer()],
+        "bearer_methods_supported": ["header"],
+        "resource_name": _RESOURCE_NAME,
+    }
 
 
 def handle_discovery_request(method: str, raw_path: str) -> dict[str, Any] | None:
