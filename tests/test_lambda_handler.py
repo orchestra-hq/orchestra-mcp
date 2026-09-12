@@ -50,9 +50,9 @@ def test_unverifiable_token_is_challenged_rather_than_forwarded(lambda_context, 
     _enable_oauth(monkeypatch)
 
     async def _reject(token):
-        raise oauth.OAuthTokenError("nope")
+        return False
 
-    monkeypatch.setattr(oauth, "verify_token", _reject)
+    monkeypatch.setattr(oauth, "token_accepted", _reject)
 
     response = handler(
         mcp_post_event("initialize", api_key="header.payload.signature"), lambda_context
@@ -69,6 +69,15 @@ def test_discovery_document_served_under_the_routed_prefix(lambda_context, monke
 
     assert response["statusCode"] == 200
     assert json.loads(response["body"])["resource"] == RESOURCE_URL
+
+
+def test_preflight_on_the_discovery_path_is_answered_by_mcp_lambda(lambda_context, monkeypatch):
+    _enable_oauth(monkeypatch)
+
+    response = handler(api_gateway_event(method="OPTIONS", raw_path=METADATA_PATH), lambda_context)
+
+    assert response["statusCode"] == 200
+    assert response["headers"]["Access-Control-Allow-Origin"] == "*"
 
 
 def test_get_on_the_mcp_path_still_405s(lambda_context, monkeypatch):

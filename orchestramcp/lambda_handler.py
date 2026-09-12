@@ -147,12 +147,9 @@ def handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
             )
 
         _resolve_orchestra_env()
-        if bearer_token:
-            try:
-                anyio.run(oauth.verify_token, bearer_token)
-            except oauth.OAuthTokenError as exc:
-                _log_error_event("oauth_token_invalid", context, exc)
-                return _unauthorized_response("Invalid or expired OAuth token", "invalid_token")
+        if bearer_token and not anyio.run(oauth.token_accepted, bearer_token):
+            _log_error_event("oauth_token_invalid", context, ValueError("OAuth token rejected"))
+            return _unauthorized_response("Invalid or expired OAuth token", "invalid_token")
         _apply_request_credentials(bearer_token)
         response = _event_handler.handle(event, context)
         _log_mcp_error_event_if_present(response, context)

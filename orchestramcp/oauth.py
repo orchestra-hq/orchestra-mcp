@@ -14,14 +14,10 @@ from typing import Any
 
 from fastmcp.server.auth.providers.jwt import JWTVerifier
 
-# RFC 9728 serves this at the origin root, which never reaches a Lambda routed one prefix.
+from orchestramcp.openapi_server import SERVER_NAME
+
+# RFC 9728 serves this at the origin root, which a Lambda routed one path prefix never sees.
 _METADATA_PATH_SUFFIX = "/.well-known/oauth-protected-resource"
-
-_RESOURCE_NAME = "Orchestra MCP Server"
-
-
-class OAuthTokenError(ValueError):
-    """The bearer token failed OAuth verification."""
 
 
 def _setting(name: str) -> str:
@@ -59,17 +55,16 @@ def _verifier(jwks_uri: str, issuer: str, audience: str) -> JWTVerifier:
     return JWTVerifier(jwks_uri=jwks_uri, issuer=issuer, audience=audience)
 
 
-async def verify_token(token: str) -> None:
-    """Raise OAuthTokenError unless the token may be forwarded to the Orchestra API.
+async def token_accepted(token: str) -> bool:
+    """Whether the token may be forwarded to the Orchestra API.
 
     Raw Orchestra API keys are not JWTs and pass through untouched.
     """
     if not enabled() or not _looks_like_jwt(token):
-        return
+        return True
 
     verifier = _verifier(_jwks_uri(), _issuer(), _resource_url())
-    if await verifier.verify_token(token) is None:
-        raise OAuthTokenError("OAuth token failed verification")
+    return await verifier.verify_token(token) is not None
 
 
 def www_authenticate_header(error: str, description: str) -> str | None:
@@ -83,13 +78,12 @@ def www_authenticate_header(error: str, description: str) -> str | None:
 
 
 def _protected_resource_metadata() -> dict[str, Any]:
-    # Hand-built: clients match these two against what they were configured with, and a URL
-    # model would normalise a trailing slash onto either and break the comparison.
+    # Hand-built: a URL model would normalise these two, and clients compare them literally.
     return {
         "resource": _resource_url(),
         "authorization_servers": [_issuer()],
         "bearer_methods_supported": ["header"],
-        "resource_name": _RESOURCE_NAME,
+        "resource_name": SERVER_NAME,
     }
 
 
@@ -99,17 +93,7 @@ def handle_discovery_request(method: str, raw_path: str) -> dict[str, Any] | Non
     if not enabled() or not raw_path.endswith(_METADATA_PATH_SUFFIX):
         return None
 
-    if method == "OPTIONS":
-        return {
-            "statusCode": 200,
-            "headers": {
-                "access-control-allow-origin": "*",
-                "access-control-allow-methods": "GET, OPTIONS",
-                "access-control-allow-headers": "*",
-            },
-            "body": "",
-        }
-
+    # OPTIONS falls through too: mcp_lambda answers every preflight with permissive CORS.
     if method != "GET":
         return None
 

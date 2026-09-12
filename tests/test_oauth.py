@@ -55,42 +55,39 @@ def test_enabled_when_fully_configured(monkeypatch):
 async def test_api_key_passes_through_when_oauth_configured(monkeypatch, key_pair):
     _enable(monkeypatch)
 
-    await oauth.verify_token("plain-orchestra-api-key")
+    assert await oauth.token_accepted("plain-orchestra-api-key") is True
 
 
 async def test_jwt_passes_through_when_oauth_not_configured():
-    await oauth.verify_token("header.payload.signature")
+    assert await oauth.token_accepted("header.payload.signature") is True
 
 
 async def test_token_for_this_resource_is_accepted(monkeypatch, key_pair):
     _enable(monkeypatch)
     token = key_pair.create_token(issuer=ISSUER, audience=RESOURCE_URL)
 
-    await oauth.verify_token(token)
+    assert await oauth.token_accepted(token) is True
 
 
 async def test_token_for_another_audience_is_rejected(monkeypatch, key_pair):
     _enable(monkeypatch)
     token = key_pair.create_token(issuer=ISSUER, audience="https://app.getorchestra.io/api")
 
-    with pytest.raises(oauth.OAuthTokenError):
-        await oauth.verify_token(token)
+    assert await oauth.token_accepted(token) is False
 
 
 async def test_token_from_another_issuer_is_rejected(monkeypatch, key_pair):
     _enable(monkeypatch)
     token = key_pair.create_token(issuer="https://evil.example.com", audience=RESOURCE_URL)
 
-    with pytest.raises(oauth.OAuthTokenError):
-        await oauth.verify_token(token)
+    assert await oauth.token_accepted(token) is False
 
 
 async def test_expired_token_is_rejected(monkeypatch, key_pair):
     _enable(monkeypatch)
     token = key_pair.create_token(issuer=ISSUER, audience=RESOURCE_URL, expires_in_seconds=-60)
 
-    with pytest.raises(oauth.OAuthTokenError):
-        await oauth.verify_token(token)
+    assert await oauth.token_accepted(token) is False
 
 
 def test_www_authenticate_header_omitted_when_disabled():
@@ -149,17 +146,6 @@ def test_discovery_falls_through_on_the_mcp_path(monkeypatch):
 
 def test_discovery_falls_through_when_disabled():
     assert oauth.handle_discovery_request("GET", METADATA_URL) is None
-
-
-def test_discovery_answers_cors_preflight(monkeypatch):
-    _enable(monkeypatch)
-
-    response = oauth.handle_discovery_request(
-        "OPTIONS", "/orchestra/.well-known/oauth-protected-resource"
-    )
-
-    assert response["statusCode"] == 200
-    assert response["headers"]["access-control-allow-origin"] == "*"
 
 
 def test_discovery_falls_through_on_other_methods(monkeypatch):
