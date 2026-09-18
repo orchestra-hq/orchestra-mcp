@@ -181,6 +181,29 @@ The server fetches the Orchestra OpenAPI spec on startup and exposes the operati
 the API flags for the MCP. Set `ORCHESTRA_OPENAPI_URL` to point at a specific spec
 (e.g. a local file) instead of the environment default.
 
+### (Optional) Accept OAuth access tokens
+
+The hosted Lambda can also accept OAuth 2.1 access tokens issued by Orchestra's
+authorization server, alongside API keys. Set all three variables to turn it on —
+with any of them unset, every bearer token is treated as an API key:
+
+```bash
+export ORCHESTRA_OAUTH_ISSUER="https://app.getorchestra.io"
+export ORCHESTRA_OAUTH_JWKS_URI="https://app.getorchestra.io/oauth/jwks.json"
+export ORCHESTRA_OAUTH_RESOURCE_URL="https://mcp.getorchestra.io/orchestra"
+```
+
+The issuer is per-environment — swap `app` for `stage` or `dev` — and the rest of its
+metadata, `jwks_uri` included, is published at
+`<issuer>/.well-known/oauth-authorization-server`.
+
+`ORCHESTRA_OAUTH_RESOURCE_URL` must be the MCP URL exactly as a user types it into their
+client, path included: it is published as the `resource` of the
+[RFC 9728](https://datatracker.ietf.org/doc/html/rfc9728) metadata document, and it is the
+audience every token is checked against. The authorization server has to serve that same
+identifier — it mints a token only for a resource it is configured for, and stamps `aud`
+with its own spelling of it. Verified tokens are forwarded to the Orchestra API unchanged.
+
 ## Development
 
 - Run `uv run pytest` to run tests.
