@@ -189,16 +189,20 @@ with any of them unset, every bearer token is treated as an API key:
 
 ```bash
 export ORCHESTRA_OAUTH_ISSUER="https://app.getorchestra.io"
-export ORCHESTRA_OAUTH_JWKS_URI="https://app.getorchestra.io/.well-known/jwks.json"
+export ORCHESTRA_OAUTH_JWKS_URI="https://app.getorchestra.io/oauth/jwks.json"
 export ORCHESTRA_OAUTH_RESOURCE_URL="https://mcp.getorchestra.io/orchestra"
 ```
 
-`ORCHESTRA_OAUTH_RESOURCE_URL` must be the MCP URL exactly as a user types it into
-their client, path included: it is published as the `resource` of the
-[RFC 9728](https://datatracker.ietf.org/doc/html/rfc9728) metadata document, and it is
-the audience every token is checked against. Take `ORCHESTRA_OAUTH_JWKS_URI` from the
-issuer's `/.well-known/oauth-authorization-server` document. Verified tokens are
-forwarded to the Orchestra API unchanged.
+The issuer is per-environment — swap `app` for `stage` or `dev` — and the rest of its
+metadata, `jwks_uri` included, is published at
+`<issuer>/.well-known/oauth-authorization-server`.
+
+`ORCHESTRA_OAUTH_RESOURCE_URL` must be the MCP URL exactly as a user types it into their
+client, path included: it is published as the `resource` of the
+[RFC 9728](https://datatracker.ietf.org/doc/html/rfc9728) metadata document, and it is the
+audience every token is checked against. The authorization server has to serve that same
+identifier — it mints a token only for a resource it is configured for, and stamps `aud`
+with its own spelling of it. Verified tokens are forwarded to the Orchestra API unchanged.
 
 ## Development
 

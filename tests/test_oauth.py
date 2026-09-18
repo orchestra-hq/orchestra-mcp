@@ -1,7 +1,10 @@
 import json
+import time
 
 import pytest
 from fastmcp.server.auth.providers.jwt import JWTVerifier, RSAKeyPair
+from joserfc import jwk as jose_jwk
+from joserfc import jwt as jose_jwt
 
 from orchestramcp import oauth
 
@@ -65,6 +68,20 @@ async def test_jwt_passes_through_when_oauth_not_configured():
 async def test_token_for_this_resource_is_accepted(monkeypatch, key_pair):
     _enable(monkeypatch)
     token = key_pair.create_token(issuer=ISSUER, audience=RESOURCE_URL)
+
+    assert await oauth.token_accepted(token) is True
+
+
+async def test_token_shaped_like_auth_srvs_is_accepted(monkeypatch, key_pair):
+    """auth-srv types its tokens at+jwt (RFC 9068), which the test helper above does not."""
+    _enable(monkeypatch)
+    key = jose_jwk.import_key(key_pair.private_key.get_secret_value(), "RSA")
+    now = int(time.time())
+    token = jose_jwt.encode(
+        {"alg": "RS256", "typ": "at+jwt", "kid": "k1"},
+        {"iss": ISSUER, "aud": RESOURCE_URL, "sub": "user-1", "iat": now, "exp": now + 600},
+        key,
+    )
 
     assert await oauth.token_accepted(token) is True
 
