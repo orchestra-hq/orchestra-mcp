@@ -1123,6 +1123,7 @@ lambda = [
 
 [package.dev-dependencies]
 dev = [
+    { name = "joserfc" },
     { name = "orchestramcp", extra = ["lambda"] },
     { name = "pytest" },
     { name = "pytest-asyncio" },
@@ -1142,6 +1143,7 @@ provides-extras = ["lambda"]
 
 [package.metadata.requires-dev]
 dev = [
+    { name = "joserfc", specifier = ">=1.7" },
     { name = "orchestramcp", extras = ["lambda"] },
     { name = "pytest", specifier = ">=7.4.0" },
     { name = "pytest-asyncio", specifier = ">=0.21.0" },

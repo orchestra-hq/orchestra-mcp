@@ -22,6 +22,8 @@ build-backend = "hatchling.build"
 
 [dependency-groups]
 dev = [
+    # Imported directly by the OAuth tests to sign a token shaped like auth-srv's.
+    "joserfc>=1.7",
     "pytest>=7.4.0",
     "pytest-asyncio>=0.21.0",
     "pytest-mock>=3.12.0",
