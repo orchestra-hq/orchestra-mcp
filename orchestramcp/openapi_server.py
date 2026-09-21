@@ -1,3 +1,4 @@
+from collections import Counter
 from copy import deepcopy
 from dataclasses import dataclass
 
@@ -57,9 +58,9 @@ def build_server(
         spec = _prepare(source.spec, include_deletes)
         prepared.append((spec, source.client, tool_names(spec)))
 
-    generated = [tool for _spec, _client, names in prepared for tool in names.values()]
-    if clashes := {tool for tool in generated if generated.count(tool) > 1}:
-        raise ValueError(f"More than one operation generates the tool(s) {sorted(clashes)}")
+    generated = Counter(tool for _spec, _client, names in prepared for tool in names.values())
+    if clashes := sorted(tool for tool, count in generated.items() if count > 1):
+        raise ValueError(f"More than one operation generates the tool(s) {clashes}")
 
     server = FastMCP(name=name)
     for spec, client, names in prepared:
