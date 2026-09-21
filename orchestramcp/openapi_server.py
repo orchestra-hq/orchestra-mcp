@@ -48,22 +48,25 @@ def build_server(
 ) -> FastMCP:
     """Build an MCP server from the flagged operations of both Orchestra APIs.
 
-    Tools are not namespaced by source, so a name both APIs claim is refused here
-    rather than letting the provider registered first silently shadow the other.
+    Tools are not namespaced by source and operation ids are normalised, so two
+    operations can arrive at one name; that is refused here rather than left to
+    surface as a tool silently shadowed by another or suffixed to tell them apart.
     """
-    server = FastMCP(name=name)
-    taken: set[str] = set()
+    prepared = []
     for source in (engine, platform):
-        prepared = _prepare(source.spec, include_deletes)
-        names = tool_names(prepared)
-        generated = set(names.values())
-        if clashes := taken & generated:
-            raise ValueError(f"Both Orchestra APIs generate the tool(s) {sorted(clashes)}")
-        taken |= generated
+        spec = _prepare(source.spec, include_deletes)
+        prepared.append((spec, source.client, tool_names(spec)))
+
+    generated = [tool for _spec, _client, names in prepared for tool in names.values()]
+    if clashes := {tool for tool in generated if generated.count(tool) > 1}:
+        raise ValueError(f"More than one operation generates the tool(s) {sorted(clashes)}")
+
+    server = FastMCP(name=name)
+    for spec, client, names in prepared:
         server.add_provider(
             OpenAPIProvider(
-                openapi_spec=prepared,
-                client=source.client,
+                openapi_spec=spec,
+                client=client,
                 mcp_component_fn=adapt_component,
                 mcp_names=names,
                 validate_output=False,

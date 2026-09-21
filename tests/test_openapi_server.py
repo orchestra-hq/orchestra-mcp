@@ -1,4 +1,5 @@
 import json
+from copy import deepcopy
 from pathlib import Path
 
 import httpx
@@ -177,6 +178,19 @@ async def test_engine_tools_keep_the_engine_base_url():
         await client.call_tool("list_pipelines", {})
 
     assert calls[0].startswith(f"{ENGINE_BASE_URL}/public/pipelines")
+
+
+async def test_a_tool_name_claimed_by_one_api_twice_is_refused():
+    platform = load_spec(PLATFORM)
+    renamed = deepcopy(platform["paths"]["/accounts"])
+    renamed["get"]["operationId"] = "list_accounts"  # normalises onto listAccounts
+    platform["paths"]["/workspaces"] = renamed
+
+    with pytest.raises(ValueError, match="list_accounts"):
+        build_server(
+            ApiSource(load_spec(LIVE), _client(ENGINE_BASE_URL)),
+            ApiSource(platform, _client(PLATFORM_BASE_URL)),
+        )
 
 
 async def test_a_tool_name_claimed_by_both_apis_is_refused():
