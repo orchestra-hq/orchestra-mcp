@@ -1,5 +1,6 @@
 import os
 
+import httpx
 import pytest
 
 from orchestramcp import server
@@ -43,13 +44,40 @@ def test_spec_urls_default_to_each_api_origin(monkeypatch):
     assert server._platform_spec_url() == "https://app.getorchestra.io/public/v1/openapi.json"
 
 
-@pytest.mark.parametrize("missing", ["ORCHESTRA_OPENAPI_URL", "ORCHESTRA_PLATFORM_OPENAPI_URL"])
-def test_unreachable_spec_fails_the_build(monkeypatch, missing):
-    monkeypatch.setenv(missing, "/nonexistent/openapi.json")
+@pytest.mark.parametrize("failing", ["ORCHESTRA_OPENAPI_URL", "ORCHESTRA_PLATFORM_OPENAPI_URL"])
+def test_a_spec_that_cannot_be_fetched_fails_the_build(monkeypatch, failing):
+    unreachable = os.environ[failing]
+    load_spec = server.load_spec
+
+    def fail_to_fetch(source):
+        if source == unreachable:
+            raise httpx.ConnectError("unreachable")
+        return load_spec(source)
+
+    monkeypatch.setattr(server, "load_spec", fail_to_fetch)
     server.get_mcp.cache_clear()
 
-    with pytest.raises(OSError):
+    with pytest.raises(httpx.ConnectError):
         server.get_mcp()
+
+
+async def test_both_apis_receive_the_caller_credential(monkeypatch):
+    monkeypatch.setenv("ORCHESTRA_API_KEY", "key-a")
+    seen = []
+
+    def handler(request):
+        seen.append((str(request.url), request.headers.get("Authorization")))
+        return httpx.Response(200, json={})
+
+    for base_url in (server._base_url(), server._platform_base_url()):
+        client = server.get_client(base_url)
+        client._transport = httpx.MockTransport(handler)
+        await client.get("/probe")
+
+    assert seen == [
+        (f"{server._base_url()}/probe", "Bearer key-a"),
+        (f"{server._platform_base_url()}/probe", "Bearer key-a"),
+    ]
 
 
 def test_delete_enabled_flag(monkeypatch):
