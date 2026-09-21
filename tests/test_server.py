@@ -31,8 +31,25 @@ def test_invalid_environment_rejected(monkeypatch):
         server._base_url()
 
 
-def test_spec_url_prefers_override():
+def test_spec_urls_prefer_overrides():
     assert server._spec_url() == os.environ["ORCHESTRA_OPENAPI_URL"]
+    assert server._platform_spec_url() == os.environ["ORCHESTRA_PLATFORM_OPENAPI_URL"]
+
+
+def test_spec_urls_default_to_each_api_origin(monkeypatch):
+    monkeypatch.delenv("ORCHESTRA_OPENAPI_URL")
+    monkeypatch.delenv("ORCHESTRA_PLATFORM_OPENAPI_URL")
+    assert server._spec_url() == "https://app.getorchestra.io/api/engine/openapi.json"
+    assert server._platform_spec_url() == "https://app.getorchestra.io/public/v1/openapi.json"
+
+
+@pytest.mark.parametrize("missing", ["ORCHESTRA_OPENAPI_URL", "ORCHESTRA_PLATFORM_OPENAPI_URL"])
+def test_unreachable_spec_fails_the_build(monkeypatch, missing):
+    monkeypatch.setenv(missing, "/nonexistent/openapi.json")
+    server.get_mcp.cache_clear()
+
+    with pytest.raises(OSError):
+        server.get_mcp()
 
 
 def test_delete_enabled_flag(monkeypatch):

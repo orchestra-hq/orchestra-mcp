@@ -1,0 +1,104 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Orchestra Platform API",
+    "version": "1.0.0",
+    "description": "Endpoints for the Orchestra platform itself: the workspaces you can reach and how they are organised. Run metadata, pipelines and assets live on the Orchestra API."
+  },
+  "servers": [
+    {
+      "url": "https://app.getorchestra.io/public/v1"
+    }
+  ],
+  "security": [
+    {
+      "ApiKey": []
+    },
+    {
+      "OAuth": [
+        "orchestra:read"
+      ]
+    }
+  ],
+  "tags": [
+    {
+      "name": "Accounts",
+      "description": "Workspaces in your organisation."
+    }
+  ],
+  "paths": {
+    "/accounts": {
+      "get": {
+        "operationId": "listAccounts",
+        "summary": "List workspaces",
+        "tags": [
+          "Accounts"
+        ],
+        "description": "Lists the workspaces your credential can reach. An API key is issued to one workspace, so it lists that workspace alone. An OAuth token lists every workspace its user is a member of, checked at the time of the call.\n\nUse the ids returned here as the `X-Orchestra-Account-Id` header on endpoints that act within a workspace.",
+        "x-orchestra-mcp": true,
+        "responses": {
+          "200": {
+            "description": "The workspaces the credential can reach.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string",
+                        "format": "uuid",
+                        "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                        "description": "The workspace id. Pass it as the `X-Orchestra-Account-Id` header on endpoints that act within a workspace."
+                      },
+                      "name": {
+                        "type": "string",
+                        "description": "The workspace name as shown in Orchestra."
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "name"
+                    ],
+                    "additionalProperties": false
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The credential is missing, malformed, expired or revoked."
+          },
+          "403": {
+            "description": "The request came from outside the organisation's allowed IP ranges. Applies to API keys only."
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "ApiKey": {
+        "type": "http",
+        "scheme": "bearer",
+        "description": "An API key from your workspace settings, passed as `Authorization: Bearer <API_KEY>`. A read-only key works on endpoints that only read."
+      },
+      "OAuth": {
+        "type": "oauth2",
+        "description": "An access token issued to a user by Orchestra, passed as `Authorization: Bearer <ACCESS_TOKEN>`. Clients register themselves at the authorization server; there is no client secret.",
+        "flows": {
+          "authorizationCode": {
+            "authorizationUrl": "https://app.getorchestra.io/oauth/authorize",
+            "tokenUrl": "https://app.getorchestra.io/oauth/token",
+            "refreshUrl": "https://app.getorchestra.io/oauth/token",
+            "scopes": {
+              "orchestra:read": "Read data in the workspaces you can access.",
+              "orchestra:write": "Read and change data in the workspaces you can access."
+            }
+          }
+        }
+      }
+    }
+  }
+}

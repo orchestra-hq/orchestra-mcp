@@ -1,4 +1,4 @@
-"""Regenerate the Available Tools table in README.md from the Orchestra OpenAPI spec.
+"""Regenerate the Available Tools table in README.md from the Orchestra OpenAPI specs.
 
 Run daily by .github/workflows/update_readme.yml, or locally with:
 
@@ -10,9 +10,10 @@ import re
 from pathlib import Path
 
 from orchestramcp.adaptations import ADAPTATIONS
-from orchestramcp.spec import load_spec, mcp_operations
+from orchestramcp.spec import load_spec, mcp_operations, tool_name
 
 DEFAULT_SPEC_URL = "https://app.getorchestra.io/api/engine/openapi.json"
+DEFAULT_PLATFORM_SPEC_URL = "https://app.getorchestra.io/public/v1/openapi.json"
 README = Path(__file__).resolve().parent.parent / "README.md"
 
 START_MARKER = "<!-- available-tools:start -->"
@@ -40,6 +41,7 @@ CATEGORY_ORDER = (
     "Integrations",
     "Environments",
     "State",
+    "Accounts",
 )
 
 # Hand-written tools with no single backing endpoint (see orchestramcp/handwritten.py),
@@ -83,13 +85,14 @@ def _purpose(operation: dict, method: str, path: str) -> str:
     return f"{text} ({endpoint})."
 
 
-def render_table(spec: dict) -> str:
+def render_table(*specs: dict) -> str:
     rows = [
         (
-            operation["operationId"],
+            tool_name(operation["operationId"]),
             _purpose(operation, method, path),
             (operation.get("tags") or ["Other"])[0],
         )
+        for spec in specs
         for path, method, operation in mcp_operations(spec)
     ]
     rows.extend(HANDWRITTEN_ROWS)
@@ -115,8 +118,11 @@ def replace_table(readme: str, table: str) -> str:
 
 def main() -> None:
     spec = load_spec(os.getenv("ORCHESTRA_OPENAPI_URL") or DEFAULT_SPEC_URL)
+    platform_spec = load_spec(
+        os.getenv("ORCHESTRA_PLATFORM_OPENAPI_URL") or DEFAULT_PLATFORM_SPEC_URL
+    )
     readme = README.read_text(encoding="utf-8")
-    README.write_text(replace_table(readme, render_table(spec)), encoding="utf-8")
+    README.write_text(replace_table(readme, render_table(spec, platform_spec)), encoding="utf-8")
 
 
 if __name__ == "__main__":

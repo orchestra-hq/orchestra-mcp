@@ -6,11 +6,15 @@ import pytest
 from scripts.update_readme import END_MARKER, START_MARKER, render_table, replace_table
 from tests.conftest import EXPECTED_TOOLS
 
-FIXTURE = Path(__file__).parent / "fixtures" / "openapi_live.json"
+FIXTURES = Path(__file__).parent / "fixtures"
+
+
+def _spec(name: str) -> dict:
+    return json.loads((FIXTURES / name).read_text(encoding="utf-8"))
 
 
 def test_render_table_lists_every_tool():
-    table = render_table(json.loads(FIXTURE.read_text(encoding="utf-8")))
+    table = render_table(_spec("openapi_live.json"), _spec("openapi_platform.json"))
     documented = {line.split("`")[1] for line in table.splitlines() if line.startswith("| `")}
     assert documented == EXPECTED_TOOLS | {"delete_pipeline", "delete_environment"}
 
