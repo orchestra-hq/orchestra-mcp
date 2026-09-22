@@ -56,6 +56,7 @@ Use Orchestra's hosted MCP endpoint:
 | `update_environment` | Yes | Update an environment (`PATCH /environments/{environment_id}`). | Environments |
 | `delete_environment` | Yes | **Disabled by default.** Delete an environment (`DELETE /environments/{environment_id}`). Set `ORCHESTRA_ENABLE_DELETE` to expose it. | Environments |
 | `get_integration_state_for_state_aware` | Yes | Get integration state (`GET /state/{integration}`). | State |
+| `list_accounts` | Yes | List workspaces (`GET /accounts`). | Accounts |
 <!-- available-tools:end -->
 
 ### Cursor
@@ -184,9 +185,11 @@ Only the following values are recognized:
 python -m orchestramcp.server
 ```
 
-The server fetches the Orchestra OpenAPI spec on startup and exposes the operations
-the API flags for the MCP. Set `ORCHESTRA_OPENAPI_URL` to point at a specific spec
-(e.g. a local file) instead of the environment default.
+The server fetches both Orchestra OpenAPI specs on startup and exposes the operations
+each API flags for the MCP. Set `ORCHESTRA_OPENAPI_URL` (Orchestra API) or
+`ORCHESTRA_PLATFORM_OPENAPI_URL` (Orchestra Platform API) to point at a specific spec
+(e.g. a local file) instead of the environment default. Startup fails if either spec
+cannot be fetched, rather than serving a partial set of tools.
 
 ## Development
 

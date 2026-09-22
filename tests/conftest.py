@@ -7,6 +7,7 @@ import pytest
 from orchestramcp.server import get_client, get_mcp
 
 LIVE_SPEC = str(Path(__file__).parent / "fixtures" / "openapi_live.json")
+PLATFORM_SPEC = str(Path(__file__).parent / "fixtures" / "openapi_platform.json")
 
 EXPECTED_TOOLS = {
     "cancel_pipeline_run",
@@ -25,6 +26,7 @@ EXPECTED_TOOLS = {
     "get_pipeline_run_lineage_url",
     "get_pipeline_run_status",
     "import_pipeline",
+    "list_accounts",
     "list_assets",
     "list_environments",
     "list_incident_events",
@@ -59,10 +61,12 @@ MCP_HEADERS = {
 def orchestra_env():
     os.environ["ORCHESTRA_ENV"] = "app"
     os.environ["ORCHESTRA_OPENAPI_URL"] = LIVE_SPEC
+    os.environ["ORCHESTRA_PLATFORM_OPENAPI_URL"] = PLATFORM_SPEC
     yield
     for key in (
         "ORCHESTRA_ENV",
         "ORCHESTRA_OPENAPI_URL",
+        "ORCHESTRA_PLATFORM_OPENAPI_URL",
         "ORCHESTRA_API_KEY",
         "ORCHESTRA_ENABLE_DELETE",
     ):

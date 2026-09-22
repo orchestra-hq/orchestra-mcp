@@ -8,10 +8,13 @@ from orchestramcp.spec import (
     patch_request_bodies,
     prune_spec,
     select_mcp_spec,
+    tool_name,
+    tool_names,
 )
 
 SAMPLE = str(Path(__file__).parent / "fixtures" / "openapi_sample.json")
 LIVE = str(Path(__file__).parent / "fixtures" / "openapi_live.json")
+PLATFORM = str(Path(__file__).parent / "fixtures" / "openapi_platform.json")
 
 
 def test_select_keeps_only_flagged_operations():
@@ -139,6 +142,18 @@ def test_prune_removes_schema_noise_and_truncates_descriptions():
     assert "title" not in thing["properties"]["name"]
     assert len(thing["properties"]["name"]["description"]) < 500
     assert pruned["info"]["title"] == "keep-me"
+
+
+def test_tool_name_converts_camel_case_and_leaves_snake_case_alone():
+    assert tool_name("listAccounts") == "list_accounts"
+    assert tool_name("listHTTPRoutes") == "list_http_routes"
+    assert tool_name("list_pipeline_runs") == "list_pipeline_runs"
+    assert tool_name("list_pipelines_pipelines__get") == "list_pipelines_pipelines"
+
+
+def test_tool_names_covers_every_flagged_operation():
+    assert tool_names(load_spec(PLATFORM)) == {"listAccounts": "list_accounts"}
+    assert tool_names(load_spec(LIVE))["list_pipelines"] == "list_pipelines"
 
 
 def _selected_ops(include_deletes):
