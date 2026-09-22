@@ -19,7 +19,7 @@ authorization request with invalid_target before the consent screen appears.
 
 import os
 import sys
-from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from http.server import BaseHTTPRequestHandler, HTTPServer
 from types import SimpleNamespace
 from urllib.parse import urlparse
 
@@ -87,7 +87,10 @@ def main() -> None:
     print("Ctrl-C to stop.\n")
 
     try:
-        ThreadingHTTPServer(("127.0.0.1", port), _Handler).serve_forever()
+        # Single-threaded on purpose: the handler passes credentials through the process
+        # environment, which is only safe because a Lambda container serves one request
+        # at a time. Overlapping requests here would swap one caller's token for another's.
+        HTTPServer(("127.0.0.1", port), _Handler).serve_forever()
     except KeyboardInterrupt:
         pass
 
