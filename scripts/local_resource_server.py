@@ -10,11 +10,12 @@ Point it at a deployed authorization server and run it with:
     ORCHESTRA_ENV=dev \\
     ORCHESTRA_OAUTH_ISSUER=https://dev.getorchestra.io \\
     ORCHESTRA_OAUTH_JWKS_URI=https://dev.getorchestra.io/oauth/jwks.json \\
-    ORCHESTRA_OAUTH_RESOURCE_URL=http://127.0.0.1:8788/orchestra \\
+    ORCHESTRA_OAUTH_RESOURCE_URL=https://mcp-dev.getorchestra.io/orchestra \\
         uv run python scripts/local_resource_server.py
 
-That resource URL has to be one auth-srv is configured to serve, or it refuses the
-authorization request with invalid_target before the consent screen appears.
+The resource URL has to be one auth-srv is configured to serve and one the Orchestra
+API accepts as an audience, which is why it names the deployed environment rather than
+this socket — see the README for what that costs.
 """
 
 import os

@@ -213,7 +213,7 @@ so an MCP client can run the whole flow against the production code path:
 ORCHESTRA_ENV=dev \
 ORCHESTRA_OAUTH_ISSUER=https://dev.getorchestra.io \
 ORCHESTRA_OAUTH_JWKS_URI=https://dev.getorchestra.io/oauth/jwks.json \
-ORCHESTRA_OAUTH_RESOURCE_URL=http://127.0.0.1:8788/orchestra \
+ORCHESTRA_OAUTH_RESOURCE_URL=https://mcp-dev.getorchestra.io/orchestra \
     uv run python scripts/local_resource_server.py
 ```
 
@@ -224,11 +224,14 @@ claude mcp add --transport http orchestra-local http://127.0.0.1:8788/orchestra
 Connecting should take you through discovery, client registration and a consent screen,
 after which tool calls run as your user rather than as an account-wide API key.
 
-**The resource URL must be one the authorization server is configured to serve**, or it
-refuses the authorization request with `invalid_target` and no consent screen appears —
-so `http://127.0.0.1:8788/orchestra` has to be in the dev environment's resource list.
-What this cannot exercise is the deployed edge routing `/orchestra/.well-known/*` to the
-Lambda, since this server is reached directly.
+The resource URL is the deployed dev identifier rather than the local address, because it
+has to be one the authorization server serves *and* one the Orchestra API accepts as an
+audience — a token minted for `127.0.0.1` is refused by both. The cost is that the
+metadata pointer in the 401 names the deployed host, so a client that follows it lands
+somewhere this server is not; discovery then depends on the client falling back to
+probing the address it connected to. Testing against a deployed environment avoids that,
+and is also the only way to exercise the edge routing `/orchestra/.well-known/*`.
+
 
 ## Development
 
