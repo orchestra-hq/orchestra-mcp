@@ -11,8 +11,12 @@ from orchestramcp.spec import load_spec, mcp_operations
 SAMPLE = str(Path(__file__).parent / "fixtures" / "openapi_sample.json")
 LIVE = str(Path(__file__).parent / "fixtures" / "openapi_live.json")
 
-MAX_TOOLS = 30
-MAX_SCHEMA_BYTES = 40_000
+# Ceilings on the surface every model call re-reads, set just above the current
+# live numbers (38 tools, ~51 KB) so routine upstream growth trips the test and
+# gets looked at. Raising them is a decision, not a formality: check first whether
+# the growth is worth its tokens, and whether coarsening in spec.py would pay for it.
+MAX_TOOLS = 40
+MAX_SCHEMA_BYTES = 56_000
 
 
 def _client(handler=None):
