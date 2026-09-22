@@ -1,0 +1,20 @@
+tests/test_server.py
+  s_a07d4b979c7e2f::t_bfcb2ddb55e79f 3,47-57,60,64-80
+  s_a07d4b979c7e2f::t_9b9812507d63c5 81-82
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "60e9069ce26a91009f281753038a1ac75b8ce916",
+  "prompts": {},
+  "sessions": {
+    "s_a07d4b979c7e2f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8e7c3d64-304f-4588-ba24-1795b8941e7c",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Will Davies <42768478+willdavies0@users.noreply.github.com>"
+    }
+  }
+}
