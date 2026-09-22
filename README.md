@@ -35,6 +35,13 @@ Use Orchestra's hosted MCP endpoint:
 | `get_pipeline_run_lineage_url` | No | Build the URL of a pipeline run's lineage graph in the Orchestra UI (derived from `ORCHESTRA_ENV`). | Pipeline Runs |
 | `list_task_runs_for_pipeline_run` | Yes | List task runs for a pipeline run (`GET /pipeline_runs/{pipeline_run_id}/task_runs`). | Task Runs |
 | `list_task_runs` | Yes | List task runs (`GET /task_runs`). | Task Runs |
+| `list_incidents` | Yes | List incidents (`GET /incidents`). | Incidents |
+| `get_incident` | Yes | Get an incident (`GET /incidents/{incident_id}`). | Incidents |
+| `update_incident` | Yes | Update an incident (`PATCH /incidents/{incident_id}`). | Incidents |
+| `list_incident_events` | Yes | List an incident's timeline (`GET /incidents/{incident_id}/events`). | Incidents |
+| `merge_incidents` | Yes | Merge incidents (`POST /incidents/{incident_id}/merge`). | Incidents |
+| `unmerge_incidents` | Yes | Unmerge incidents (`POST /incidents/{incident_id}/unmerge`). | Incidents |
+| `create_incident_comment` | Yes | Write to an incident's timeline (`POST /incidents/{incident_id}/comments`). | Incidents |
 | `list_operations` | Yes | List operations (`GET /operations`). | Operations |
 | `list_assets` | Yes | List assets (`GET /assets`). | Assets |
 | `get_asset_by_id` | Yes | Get an asset (`GET /assets/{asset_id}`). | Assets |

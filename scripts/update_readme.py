@@ -32,12 +32,14 @@ CATEGORY_ORDER = (
     "Pipelines",
     "Pipeline Runs",
     "Task Runs",
+    "Incidents",
     "Operations",
     "Assets",
     "Logs",
     "Artifacts",
     "Integrations",
     "Environments",
+    "State",
 )
 
 # Hand-written tools with no single backing endpoint (see orchestramcp/handwritten.py),
