@@ -1,0 +1,27 @@
+tests/fixtures/openapi_live.json
+  s_e217a8003fe444::t_dd05a6b453f59f 1
+tests/conftest.py
+  s_e217a8003fe444::t_e792f3c1035562 14,19,21-22,24,30-31,39-40,44,46
+tests/test_openapi_server.py
+  s_e217a8003fe444::t_a32839cc6e4932 14-19
+scripts/update_readme.py
+  s_e217a8003fe444::t_a32839cc6e4932 35,42
+README.md
+  s_e217a8003fe444::t_5988e53d026a1c 38-44
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "b989215278ba5d5caec25ef73d94523fabeaaf63",
+  "prompts": {},
+  "sessions": {
+    "s_e217a8003fe444": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d777c81d-7ee5-4e4a-9f0a-76f176553832",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Will Davies <42768478+willdavies0@users.noreply.github.com>"
+    }
+  }
+}
