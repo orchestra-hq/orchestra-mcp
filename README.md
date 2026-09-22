@@ -204,6 +204,32 @@ audience every token is checked against. The authorization server has to serve t
 identifier — it mints a token only for a resource it is configured for, and stamps `aud`
 with its own spelling of it. Verified tokens are forwarded to the Orchestra API unchanged.
 
+### Testing the OAuth flow locally
+
+`scripts/local_resource_server.py` fronts the real Lambda handler with an HTTP socket,
+so an MCP client can run the whole flow against the production code path:
+
+```bash
+ORCHESTRA_ENV=dev \
+ORCHESTRA_OAUTH_ISSUER=https://dev.getorchestra.io \
+ORCHESTRA_OAUTH_JWKS_URI=https://dev.getorchestra.io/oauth/jwks.json \
+ORCHESTRA_OAUTH_RESOURCE_URL=http://127.0.0.1:8788/orchestra \
+    uv run python scripts/local_resource_server.py
+```
+
+```bash
+claude mcp add --transport http orchestra-local http://127.0.0.1:8788/orchestra
+```
+
+Connecting should take you through discovery, client registration and a consent screen,
+after which tool calls run as your user rather than as an account-wide API key.
+
+**The resource URL must be one the authorization server is configured to serve**, or it
+refuses the authorization request with `invalid_target` and no consent screen appears —
+so `http://127.0.0.1:8788/orchestra` has to be in the dev environment's resource list.
+What this cannot exercise is the deployed edge routing `/orchestra/.well-known/*` to the
+Lambda, since this server is reached directly.
+
 ## Development
 
 - Run `uv run pytest` to run tests.
