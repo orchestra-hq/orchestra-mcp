@@ -136,36 +136,6 @@ jobs:
             "s3://orchestra-build/${{ steps.s3_keys.outputs.artifact_key }}" \
             "s3://orchestra-build/${{ steps.s3_keys.outputs.fallback_key }}"
 
-      - name: Set OAuth environment variables
-        run: |
-          case "${{ matrix.environment }}" in
-            production) ISSUER="https://app.getorchestra.io"; MCP="https://mcp.getorchestra.io/orchestra" ;;
-            staging)    ISSUER="https://stage.getorchestra.io"; MCP="https://mcp-stage.getorchestra.io/orchestra" ;;
-            *)          ISSUER="https://dev.getorchestra.io"; MCP="https://mcp-dev.getorchestra.io/orchestra" ;;
-          esac
-
-          # Merged into the existing variables rather than set outright: this call replaces
-          # the whole map, and ORCHESTRA_ENV is configured outside this workflow. Dropping
-          # it would take the server down on the next deploy.
-          MERGED=$(aws lambda get-function-configuration \
-            --function-name "orchestra_mcp" \
-            --query "Environment.Variables" --output json \
-            | jq -c \
-              --arg issuer "$ISSUER" \
-              --arg jwks "${ISSUER}/oauth/jwks.json" \
-              --arg resource "$MCP" \
-              '. + {
-                 ORCHESTRA_OAUTH_ISSUER: $issuer,
-                 ORCHESTRA_OAUTH_JWKS_URI: $jwks,
-                 ORCHESTRA_OAUTH_RESOURCE_URL: $resource
-               }')
-
-          aws lambda update-function-configuration \
-            --function-name "orchestra_mcp" \
-            --environment "{\"Variables\":${MERGED}}" > /dev/null
-
-          aws lambda wait function-updated --function-name "orchestra_mcp"
-
       - name: Update lambda to use key
         id: update_lambda
         run: |
