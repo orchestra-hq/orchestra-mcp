@@ -1,0 +1,19 @@
+scripts/local_resource_server.py
+  s_6117486bde16f6::t_926e62ef59d490 22,90-93
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "56c862357547648b63d9c4d20f5b6c87b1d84f58",
+  "prompts": {},
+  "sessions": {
+    "s_6117486bde16f6": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "0177476b-69d0-424d-a672-557a67ae029a",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Will Davies <42768478+willdavies0@users.noreply.github.com>"
+    }
+  }
+}
