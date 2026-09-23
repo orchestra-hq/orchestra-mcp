@@ -57,6 +57,7 @@ Use Orchestra's hosted MCP endpoint:
 | `delete_environment` | Yes | **Disabled by default.** Delete an environment (`DELETE /environments/{environment_id}`). Set `ORCHESTRA_ENABLE_DELETE` to expose it. | Environments |
 | `get_integration_state_for_state_aware` | Yes | Get integration state (`GET /state/{integration}`). | State |
 | `list_accounts` | Yes | List workspaces (`GET /accounts`). | Accounts |
+| `list_audit_events` | Yes | List audit events (`GET /audit_events`). | Audit |
 <!-- available-tools:end -->
 
 ### Cursor
