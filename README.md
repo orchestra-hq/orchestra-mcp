@@ -192,6 +192,58 @@ each API flags for the MCP. Set `ORCHESTRA_OPENAPI_URL` (Orchestra API) or
 (e.g. a local file) instead of the environment default. Startup fails if either spec
 cannot be fetched, rather than serving a partial set of tools.
 
+### (Optional) Accept OAuth access tokens
+
+The hosted Lambda can also accept OAuth 2.1 access tokens issued by Orchestra's
+authorization server, alongside API keys. Set all three variables to turn it on —
+with any of them unset, every bearer token is treated as an API key:
+
+```bash
+export ORCHESTRA_OAUTH_ISSUER="https://app.getorchestra.io"
+export ORCHESTRA_OAUTH_JWKS_URI="https://app.getorchestra.io/oauth/jwks.json"
+export ORCHESTRA_OAUTH_RESOURCE_URL="https://mcp.getorchestra.io/orchestra"
+```
+
+The issuer is per-environment — swap `app` for `stage` or `dev` — and the rest of its
+metadata, `jwks_uri` included, is published at
+`<issuer>/.well-known/oauth-authorization-server`.
+
+`ORCHESTRA_OAUTH_RESOURCE_URL` must be the MCP URL exactly as a user types it into their
+client, path included: it is published as the `resource` of the
+[RFC 9728](https://datatracker.ietf.org/doc/html/rfc9728) metadata document, and it is the
+audience every token is checked against. The authorization server has to serve that same
+identifier — it mints a token only for a resource it is configured for, and stamps `aud`
+with its own spelling of it. Verified tokens are forwarded to the Orchestra API unchanged.
+
+### Testing the OAuth flow locally
+
+`scripts/local_resource_server.py` fronts the real Lambda handler with an HTTP socket,
+so an MCP client can run the whole flow against the production code path:
+
+```bash
+ORCHESTRA_ENV=dev \
+ORCHESTRA_OAUTH_ISSUER=https://dev.getorchestra.io \
+ORCHESTRA_OAUTH_JWKS_URI=https://dev.getorchestra.io/oauth/jwks.json \
+ORCHESTRA_OAUTH_RESOURCE_URL=https://mcp-dev.getorchestra.io/orchestra \
+    uv run python scripts/local_resource_server.py
+```
+
+```bash
+claude mcp add --transport http orchestra-local http://127.0.0.1:8788/orchestra
+```
+
+Connecting should take you through discovery, client registration and a consent screen,
+after which tool calls run as your user rather than as an account-wide API key.
+
+The resource URL is the deployed dev identifier rather than the local address, because it
+has to be one the authorization server serves *and* one the Orchestra API accepts as an
+audience — a token minted for `127.0.0.1` is refused by both. The cost is that the
+metadata pointer in the 401 names the deployed host, so a client that follows it lands
+somewhere this server is not; discovery then depends on the client falling back to
+probing the address it connected to. Testing against a deployed environment avoids that,
+and is also the only way to exercise the edge routing `/orchestra/.well-known/*`.
+
+
 ## Development
 
 - Run `uv run pytest` to run tests.
