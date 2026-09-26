@@ -26,6 +26,7 @@ Use Orchestra's hosted MCP endpoint:
 | `delete_pipeline` | Yes | **Disabled by default.** Delete a pipeline. Provide exactly one selector: pipeline_id, alias, or repository together with yaml_path (`DELETE /pipelines`). Set `ORCHESTRA_ENABLE_DELETE` to expose it. | Pipelines |
 | `get_pipeline_data` | Yes | Get pipeline data (`GET /pipelines/data`). | Pipelines |
 | `start_pipeline` | Yes | Start a pipeline run (`POST /pipelines/{pipeline_id_or_alias}/start`). | Pipelines |
+| `pause_pipeline` | Yes | Pause or unpause a pipeline (`PUT /pipelines/{pipeline_id_or_alias}/pause`). | Pipelines |
 | `validate_pipeline` | No | Validate a full pipeline definition document without creating or updating a pipeline. Use it to check a definition before create_pipeline or update_pipeline (`POST /pipelines/schema`). | Pipelines |
 | `migrate_pipeline` | Yes | Migrate an Orchestra-backed pipeline to git-backed storage. Identify it with pipeline_id or alias, and omit working_branch when it equals default_branch (`PATCH /pipelines/storage-settings`). | Pipelines |
 | `import_pipeline` | Yes | Import a pipeline (`POST /pipelines/import`). | Pipelines |
@@ -41,6 +42,8 @@ Use Orchestra's hosted MCP endpoint:
 | `list_incident_events` | Yes | List an incident's timeline (`GET /incidents/{incident_id}/events`). | Incidents |
 | `merge_incidents` | Yes | Merge incidents (`POST /incidents/{incident_id}/merge`). | Incidents |
 | `unmerge_incidents` | Yes | Unmerge incidents (`POST /incidents/{incident_id}/unmerge`). | Incidents |
+| `mute_incident` | Yes | Mute an incident (`POST /incidents/{incident_id}/mute`). | Incidents |
+| `unmute_incident` | Yes | Unmute an incident (`POST /incidents/{incident_id}/unmute`). | Incidents |
 | `create_incident_comment` | Yes | Write to an incident's timeline (`POST /incidents/{incident_id}/comments`). | Incidents |
 | `list_operations` | Yes | List operations (`GET /operations`). | Operations |
 | `list_assets` | Yes | List assets (`GET /assets`). | Assets |
@@ -58,6 +61,12 @@ Use Orchestra's hosted MCP endpoint:
 | `get_integration_state_for_state_aware` | Yes | Get integration state (`GET /state/{integration}`). | State |
 | `list_accounts` | Yes | List workspaces (`GET /accounts`). | Accounts |
 | `list_audit_events` | Yes | List audit events (`GET /audit_events`). | Audit |
+| `list_monitors` | Yes | List monitors (`GET /monitors`). | Monitors |
+| `create_monitor` | Yes | Create a monitor (`POST /monitors`). | Monitors |
+| `reorder_monitors` | Yes | Reorder monitors (`POST /monitors/reorder`). | Monitors |
+| `get_monitor` | Yes | Get a monitor (`GET /monitors/{monitor_id}`). | Monitors |
+| `update_monitor` | Yes | Update a monitor (`PUT /monitors/{monitor_id}`). | Monitors |
+| `delete_monitor` | Yes | **Disabled by default.** Delete a monitor (`DELETE /monitors/{monitor_id}`). Set `ORCHESTRA_ENABLE_DELETE` to expose it. | Monitors |
 <!-- available-tools:end -->
 
 ### Cursor
