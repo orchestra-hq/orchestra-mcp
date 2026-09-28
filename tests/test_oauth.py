@@ -155,6 +155,22 @@ def test_metadata_served_when_the_route_prefix_is_stripped(monkeypatch):
     assert response["statusCode"] == 200
 
 
+@pytest.mark.parametrize(
+    "path",
+    [
+        "/.well-known/oauth-protected-resource/orchestra",
+        "/oauth-protected-resource/orchestra",
+    ],
+)
+def test_canonical_and_prefixed_spellings_serve_the_same_document(monkeypatch, path):
+    _enable(monkeypatch)
+    advertised = oauth.handle_discovery_request(
+        "GET", "/orchestra/.well-known/oauth-protected-resource"
+    )
+
+    assert oauth.handle_discovery_request("GET", path) == advertised
+
+
 def test_discovery_falls_through_on_the_mcp_path(monkeypatch):
     _enable(monkeypatch)
 

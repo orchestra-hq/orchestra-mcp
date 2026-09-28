@@ -18,6 +18,7 @@ from orchestramcp.openapi_server import SERVER_NAME
 
 # RFC 9728 serves this at the origin root, which a Lambda routed one path prefix never sees.
 _METADATA_PATH_SUFFIX = "/.well-known/oauth-protected-resource"
+_METADATA_SEGMENT = "oauth-protected-resource"
 
 
 def _setting(name: str) -> str:
@@ -89,8 +90,9 @@ def _protected_resource_metadata() -> dict[str, Any]:
 
 def handle_discovery_request(method: str, raw_path: str) -> dict[str, Any] | None:
     """Serve the discovery document, or return None to fall through to MCP handling."""
-    # Matched on the suffix because the routed prefix may or may not reach the Lambda.
-    if not enabled() or not raw_path.endswith(_METADATA_PATH_SUFFIX):
+    # Matched on the segment alone: the resource path may precede it (what we advertise) or
+    # follow it (RFC 9728's spelling), and API Gateway strips whichever mapping key routed it.
+    if not enabled() or _METADATA_SEGMENT not in raw_path.split("/"):
         return None
 
     # OPTIONS falls through too: mcp_lambda answers every preflight with permissive CORS.
