@@ -11,14 +11,15 @@ import json
 import os
 from functools import lru_cache
 from typing import Any
+from urllib.parse import urlsplit
 
 from fastmcp.server.auth.providers.jwt import JWTVerifier
 
 from orchestramcp.openapi_server import SERVER_NAME
 
-# RFC 9728 serves this at the origin root, which a Lambda routed one path prefix never sees.
-_METADATA_PATH_SUFFIX = "/.well-known/oauth-protected-resource"
 _METADATA_SEGMENT = "oauth-protected-resource"
+# RFC 9728 serves this at the origin root, which a Lambda routed one path prefix never sees.
+_METADATA_PATH_SUFFIX = f"/.well-known/{_METADATA_SEGMENT}"
 
 
 def _setting(name: str) -> str:
@@ -40,6 +41,11 @@ def _resource_url() -> str:
 
 def _resource_metadata_url() -> str:
     return f"{_resource_url().rstrip('/')}{_METADATA_PATH_SUFFIX}"
+
+
+def _canonical_metadata_path_suffix() -> str:
+    """RFC 9728's spelling, with the resource path after the well-known segment."""
+    return f"/{_METADATA_SEGMENT}{urlsplit(_resource_url()).path.rstrip('/')}"
 
 
 def enabled() -> bool:
@@ -90,9 +96,10 @@ def _protected_resource_metadata() -> dict[str, Any]:
 
 def handle_discovery_request(method: str, raw_path: str) -> dict[str, Any] | None:
     """Serve the discovery document, or return None to fall through to MCP handling."""
-    # Matched on the segment alone: the resource path may precede it (what we advertise) or
-    # follow it (RFC 9728's spelling), and API Gateway strips whichever mapping key routed it.
-    if not enabled() or _METADATA_SEGMENT not in raw_path.split("/"):
+    # Matched on suffixes because API Gateway strips whichever mapping key routed the request.
+    if not enabled() or not raw_path.endswith(
+        (_METADATA_PATH_SUFFIX, _canonical_metadata_path_suffix())
+    ):
         return None
 
     # OPTIONS falls through too: mcp_lambda answers every preflight with permissive CORS.

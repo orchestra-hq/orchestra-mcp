@@ -171,6 +171,14 @@ def test_canonical_and_prefixed_spellings_serve_the_same_document(monkeypatch, p
     assert oauth.handle_discovery_request("GET", path) == advertised
 
 
+def test_discovery_falls_through_for_another_resource_path(monkeypatch):
+    _enable(monkeypatch)
+
+    assert (
+        oauth.handle_discovery_request("GET", "/.well-known/oauth-protected-resource/other") is None
+    )
+
+
 def test_discovery_falls_through_on_the_mcp_path(monkeypatch):
     _enable(monkeypatch)
 
