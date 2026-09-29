@@ -681,3 +681,74 @@ async def test_diagnose_bounds_a_huge_parameter_value_and_caps_the_artifact_list
     assert result.data["taskParameters"]["warehouse"] == "WH"  # structure survives
     assert len(result.data["artifacts"]) == MAX_ARTIFACT_NAMES
     assert result.data["artifactCount"] == MAX_ARTIFACT_NAMES + 20
+
+
+# --- account selection ---
+
+ACCOUNT_ID = "3f2504e0-4f89-41d3-9a0c-0305e82c3302"
+
+# Every request each tool can make, so the calls below reach every call site.
+ACCOUNT_ROUTES = {
+    r"/environments$": [{"environmentId": "env-1", "name": "Production"}],
+    r"/pipeline_runs/[^/]+/task_runs$": _page([]),
+    r"/pipeline_runs$": _page([{"id": "run-1", "pipelineId": "pipe-1"}]),
+    r"/task_runs$": _page([{"id": "tr-1", "pipelineRunId": "run-1", "taskName": "load"}]),
+    r"/download$": lambda request: httpx.Response(200, content=b"data"),
+    r"/logs$": {"filenames": ["run.log"], "files": {}},
+    r"/artifacts$": {"filenames": []},
+    r"/pipelines/data$": {"pipeline": {}},
+    r"/public/pipeline$": {"id": "pipe-1", "name": "nightly"},
+}
+
+ACCOUNT_TOOL_CALLS = {
+    "whats_broken": {"environment": "Production"},
+    "diagnose": {"task_run_id": "tr-1"},
+    "pipeline_context": {"pipeline_id_or_alias": "nightly"},
+    "download_task_run_log": {"pipeline_run_id": "pr", "task_run_id": "tr", "filename": "a.log"},
+    "download_task_run_artifact": {
+        "pipeline_run_id": "pr",
+        "task_run_id": "tr",
+        "filename": "manifest.json",
+    },
+}
+
+# Hand-written tools that never call the Orchestra API, so have no account to select.
+NO_API_TOOLS = {"get_pipeline_run_lineage_url"}
+
+
+async def test_every_api_calling_handwritten_tool_declares_account_id():
+    server, _ = _triage_server({})
+
+    async with Client(server) as client:
+        tools = await client.list_tools()
+
+    api_tools = {tool.name for tool in tools} - NO_API_TOOLS
+    assert api_tools == set(ACCOUNT_TOOL_CALLS)
+    for tool in tools:
+        if tool.name in api_tools:
+            assert "account_id" in tool.inputSchema["properties"], tool.name
+
+
+@pytest.mark.parametrize("tool_name", sorted(ACCOUNT_TOOL_CALLS))
+async def test_account_id_is_forwarded_on_every_request(tool_name):
+    server, requests = _triage_server(ACCOUNT_ROUTES)
+
+    async with Client(server) as client:
+        await client.call_tool(
+            tool_name, {**ACCOUNT_TOOL_CALLS[tool_name], "account_id": ACCOUNT_ID}
+        )
+
+    assert requests
+    for request in requests:
+        assert request.headers.get("X-Orchestra-Account-Id") == ACCOUNT_ID, request.url.path
+
+
+@pytest.mark.parametrize("tool_name", sorted(ACCOUNT_TOOL_CALLS))
+async def test_omitted_account_id_sends_no_header(tool_name):
+    server, requests = _triage_server(ACCOUNT_ROUTES)
+
+    async with Client(server) as client:
+        await client.call_tool(tool_name, ACCOUNT_TOOL_CALLS[tool_name])
+
+    assert requests
+    assert all("X-Orchestra-Account-Id" not in request.headers for request in requests)
