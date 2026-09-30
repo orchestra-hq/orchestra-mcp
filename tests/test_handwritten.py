@@ -752,3 +752,13 @@ async def test_omitted_account_id_sends_no_header(tool_name):
 
     assert requests
     assert all("X-Orchestra-Account-Id" not in request.headers for request in requests)
+
+
+async def test_account_id_that_is_not_a_uuid4_is_rejected_before_any_request():
+    server, requests = _triage_server(ACCOUNT_ROUTES)
+
+    async with Client(server) as client:
+        with pytest.raises(ToolError, match="account_id"):
+            await client.call_tool("diagnose", {"task_run_id": "tr-1", "account_id": "acme"})
+
+    assert requests == []

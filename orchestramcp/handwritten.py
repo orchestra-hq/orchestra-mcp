@@ -10,7 +10,7 @@ from fastmcp import FastMCP
 from fastmcp.exceptions import ToolError
 from fastmcp.tools.tool import ToolResult
 from mcp.types import ToolAnnotations
-from pydantic import Field
+from pydantic import UUID4, Field
 
 from orchestramcp.errors import OrchestraAPIError
 
@@ -37,7 +37,7 @@ _DOWNLOAD_DESCRIPTION = (
 
 # Mirrors the header's description in the public spec, which the generated tools inherit.
 AccountId = Annotated[
-    str | None,
+    UUID4 | None,
     Field(
         description=(
             "Act on this account rather than the one the credential resolves to. Omit it to "
@@ -48,8 +48,8 @@ AccountId = Annotated[
 ]
 
 
-def _account_headers(account_id: str | None) -> dict[str, str]:
-    return {"X-Orchestra-Account-Id": account_id} if account_id else {}
+def _account_headers(account_id: UUID | None) -> dict[str, str]:
+    return {"X-Orchestra-Account-Id": str(account_id)} if account_id else {}
 
 
 # GET /task_runs and GET /pipeline_runs serve at most a 7-day window, so a requested
@@ -189,7 +189,7 @@ def register_handwritten(server: FastMCP, client: httpx.AsyncClient, ui_base_url
         return _lineage_url(ui_base_url, pipeline_run_id)
 
     async def _download(
-        path: str, filename: str, range_header: str | None, *, account_id: str | None
+        path: str, filename: str, range_header: str | None, account_id: UUID | None
     ) -> ToolResult:
         headers = _account_headers(account_id)
         if range_header:
@@ -268,14 +268,14 @@ def _register_triage(server: FastMCP, client: httpx.AsyncClient, ui_base_url: st
     trips on plumbing and never sees a cursor.
     """
 
-    # Every helper below takes account_id as a required keyword, so a call that forgets
-    # to forward it fails outright instead of silently querying the default account.
-    async def _get(path: str, params: dict | None = None, *, account_id: str | None) -> Any:
+    # Every helper below takes account_id with no default, so a call that forgets to
+    # forward it fails outright instead of silently querying the default account.
+    async def _get(path: str, account_id: UUID | None, params: dict | None = None) -> Any:
         response = await client.get(path, params=params, headers=_account_headers(account_id))
         return response.json()
 
     async def _paged(
-        path: str, params: dict, page_size: int, limit: int, *, account_id: str | None
+        path: str, params: dict, page_size: int, limit: int, account_id: UUID | None
     ) -> tuple[list[dict], int]:
         """Follow pages until ``limit`` results are collected or the endpoint runs out.
 
@@ -286,9 +286,7 @@ def _register_triage(server: FastMCP, client: httpx.AsyncClient, ui_base_url: st
         total = 0
         page = 1
         while True:
-            payload = await _get(
-                path, {**params, "page": page, "page_size": page_size}, account_id=account_id
-            )
+            payload = await _get(path, account_id, {**params, "page": page, "page_size": page_size})
             batch = payload.get("results") or []
             total = payload.get("total") or len(results) + len(batch)
             results.extend(batch)
@@ -297,7 +295,7 @@ def _register_triage(server: FastMCP, client: httpx.AsyncClient, ui_base_url: st
             page += 1
         return results[:limit], total
 
-    async def _resolve_environment(environment: str, *, account_id: str | None) -> dict:
+    async def _resolve_environment(environment: str, account_id: UUID | None) -> dict:
         """Look up an environment by ID or name, so a caller can pass either."""
         environments = await _get("/public/environments", account_id=account_id)
         for candidate in environments:
@@ -308,7 +306,7 @@ def _register_triage(server: FastMCP, client: httpx.AsyncClient, ui_base_url: st
         available = ", ".join(sorted(c.get("name", "") for c in environments)) or "none"
         raise ToolError(f"No environment matches '{environment}'. Available: {available}.")
 
-    async def _log_tail(base_path: str, *, account_id: str | None) -> dict | None:
+    async def _log_tail(base_path: str, account_id: UUID | None) -> dict | None:
         """Fetch the tail of the newest log on a task run, or None if it has no logs."""
         listing = await _get(f"{base_path}/logs", account_id=account_id)
         filenames = listing.get("filenames") or []
@@ -530,8 +528,8 @@ def _register_triage(server: FastMCP, client: httpx.AsyncClient, ui_base_url: st
     )
     async def pipeline_context(pipeline_id_or_alias: str, account_id: AccountId = None) -> dict:
         selector = _pipeline_selector(pipeline_id_or_alias)
-        pipeline = await _get("/public/pipeline", selector, account_id=account_id)
-        definition = await _get("/public/pipelines/data", selector, account_id=account_id)
+        pipeline = await _get("/public/pipeline", account_id, selector)
+        definition = await _get("/public/pipelines/data", account_id, selector)
         runs, run_total = await _paged(
             "/public/pipeline_runs",
             {"pipeline_ids": pipeline["id"]},
