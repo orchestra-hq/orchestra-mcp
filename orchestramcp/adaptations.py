@@ -7,8 +7,8 @@ from mcp.types import ToolAnnotations
 class Adaptation:
     """Optional MCP-side overrides for a generated tool, keyed by operationId.
 
-    Endpoints with no entry are exposed as-is: their description comes from the
-    spec and their safety hints are derived from the HTTP method. Add an entry
+    Endpoints with no entry are exposed as-is: their description and title come from
+    the spec and their safety hints are derived from the HTTP method. Add an entry
     only to tune wording or to correct a hint the method can't infer.
     """
 
@@ -66,7 +66,7 @@ def _method_annotations(method: str) -> ToolAnnotations:
 
 
 def adapt_component(route, component) -> None:
-    annotations = _method_annotations(route.method)
+    annotations = _method_annotations(route.method).model_copy(update={"title": route.summary})
     adaptation = ADAPTATIONS.get(route.operation_id)
     if adaptation is not None:
         if adaptation.annotations is not None:
