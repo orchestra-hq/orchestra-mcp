@@ -63,6 +63,7 @@ async def test_unadapted_tool_uses_spec_summary_and_derived_hints():
     assert "list_assets" not in ADAPTATIONS
     assert tools["list_assets"].description == "List data assets"
     assert tools["list_assets"].annotations.readOnlyHint is True
+    assert tools["list_assets"].annotations.title == "List data assets"
 
 
 async def test_generated_tool_calls_through_client():
@@ -96,6 +97,11 @@ async def test_live_surface_gates_deletes_and_registers_handwritten():
 async def test_live_surface_exposes_deletes_when_enabled():
     tools = set(await _tools_by_name(_server(include_deletes=True)))
     assert {"delete_pipeline", "delete_environment"} <= tools
+
+
+async def test_every_live_tool_has_a_title():
+    tools = await _tools_by_name(_server(include_deletes=True))
+    assert [name for name, tool in tools.items() if not tool.annotations.title] == []
 
 
 async def test_coarsening_shrinks_pipeline_body_but_keeps_wrapper_fields():
