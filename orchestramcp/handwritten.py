@@ -15,8 +15,13 @@ from pydantic import UUID4, Field
 from orchestramcp.errors import OrchestraAPIError
 
 # Operations excluded from generation because they are served by the hand-written
-# tools below (binary downloads that need base64 wrapping).
-HANDWRITTEN_OPERATION_IDS = ("download_task_run_log", "download_task_run_artifact")
+# tools below: binary downloads that need base64 wrapping, and an endpoint whose
+# upstream handler reads the raw request, so the spec declares no body for it.
+HANDWRITTEN_OPERATION_IDS = (
+    "download_task_run_log",
+    "download_task_run_artifact",
+    "validate_pipeline",
+)
 
 # Cap on raw file bytes returned per call. Base64 inflates content by ~33% and the
 # Lambda response payload is hard-limited to ~6MB, so 3MiB raw (~4MiB encoded)
@@ -176,8 +181,9 @@ def register_handwritten(server: FastMCP, client: httpx.AsyncClient, ui_base_url
     """Register the tools that cannot be generated from the spec.
 
     ``get_pipeline_run_lineage_url`` has no backing endpoint; the downloads return
-    binary content that is base64-encoded so it survives as JSON. The composite
-    triage tools each join several endpoints, so no single operation describes them.
+    binary content that is base64-encoded so it survives as JSON; ``validate_pipeline``
+    posts a body the spec does not declare. The composite triage tools each join
+    several endpoints, so no single operation describes them.
     """
     _register_triage(server, client, ui_base_url)
 
@@ -187,6 +193,45 @@ def register_handwritten(server: FastMCP, client: httpx.AsyncClient, ui_base_url
     def get_pipeline_run_lineage_url(pipeline_run_id: str) -> str:
         """Build the URL of a pipeline run's lineage graph in the Orchestra UI."""
         return _lineage_url(ui_base_url, pipeline_run_id)
+
+    @server.tool(
+        description=(
+            "Validate a full pipeline definition document without creating or updating a "
+            "pipeline. Use it to check a definition before create_pipeline or update_pipeline."
+        ),
+        annotations=ToolAnnotations(title="Validate Pipeline", readOnlyHint=True),
+    )
+    async def validate_pipeline(
+        pipeline_definition: Annotated[
+            dict[str, Any],
+            Field(
+                description=(
+                    "Full pipeline definition document as JSON, matching the pipeline YAML "
+                    'structure, e.g. {"version": "v1", "name": "...", "pipeline": '
+                    "{...task groups...}}. Pass the whole document — version, name and "
+                    "pipeline are required top-level keys; the task groups go under the "
+                    "nested 'pipeline' key. Same document create_pipeline accepts."
+                )
+            ),
+        ],
+        canonicalize: Annotated[
+            bool,
+            Field(
+                description=(
+                    "When true, a valid response also includes the pipeline serialised in "
+                    "Orchestra's canonical camelCase form under a 'pipeline' key."
+                )
+            ),
+        ] = False,
+        account_id: AccountId = None,
+    ) -> dict:
+        response = await client.post(
+            "/public/pipelines/schema",
+            json=pipeline_definition,
+            params={"canonicalize": canonicalize},
+            headers=_account_headers(account_id),
+        )
+        return response.json()
 
     async def _download(
         path: str, filename: str, range_header: str | None, account_id: UUID | None

@@ -27,7 +27,7 @@ Use Orchestra's hosted MCP endpoint:
 | `get_pipeline_data` | Yes | Get pipeline data (`GET /pipelines/data`). | Pipelines |
 | `start_pipeline` | Yes | Start a pipeline run (`POST /pipelines/{pipeline_id_or_alias}/start`). | Pipelines |
 | `pause_pipeline` | Yes | Pause or unpause a pipeline (`PUT /pipelines/{pipeline_id_or_alias}/pause`). | Pipelines |
-| `validate_pipeline` | No | Validate a full pipeline definition document without creating or updating a pipeline. Use it to check a definition before create_pipeline or update_pipeline (`POST /pipelines/schema`). | Pipelines |
+| `validate_pipeline` | No | Validate pipeline schema (`POST /pipelines/schema`). | Pipelines |
 | `migrate_pipeline` | Yes | Migrate an Orchestra-backed pipeline to git-backed storage. Identify it with pipeline_id or alias, and omit working_branch when it equals default_branch (`PATCH /pipelines/storage-settings`). | Pipelines |
 | `import_pipeline` | Yes | Import a pipeline (`POST /pipelines/import`). | Pipelines |
 | `get_pipeline_run_status` | Yes | Get pipeline run status (`GET /pipeline_runs/{pipeline_run_id}/status`). | Pipeline Runs |
