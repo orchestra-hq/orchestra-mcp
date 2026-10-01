@@ -61,8 +61,8 @@ def _method_annotations(method: str) -> ToolAnnotations:
     if method == "get":
         return ToolAnnotations(readOnlyHint=True)
     if method == "delete":
-        return ToolAnnotations(destructiveHint=True)
-    return ToolAnnotations(destructiveHint=False)
+        return ToolAnnotations(readOnlyHint=False, destructiveHint=True)
+    return ToolAnnotations(readOnlyHint=False, destructiveHint=False)
 
 
 def adapt_component(route, component) -> None:

@@ -104,6 +104,13 @@ async def test_every_live_tool_has_a_title():
     assert [name for name, tool in tools.items() if not tool.annotations.title] == []
 
 
+async def test_every_live_tool_declares_read_only_hint():
+    tools = await _tools_by_name(_server(include_deletes=True))
+    assert [name for name, tool in tools.items() if tool.annotations.readOnlyHint is None] == []
+    assert tools["start_pipeline"].annotations.readOnlyHint is False
+    assert tools["validate_pipeline"].annotations.readOnlyHint is True
+
+
 async def test_coarsening_shrinks_pipeline_body_but_keeps_wrapper_fields():
     tools = await _tools_by_name(_server())
     create = tools["create_pipeline"].parameters
