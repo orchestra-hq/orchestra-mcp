@@ -698,6 +698,7 @@ ACCOUNT_ROUTES = {
     r"/artifacts$": {"filenames": []},
     r"/pipelines/data$": {"pipeline": {}},
     r"/public/pipeline$": {"id": "pipe-1", "name": "nightly"},
+    r"/pipelines/schema$": {"valid": True},
 }
 
 ACCOUNT_TOOL_CALLS = {
@@ -710,6 +711,7 @@ ACCOUNT_TOOL_CALLS = {
         "task_run_id": "tr",
         "filename": "manifest.json",
     },
+    "validate_pipeline": {"pipeline_definition": {"version": "v1", "name": "demo"}},
 }
 
 # Hand-written tools that never call the Orchestra API, so have no account to select.

@@ -127,7 +127,7 @@ async def test_validate_pipeline_takes_a_pipeline_and_posts_it_raw():
 
     server = _server(engine_handler=handler)
     parameters = (await _tools_by_name(server))["validate_pipeline"].parameters
-    assert "pipeline_definition" in parameters["properties"]
+    assert parameters["properties"]["pipeline_definition"]["type"] == "object"
     assert "pipeline_definition" in parameters["required"]
 
     definition = {"version": "v1", "name": "demo", "pipeline": {}}

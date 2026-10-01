@@ -10,7 +10,6 @@ from orchestramcp.adaptations import adapt_component
 from orchestramcp.handwritten import HANDWRITTEN_OPERATION_IDS, register_handwritten
 from orchestramcp.spec import (
     coarsen_spec,
-    patch_request_bodies,
     prune_spec,
     select_mcp_spec,
     tool_names,
@@ -31,13 +30,13 @@ class ApiSource:
 
 def _prepare(spec: dict, include_deletes: bool) -> dict:
     """Narrow a spec to the operations tools are generated from, shrinking the schemas
-    the model re-reads on every call and patching in the request bodies it lacks."""
+    the model re-reads on every call."""
     selected = select_mcp_spec(
         spec,
         include_deletes=include_deletes,
         exclude_operation_ids=HANDWRITTEN_OPERATION_IDS,
     )
-    return patch_request_bodies(prune_spec(coarsen_spec(deepcopy(selected))))
+    return prune_spec(coarsen_spec(deepcopy(selected)))
 
 
 def build_server(
