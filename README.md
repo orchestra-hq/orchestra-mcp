@@ -40,6 +40,7 @@ Use Orchestra's hosted MCP endpoint:
 | `get_incident` | Yes | Get an incident (`GET /incidents/{incident_id}`). | Incidents |
 | `update_incident` | Yes | Update an incident (`PATCH /incidents/{incident_id}`). | Incidents |
 | `list_incident_events` | Yes | List an incident's timeline (`GET /incidents/{incident_id}/events`). | Incidents |
+| `get_incident_external_event` | Yes | Get an external event's payload (`GET /incidents/{incident_id}/events/{incident_event_id}/external_event`). | Incidents |
 | `merge_incidents` | Yes | Merge incidents (`POST /incidents/{incident_id}/merge`). | Incidents |
 | `unmerge_incidents` | Yes | Unmerge incidents (`POST /incidents/{incident_id}/unmerge`). | Incidents |
 | `mute_incident` | Yes | Mute an incident (`POST /incidents/{incident_id}/mute`). | Incidents |
