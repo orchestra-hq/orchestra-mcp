@@ -91,7 +91,7 @@ async def test_generated_tool_calls_through_client():
 
 async def test_live_surface_gates_deletes_and_registers_handwritten():
     tools = set(await _tools_by_name(_server()))
-    assert "delete_pipeline" not in tools and "delete_environment" not in tools
+    assert not {"delete_pipeline", "delete_environment", "delete_agent", "delete_skill"} & tools
     assert {
         "get_pipeline_run_lineage_url",
         "download_task_run_log",
@@ -101,7 +101,7 @@ async def test_live_surface_gates_deletes_and_registers_handwritten():
 
 async def test_live_surface_exposes_deletes_when_enabled():
     tools = set(await _tools_by_name(_server(include_deletes=True)))
-    assert {"delete_pipeline", "delete_environment"} <= tools
+    assert {"delete_pipeline", "delete_environment", "delete_agent", "delete_skill"} <= tools
 
 
 async def test_every_live_tool_has_a_title():
