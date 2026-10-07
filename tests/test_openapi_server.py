@@ -13,16 +13,18 @@ from orchestramcp.spec import load_spec, mcp_operations
 SAMPLE = str(Path(__file__).parent / "fixtures" / "openapi_sample.json")
 LIVE = str(Path(__file__).parent / "fixtures" / "openapi_live.json")
 PLATFORM = str(Path(__file__).parent / "fixtures" / "openapi_platform.json")
+AGENTS = str(Path(__file__).parent / "fixtures" / "openapi_agents.json")
 
 # Ceilings on the surface every model call re-reads, set just above the current
-# live numbers (38 tools, ~51 KB) so routine upstream growth trips the test and
+# live numbers (60 tools, ~84 KB) so routine upstream growth trips the test and
 # gets looked at. Raising them is a decision, not a formality: check first whether
 # the growth is worth its tokens, and whether coarsening in spec.py would pay for it.
-MAX_TOOLS = 40
-MAX_SCHEMA_BYTES = 56_000
+MAX_TOOLS = 62
+MAX_SCHEMA_BYTES = 88_000
 
 ENGINE_BASE_URL = "https://example.com/api/engine"
 PLATFORM_BASE_URL = "https://example.com/public/v1"
+AGENTS_BASE_URL = "https://example.com/api/ai/v1"
 
 
 def _client(base_url=ENGINE_BASE_URL, handler=None):
@@ -30,10 +32,13 @@ def _client(base_url=ENGINE_BASE_URL, handler=None):
     return httpx.AsyncClient(base_url=base_url, transport=httpx.MockTransport(handler))
 
 
-def _server(engine_spec=LIVE, engine_handler=None, platform_handler=None, **kwargs):
+def _server(
+    engine_spec=LIVE, engine_handler=None, platform_handler=None, agents_handler=None, **kwargs
+):
     return build_server(
         ApiSource(load_spec(engine_spec), _client(ENGINE_BASE_URL, engine_handler)),
         ApiSource(load_spec(PLATFORM), _client(PLATFORM_BASE_URL, platform_handler)),
+        ApiSource(load_spec(AGENTS), _client(AGENTS_BASE_URL, agents_handler)),
         **kwargs,
     )
 
@@ -203,6 +208,7 @@ async def test_a_tool_name_claimed_by_one_api_twice_is_refused():
         build_server(
             ApiSource(load_spec(LIVE), _client(ENGINE_BASE_URL)),
             ApiSource(platform, _client(PLATFORM_BASE_URL)),
+            ApiSource(load_spec(AGENTS), _client(AGENTS_BASE_URL)),
         )
 
 
@@ -215,4 +221,27 @@ async def test_a_tool_name_claimed_by_both_apis_is_refused():
         build_server(
             ApiSource(engine, _client(ENGINE_BASE_URL)),
             ApiSource(platform, _client(PLATFORM_BASE_URL)),
+            ApiSource(load_spec(AGENTS), _client(AGENTS_BASE_URL)),
         )
+
+
+# --- third source (agents spec) ---
+
+
+async def test_agents_tool_calls_through_the_agents_client():
+    calls = []
+
+    def agents_handler(request):
+        calls.append(str(request.url))
+        return httpx.Response(200, json={"items": []})
+
+    async with Client(_server(agents_handler=agents_handler)) as client:
+        await client.call_tool("list_agents", {})
+
+    assert calls == [f"{AGENTS_BASE_URL}/agents"]
+
+
+async def test_agent_session_history_is_exposed_only_as_messages():
+    tools = await _tools_by_name(_server())
+    assert "get_agent_session_history_messages" in tools
+    assert "stream_agent_session_history" not in tools

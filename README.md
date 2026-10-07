@@ -60,6 +60,29 @@ Use Orchestra's hosted MCP endpoint:
 | `delete_environment` | Yes | **Disabled by default.** Delete an environment (`DELETE /environments/{environment_id}`). Set `ORCHESTRA_ENABLE_DELETE` to expose it. | Environments |
 | `get_integration_state_for_state_aware` | Yes | Get integration state (`GET /state/{integration}`). | State |
 | `list_accounts` | Yes | List workspaces (`GET /accounts`). | Accounts |
+| `list_agent_avatars` | Yes | List agent avatars (`GET /agents/avatar-catalog`). | Agents |
+| `create_agent` | Yes | Create an agent (`POST /agents`). | Agents |
+| `list_agents` | Yes | List agents (`GET /agents`). | Agents |
+| `get_agent` | Yes | Get an agent (`GET /agents/{agent_id}`). | Agents |
+| `update_agent` | Yes | Update an agent (`PATCH /agents/{agent_id}`). | Agents |
+| `delete_agent` | Yes | **Disabled by default.** Delete an agent (`DELETE /agents/{agent_id}`). Set `ORCHESTRA_ENABLE_DELETE` to expose it. | Agents |
+| `list_agent_skills` | Yes | List an agent's skills (`GET /agents/{agent_id}/skills`). | Agents |
+| `set_agent_skills` | Yes | Set an agent's skills (`PUT /agents/{agent_id}/skills`). | Agents |
+| `list_agent_integrations` | Yes | List an agent's integrations (`GET /agents/{agent_id}/integrations`). | Agents |
+| `set_agent_integrations` | Yes | Set an agent's integrations (`PUT /agents/{agent_id}/integrations`). | Agents |
+| `get_agent_usage` | Yes | Get agent token usage (`GET /usage`). | Agents |
+| `list_agent_sessions` | Yes | List agent sessions (`GET /sessions`). | Agent Sessions |
+| `create_agent_session` | Yes | Start an agent session (`POST /sessions`). | Agent Sessions |
+| `get_agent_session` | Yes | Get an agent session (`GET /sessions/{session_id}`). | Agent Sessions |
+| `send_agent_session_message` | Yes | Send a message to an agent session (`POST /sessions/{session_id}`). | Agent Sessions |
+| `get_agent_session_history_messages` | Yes | Read an agent session's messages (`GET /sessions/{session_id}/history/messages`). | Agent Sessions |
+| `cancel_agent_session_prompt` | Yes | Cancel an agent session prompt (`POST /sessions/{session_id}/cancel`). | Agent Sessions |
+| `list_skills` | Yes | List skills (`GET /skills`). | Skills |
+| `create_skill` | Yes | Create a skill (`POST /skills`). | Skills |
+| `get_skill` | Yes | Get a skill (`GET /skills/{skill_id}`). | Skills |
+| `update_skill` | Yes | Update a skill (`PATCH /skills/{skill_id}`). | Skills |
+| `delete_skill` | Yes | **Disabled by default.** Delete a skill (`DELETE /skills/{skill_id}`). Set `ORCHESTRA_ENABLE_DELETE` to expose it. | Skills |
+| `import_skill` | Yes | Import a skill from git (`POST /skills/import`). | Skills |
 | `list_audit_events` | Yes | List audit events (`GET /audit_events`). | Audit |
 | `list_monitors` | Yes | List monitors (`GET /monitors`). | Monitors |
 | `create_monitor` | Yes | Create a monitor (`POST /monitors`). | Monitors |
@@ -195,10 +218,11 @@ Only the following values are recognized:
 python -m orchestramcp.server
 ```
 
-The server fetches both Orchestra OpenAPI specs on startup and exposes the operations
-each API flags for the MCP. Set `ORCHESTRA_OPENAPI_URL` (Orchestra API) or
-`ORCHESTRA_PLATFORM_OPENAPI_URL` (Orchestra Platform API) to point at a specific spec
-(e.g. a local file) instead of the environment default. Startup fails if either spec
+The server fetches every Orchestra OpenAPI spec on startup and exposes the operations
+each API flags for the MCP. Set `ORCHESTRA_OPENAPI_URL` (Orchestra API),
+`ORCHESTRA_PLATFORM_OPENAPI_URL` (Orchestra Platform API) or
+`ORCHESTRA_AGENTS_OPENAPI_URL` (Orchestra Agents API) to point at a specific spec
+(e.g. a local file) instead of the environment default. Startup fails if any spec
 cannot be fetched, rather than serving a partial set of tools.
 
 ### (Optional) Accept OAuth access tokens

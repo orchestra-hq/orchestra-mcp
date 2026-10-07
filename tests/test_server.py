@@ -35,16 +35,22 @@ def test_invalid_environment_rejected(monkeypatch):
 def test_spec_urls_prefer_overrides():
     assert server._spec_url() == os.environ["ORCHESTRA_OPENAPI_URL"]
     assert server._platform_spec_url() == os.environ["ORCHESTRA_PLATFORM_OPENAPI_URL"]
+    assert server._agents_spec_url() == os.environ["ORCHESTRA_AGENTS_OPENAPI_URL"]
 
 
 def test_spec_urls_default_to_each_api_origin(monkeypatch):
     monkeypatch.delenv("ORCHESTRA_OPENAPI_URL")
     monkeypatch.delenv("ORCHESTRA_PLATFORM_OPENAPI_URL")
+    monkeypatch.delenv("ORCHESTRA_AGENTS_OPENAPI_URL")
     assert server._spec_url() == "https://app.getorchestra.io/api/engine/openapi.json"
     assert server._platform_spec_url() == "https://app.getorchestra.io/public/v1/openapi.json"
+    assert server._agents_spec_url() == "https://app.getorchestra.io/api/ai/v1/openapi.json"
 
 
-@pytest.mark.parametrize("failing", ["ORCHESTRA_OPENAPI_URL", "ORCHESTRA_PLATFORM_OPENAPI_URL"])
+@pytest.mark.parametrize(
+    "failing",
+    ["ORCHESTRA_OPENAPI_URL", "ORCHESTRA_PLATFORM_OPENAPI_URL", "ORCHESTRA_AGENTS_OPENAPI_URL"],
+)
 def test_a_spec_that_cannot_be_fetched_fails_the_build(monkeypatch, failing):
     unreachable = os.environ[failing]
     load_spec = server.load_spec
@@ -61,7 +67,7 @@ def test_a_spec_that_cannot_be_fetched_fails_the_build(monkeypatch, failing):
         server.get_mcp()
 
 
-async def test_both_apis_receive_the_caller_credential(monkeypatch):
+async def test_every_api_receives_the_caller_credential(monkeypatch):
     monkeypatch.setenv("ORCHESTRA_API_KEY", "key-a")
     seen = []
 
@@ -69,7 +75,7 @@ async def test_both_apis_receive_the_caller_credential(monkeypatch):
         seen.append((str(request.url), request.headers.get("Authorization")))
         return httpx.Response(200, json={})
 
-    for base_url in (server._base_url(), server._platform_base_url()):
+    for base_url in (server._base_url(), server._platform_base_url(), server._agents_base_url()):
         client = server.get_client(base_url)
         client._transport = httpx.MockTransport(handler)
         await client.get("/probe")
@@ -77,6 +83,7 @@ async def test_both_apis_receive_the_caller_credential(monkeypatch):
     assert seen == [
         (f"{server._base_url()}/probe", "Bearer key-a"),
         (f"{server._platform_base_url()}/probe", "Bearer key-a"),
+        (f"{server._agents_base_url()}/probe", "Bearer key-a"),
     ]
 
 

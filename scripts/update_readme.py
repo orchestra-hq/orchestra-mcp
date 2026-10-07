@@ -14,6 +14,7 @@ from orchestramcp.spec import load_spec, mcp_operations, tool_name
 
 DEFAULT_SPEC_URL = "https://app.getorchestra.io/api/engine/openapi.json"
 DEFAULT_PLATFORM_SPEC_URL = "https://app.getorchestra.io/public/v1/openapi.json"
+DEFAULT_AGENTS_SPEC_URL = "https://app.getorchestra.io/api/ai/v1/openapi.json"
 README = Path(__file__).resolve().parent.parent / "README.md"
 
 START_MARKER = "<!-- available-tools:start -->"
@@ -42,6 +43,9 @@ CATEGORY_ORDER = (
     "Environments",
     "State",
     "Accounts",
+    "Agents",
+    "Agent Sessions",
+    "Skills",
 )
 
 # Hand-written tools with no single backing endpoint (see orchestramcp/handwritten.py),
@@ -121,8 +125,10 @@ def main() -> None:
     platform_spec = load_spec(
         os.getenv("ORCHESTRA_PLATFORM_OPENAPI_URL") or DEFAULT_PLATFORM_SPEC_URL
     )
+    agents_spec = load_spec(os.getenv("ORCHESTRA_AGENTS_OPENAPI_URL") or DEFAULT_AGENTS_SPEC_URL)
     readme = README.read_text(encoding="utf-8")
-    README.write_text(replace_table(readme, render_table(spec, platform_spec)), encoding="utf-8")
+    table = render_table(spec, platform_spec, agents_spec)
+    README.write_text(replace_table(readme, table), encoding="utf-8")
 
 
 if __name__ == "__main__":

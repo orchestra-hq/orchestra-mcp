@@ -25,6 +25,10 @@ def _platform_base_url() -> str:
     return f"https://{_env()}.getorchestra.io/public/v1"
 
 
+def _agents_base_url() -> str:
+    return f"https://{_env()}.getorchestra.io/api/ai/v1"
+
+
 def _ui_base_url() -> str:
     return f"https://{_env()}.getorchestra.io"
 
@@ -35,6 +39,10 @@ def _spec_url() -> str:
 
 def _platform_spec_url() -> str:
     return os.getenv("ORCHESTRA_PLATFORM_OPENAPI_URL") or f"{_platform_base_url()}/openapi.json"
+
+
+def _agents_spec_url() -> str:
+    return os.getenv("ORCHESTRA_AGENTS_OPENAPI_URL") or f"{_agents_base_url()}/openapi.json"
 
 
 def _delete_enabled() -> bool:
@@ -53,6 +61,7 @@ def get_mcp() -> FastMCP:
     return build_server(
         ApiSource(load_spec(_spec_url()), get_client(_base_url())),
         ApiSource(load_spec(_platform_spec_url()), get_client(_platform_base_url())),
+        ApiSource(load_spec(_agents_spec_url()), get_client(_agents_base_url())),
         include_deletes=_delete_enabled(),
         ui_base_url=_ui_base_url(),
     )
