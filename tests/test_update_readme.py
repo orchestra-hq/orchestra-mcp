@@ -14,9 +14,16 @@ def _spec(name: str) -> dict:
 
 
 def test_render_table_lists_every_tool():
-    table = render_table(_spec("openapi_live.json"), _spec("openapi_platform.json"))
+    table = render_table(
+        _spec("openapi_live.json"), _spec("openapi_platform.json"), _spec("openapi_agents.json")
+    )
     documented = {line.split("`")[1] for line in table.splitlines() if line.startswith("| `")}
-    assert documented == EXPECTED_TOOLS | {"delete_pipeline", "delete_environment"}
+    assert documented == EXPECTED_TOOLS | {
+        "delete_pipeline",
+        "delete_environment",
+        "delete_agent",
+        "delete_skill",
+    }
 
 
 def test_replace_table_swaps_marked_block():

@@ -42,18 +42,19 @@ def _prepare(spec: dict, include_deletes: bool) -> dict:
 def build_server(
     engine: ApiSource,
     platform: ApiSource,
+    agents: ApiSource,
     include_deletes: bool = False,
     name: str = SERVER_NAME,
     ui_base_url: str = DEFAULT_UI_BASE_URL,
 ) -> FastMCP:
-    """Build an MCP server from the flagged operations of both Orchestra APIs.
+    """Build an MCP server from the flagged operations of every Orchestra API.
 
     Tools are not namespaced by source and operation ids are normalised, so two
     operations can arrive at one name; that is refused here rather than left to
     surface as a tool silently shadowed by another or suffixed to tell them apart.
     """
     prepared = []
-    for source in (engine, platform):
+    for source in (engine, platform, agents):
         spec = _prepare(source.spec, include_deletes)
         prepared.append((spec, source.client, tool_names(spec)))
 
