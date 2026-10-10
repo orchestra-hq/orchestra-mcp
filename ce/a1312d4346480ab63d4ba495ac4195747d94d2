@@ -1,0 +1,21 @@
+README.md
+  s_695b4af8db3d80::t_3c3b937c2756bd 34-35
+orchestramcp/adaptations.py
+  s_695b4af8db3d80::t_3c3b937c2756bd 23-24,29
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "cea1312d4346480ab63d4ba495ac4195747d94d2",
+  "prompts": {},
+  "sessions": {
+    "s_695b4af8db3d80": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "4c063f1e-664c-4a78-8465-d1c59dbdc17d",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Will Davies <42768478+willdavies0@users.noreply.github.com>"
+    }
+  }
+}
