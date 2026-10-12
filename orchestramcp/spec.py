@@ -78,8 +78,8 @@ def select_mcp_spec(
     The upstream API owns which endpoints are exposed via the extension flag, so
     there is no local list of tools to drift. DELETE operations outside
     ALWAYS_EXPOSED_DELETES are gated off by default, and operations handled by
-    hand-written tools can be excluded. Path-item
-    level fields (e.g. shared parameters) are preserved alongside the kept operations.
+    hand-written tools can be excluded. Path-item level fields (e.g. shared
+    parameters) are preserved alongside the kept operations.
     """
     excluded = set(exclude_operation_ids)
     paths: dict = {}
