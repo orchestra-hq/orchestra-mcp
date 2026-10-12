@@ -38,7 +38,8 @@ ADAPTATIONS: dict[str, Adaptation] = {
     "delete_pipeline": Adaptation(
         description=(
             "Delete a pipeline. Provide exactly one selector: pipeline_id, alias, "
-            "or repository together with yaml_path."
+            "or repository together with yaml_path. Only a user's OAuth token can delete a "
+            "pipeline: an API key gets 403."
         ),
     ),
     "migrate_pipeline": Adaptation(

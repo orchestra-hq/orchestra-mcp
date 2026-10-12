@@ -10,7 +10,7 @@ import re
 from pathlib import Path
 
 from orchestramcp.adaptations import ADAPTATIONS
-from orchestramcp.spec import load_spec, mcp_operations, tool_name
+from orchestramcp.spec import ALWAYS_EXPOSED_DELETES, load_spec, mcp_operations, tool_name
 
 DEFAULT_SPEC_URL = "https://app.getorchestra.io/api/engine/openapi.json"
 DEFAULT_PLATFORM_SPEC_URL = "https://app.getorchestra.io/public/v1/openapi.json"
@@ -84,7 +84,7 @@ def _purpose(operation: dict, method: str, path: str) -> str:
     )
     text = " ".join(text.split()).rstrip(".")
     endpoint = f"`{method.upper()} {path.removeprefix('/public')}`"
-    if method == "delete":
+    if method == "delete" and operation.get("operationId") not in ALWAYS_EXPOSED_DELETES:
         return f"**Disabled by default.** {text} ({endpoint}). Set `ORCHESTRA_ENABLE_DELETE` to expose it."
     return f"{text} ({endpoint})."
 

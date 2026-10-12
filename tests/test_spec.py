@@ -32,8 +32,13 @@ def test_mcp_operations_yields_flagged_only():
 def test_select_gates_deletes():
     with_deletes = {op["operationId"] for _, _, op in _selected_ops(include_deletes=True)}
     without_deletes = {op["operationId"] for _, _, op in _selected_ops(include_deletes=False)}
-    assert "delete_pipeline" in with_deletes
-    assert "delete_pipeline" not in without_deletes
+    assert "delete_environment" in with_deletes
+    assert "delete_environment" not in without_deletes
+
+
+def test_select_always_keeps_oauth_only_deletes():
+    without_deletes = {op["operationId"] for _, _, op in _selected_ops(include_deletes=False)}
+    assert "delete_pipeline" in without_deletes
 
 
 def test_select_excludes_named_operations():

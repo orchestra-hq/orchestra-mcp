@@ -19,6 +19,7 @@ EXPECTED_TOOLS = {
     "create_incident_comment",
     "create_pipeline",
     "create_skill",
+    "delete_pipeline",
     "diagnose",
     "download_task_run_artifact",
     "download_task_run_log",

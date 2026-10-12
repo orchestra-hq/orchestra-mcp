@@ -19,7 +19,6 @@ def test_render_table_lists_every_tool():
     )
     documented = {line.split("`")[1] for line in table.splitlines() if line.startswith("| `")}
     assert documented == EXPECTED_TOOLS | {
-        "delete_pipeline",
         "delete_environment",
         "delete_agent",
         "delete_skill",

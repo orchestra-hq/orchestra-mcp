@@ -14,8 +14,8 @@ async def test_get_mcp_builds_expected_surface():
 
 async def test_deletes_gated_off_by_default():
     tool_names = {tool.name for tool in await server.get_mcp().list_tools()}
-    assert "delete_pipeline" not in tool_names
     assert "delete_environment" not in tool_names
+    assert "delete_pipeline" in tool_names
 
 
 async def test_deletes_exposed_when_enabled(monkeypatch):

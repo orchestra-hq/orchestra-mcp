@@ -23,7 +23,7 @@ Use Orchestra's hosted MCP endpoint:
 | `list_pipelines` | Yes | List pipelines (`GET /pipelines`). | Pipelines |
 | `create_pipeline` | Yes | Create a pipeline (`POST /pipelines`). | Pipelines |
 | `update_pipeline` | Yes | Update a pipeline by selector (`PUT /pipelines`). | Pipelines |
-| `delete_pipeline` | Yes | **Disabled by default.** Delete a pipeline. Provide exactly one selector: pipeline_id, alias, or repository together with yaml_path (`DELETE /pipelines`). Set `ORCHESTRA_ENABLE_DELETE` to expose it. | Pipelines |
+| `delete_pipeline` | Yes | Delete a pipeline. Provide exactly one selector: pipeline_id, alias, or repository together with yaml_path. Only a user's OAuth token can delete a pipeline: an API key gets 403 (`DELETE /pipelines`). | Pipelines |
 | `get_pipeline_data` | Yes | Get pipeline data (`GET /pipelines/data`). | Pipelines |
 | `start_pipeline` | Yes | Start a pipeline run (`POST /pipelines/{pipeline_id_or_alias}/start`). | Pipelines |
 | `pause_pipeline` | Yes | Pause or unpause a pipeline (`PUT /pipelines/{pipeline_id_or_alias}/pause`). | Pipelines |
@@ -202,7 +202,7 @@ Valid values:
 
 ### (Optional) Enable destructive deletion
 
-By default, the destructive `delete_pipeline` and `delete_environment` tools are not registered to avoid accidental destructive actions.
+By default, the destructive delete tools are not registered to avoid accidental destructive actions. `delete_pipeline` is the exception: the API only lets a user's OAuth token delete a pipeline, so it is always registered.
 To expose them, set `ORCHESTRA_ENABLE_DELETE` before starting the server:
 
 ```bash
