@@ -1,0 +1,39 @@
+orchestramcp/adaptations.py
+  s_71b763e18de817::t_8d9f07a37cec0c 5-8,75-76
+tests/test_openapi_server.py
+  s_71b763e18de817::t_8d9f07a37cec0c 9-10,251-292
+  s_71b763e18de817::t_ec837868546276 13,96,106
+scripts/update_readme.py
+  s_71b763e18de817::t_8d9f07a37cec0c 12,92
+tests/conftest.py
+  s_71b763e18de817::t_8d9f07a37cec0c 21,113-114
+  s_71b763e18de817::t_ec837868546276 13-20
+orchestramcp/oauth.py
+  s_71b763e18de817::t_8d9f07a37cec0c 55,70
+tests/test_server.py
+  s_71b763e18de817::t_8d9f07a37cec0c 7,12,15-16,20,86,90
+tests/test_update_readme.py
+  s_71b763e18de817::t_8d9f07a37cec0c 7,21
+README.md
+  s_71b763e18de817::t_8d9f07a37cec0c 26,61,69,85,95,203,205-208,211
+orchestramcp/client.py
+  s_71b763e18de817::t_8d9f07a37cec0c 4,6,8,26-28
+orchestramcp/server.py
+  s_71b763e18de817::t_8d9f07a37cec0c 49
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "1c5fffee6f397a8d9ef7743b00a3e5350a2008ea",
+  "prompts": {},
+  "sessions": {
+    "s_71b763e18de817": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8e481d3a-b9c8-474d-a896-b3caed3e8eff",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Will Davies <42768478+willdavies0@users.noreply.github.com>"
+    }
+  }
+}
