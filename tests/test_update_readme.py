@@ -4,7 +4,7 @@ from pathlib import Path
 import pytest
 
 from scripts.update_readme import END_MARKER, START_MARKER, render_table, replace_table
-from tests.conftest import EXPECTED_TOOLS
+from tests.conftest import DELETE_TOOLS, EXPECTED_TOOLS
 
 FIXTURES = Path(__file__).parent / "fixtures"
 
@@ -18,12 +18,7 @@ def test_render_table_lists_every_tool():
         _spec("openapi_live.json"), _spec("openapi_platform.json"), _spec("openapi_agents.json")
     )
     documented = {line.split("`")[1] for line in table.splitlines() if line.startswith("| `")}
-    assert documented == EXPECTED_TOOLS | {
-        "delete_pipeline",
-        "delete_environment",
-        "delete_agent",
-        "delete_skill",
-    }
+    assert documented == EXPECTED_TOOLS | DELETE_TOOLS
 
 
 def test_replace_table_swaps_marked_block():

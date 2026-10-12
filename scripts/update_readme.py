@@ -84,8 +84,6 @@ def _purpose(operation: dict, method: str, path: str) -> str:
     )
     text = " ".join(text.split()).rstrip(".")
     endpoint = f"`{method.upper()} {path.removeprefix('/public')}`"
-    if method == "delete":
-        return f"**Disabled by default.** {text} ({endpoint}). Set `ORCHESTRA_ENABLE_DELETE` to expose it."
     return f"{text} ({endpoint})."
 
 

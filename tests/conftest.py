@@ -10,6 +10,8 @@ LIVE_SPEC = str(Path(__file__).parent / "fixtures" / "openapi_live.json")
 PLATFORM_SPEC = str(Path(__file__).parent / "fixtures" / "openapi_platform.json")
 AGENTS_SPEC = str(Path(__file__).parent / "fixtures" / "openapi_agents.json")
 
+DELETE_TOOLS = {"delete_pipeline", "delete_environment", "delete_agent", "delete_skill"}
+
 EXPECTED_TOOLS = {
     "cancel_agent_session_prompt",
     "cancel_pipeline_run",
