@@ -2,6 +2,10 @@ from dataclasses import dataclass
 
 from mcp.types import ToolAnnotations
 
+DELETE_NEEDS_OAUTH = (
+    "Only runs for a user signed in with OAuth; with an Orchestra API key it is refused."
+)
+
 
 @dataclass(frozen=True)
 class Adaptation:
@@ -38,8 +42,7 @@ ADAPTATIONS: dict[str, Adaptation] = {
     "delete_pipeline": Adaptation(
         description=(
             "Delete a pipeline. Provide exactly one selector: pipeline_id, alias, "
-            "or repository together with yaml_path. Needs a user's OAuth token; an API key "
-            "gets 403."
+            "or repository together with yaml_path."
         ),
     ),
     "migrate_pipeline": Adaptation(
@@ -69,4 +72,6 @@ def adapt_component(route, component) -> None:
             annotations = annotations.model_copy(update=overrides)
         if adaptation.description is not None:
             component.description = adaptation.description
+    if route.method.upper() == "DELETE":
+        component.description = f"{component.description or ''} {DELETE_NEEDS_OAUTH}".strip()
     component.annotations = annotations

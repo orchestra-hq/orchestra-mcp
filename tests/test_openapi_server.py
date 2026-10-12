@@ -6,7 +6,8 @@ import httpx
 import pytest
 from fastmcp import Client
 
-from orchestramcp.adaptations import ADAPTATIONS
+from orchestramcp.adaptations import ADAPTATIONS, DELETE_NEEDS_OAUTH
+from orchestramcp.client import build_http_client
 from orchestramcp.openapi_server import ApiSource, build_server
 from orchestramcp.spec import load_spec, mcp_operations
 
@@ -245,3 +246,45 @@ async def test_agent_session_history_is_exposed_only_as_messages():
     tools = await _tools_by_name(_server())
     assert "get_agent_session_history_messages" in tools
     assert "stream_agent_session_history" not in tools
+
+
+@pytest.mark.parametrize(
+    "token, expected_calls",
+    [
+        pytest.param("an-api-key", [], id="api key is refused"),
+        pytest.param("header.payload.signature", ["DELETE"], id="oauth token is forwarded"),
+    ],
+)
+async def test_delete_tools_only_run_for_an_oauth_token(monkeypatch, token, expected_calls):
+    calls = []
+
+    def handler(request):
+        calls.append(request.method)
+        return httpx.Response(204)
+
+    monkeypatch.setenv("ORCHESTRA_API_KEY", token)
+    engine = build_http_client(ENGINE_BASE_URL)
+    engine._transport = httpx.MockTransport(handler)
+    server = build_server(
+        ApiSource(load_spec(LIVE), engine),
+        ApiSource(load_spec(PLATFORM), _client(PLATFORM_BASE_URL)),
+        ApiSource(load_spec(AGENTS), _client(AGENTS_BASE_URL)),
+        include_deletes=True,
+    )
+
+    async with Client(server) as client:
+        result = await client.call_tool(
+            "delete_pipeline", {"alias": "my_pipeline"}, raise_on_error=False
+        )
+
+    assert calls == expected_calls
+    assert result.is_error is not expected_calls
+    if not expected_calls:
+        assert DELETE_NEEDS_OAUTH in result.content[0].text
+
+
+async def test_every_delete_tool_says_it_needs_oauth():
+    tools = await _tools_by_name(_server(include_deletes=True))
+    deletes = [tool for name, tool in tools.items() if name.startswith("delete_")]
+    assert deletes
+    assert all(tool.description.endswith(DELETE_NEEDS_OAUTH) for tool in deletes)

@@ -52,7 +52,7 @@ def enabled() -> bool:
     return bool(_issuer() and _jwks_uri() and _resource_url())
 
 
-def _looks_like_jwt(token: str) -> bool:
+def looks_like_jwt(token: str) -> bool:
     parts = token.split(".")
     return len(parts) == 3 and all(parts)
 
@@ -67,7 +67,7 @@ async def token_accepted(token: str) -> bool:
 
     Raw Orchestra API keys are not JWTs and pass through untouched.
     """
-    if not enabled() or not _looks_like_jwt(token):
+    if not enabled() or not looks_like_jwt(token):
         return True
 
     verifier = _verifier(_jwks_uri(), _issuer(), _resource_url())

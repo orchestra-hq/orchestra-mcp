@@ -9,7 +9,7 @@ import os
 import re
 from pathlib import Path
 
-from orchestramcp.adaptations import ADAPTATIONS
+from orchestramcp.adaptations import ADAPTATIONS, DELETE_NEEDS_OAUTH
 from orchestramcp.spec import load_spec, mcp_operations, tool_name
 
 DEFAULT_SPEC_URL = "https://app.getorchestra.io/api/engine/openapi.json"
@@ -84,6 +84,8 @@ def _purpose(operation: dict, method: str, path: str) -> str:
     )
     text = " ".join(text.split()).rstrip(".")
     endpoint = f"`{method.upper()} {path.removeprefix('/public')}`"
+    if method == "delete":
+        return f"{text} ({endpoint}). {DELETE_NEEDS_OAUTH}"
     return f"{text} ({endpoint})."
 
 
