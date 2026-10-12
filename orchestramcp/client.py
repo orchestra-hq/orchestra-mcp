@@ -1,8 +1,11 @@
 import os
 
 import httpx
+from fastmcp.exceptions import ToolError
 
+from orchestramcp.adaptations import DELETE_NEEDS_OAUTH
 from orchestramcp.errors import OrchestraAPIError, parse_error_response
+from orchestramcp.oauth import looks_like_jwt
 
 
 class _BearerAuth(httpx.Auth):
@@ -20,6 +23,9 @@ class _BearerAuth(httpx.Auth):
                 "endpoint, or set ORCHESTRA_API_KEY when running the server locally. Keys are "
                 "issued in Orchestra workspace settings."
             )
+        # The API accepts an API key for deletes; the MCP keeps them to people signed in.
+        if request.method == "DELETE" and not looks_like_jwt(token):
+            raise ToolError(DELETE_NEEDS_OAUTH)
         request.headers["Authorization"] = f"Bearer {token}"
         yield request
 

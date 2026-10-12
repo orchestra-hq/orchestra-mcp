@@ -46,7 +46,7 @@ def _agents_spec_url() -> str:
 
 
 def _delete_enabled() -> bool:
-    return os.getenv("ORCHESTRA_ENABLE_DELETE", "").strip().lower() in ("1", "true")
+    return os.getenv("ORCHESTRA_ENABLE_DELETE", "true").strip().lower() in ("1", "true")
 
 
 @lru_cache

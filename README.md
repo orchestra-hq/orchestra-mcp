@@ -23,7 +23,7 @@ Use Orchestra's hosted MCP endpoint:
 | `list_pipelines` | Yes | List pipelines (`GET /pipelines`). | Pipelines |
 | `create_pipeline` | Yes | Create a pipeline (`POST /pipelines`). | Pipelines |
 | `update_pipeline` | Yes | Update a pipeline by selector (`PUT /pipelines`). | Pipelines |
-| `delete_pipeline` | Yes | **Disabled by default.** Delete a pipeline. Provide exactly one selector: pipeline_id, alias, or repository together with yaml_path (`DELETE /pipelines`). Set `ORCHESTRA_ENABLE_DELETE` to expose it. | Pipelines |
+| `delete_pipeline` | Yes | Delete a pipeline. Provide exactly one selector: pipeline_id, alias, or repository together with yaml_path (`DELETE /pipelines`). Only runs for a user signed in with OAuth; with an Orchestra API key it is refused. | Pipelines |
 | `get_pipeline_data` | Yes | Get pipeline data (`GET /pipelines/data`). | Pipelines |
 | `start_pipeline` | Yes | Start a pipeline run (`POST /pipelines/{pipeline_id_or_alias}/start`). | Pipelines |
 | `pause_pipeline` | Yes | Pause or unpause a pipeline (`PUT /pipelines/{pipeline_id_or_alias}/pause`). | Pipelines |
@@ -58,7 +58,7 @@ Use Orchestra's hosted MCP endpoint:
 | `create_environment` | Yes | Create an environment (`POST /environments`). | Environments |
 | `get_environment` | Yes | Get an environment (`GET /environments/{environment_id}`). | Environments |
 | `update_environment` | Yes | Update an environment (`PATCH /environments/{environment_id}`). | Environments |
-| `delete_environment` | Yes | **Disabled by default.** Delete an environment (`DELETE /environments/{environment_id}`). Set `ORCHESTRA_ENABLE_DELETE` to expose it. | Environments |
+| `delete_environment` | Yes | Delete an environment (`DELETE /environments/{environment_id}`). Only runs for a user signed in with OAuth; with an Orchestra API key it is refused. | Environments |
 | `get_integration_state_for_state_aware` | Yes | Get integration state (`GET /state/{integration}`). | State |
 | `list_accounts` | Yes | List workspaces (`GET /accounts`). | Accounts |
 | `list_agent_avatars` | Yes | List agent avatars (`GET /agents/avatar-catalog`). | Agents |
@@ -66,7 +66,7 @@ Use Orchestra's hosted MCP endpoint:
 | `list_agents` | Yes | List agents (`GET /agents`). | Agents |
 | `get_agent` | Yes | Get an agent (`GET /agents/{agent_id}`). | Agents |
 | `update_agent` | Yes | Update an agent (`PATCH /agents/{agent_id}`). | Agents |
-| `delete_agent` | Yes | **Disabled by default.** Delete an agent (`DELETE /agents/{agent_id}`). Set `ORCHESTRA_ENABLE_DELETE` to expose it. | Agents |
+| `delete_agent` | Yes | Delete an agent (`DELETE /agents/{agent_id}`). Only runs for a user signed in with OAuth; with an Orchestra API key it is refused. | Agents |
 | `list_agent_skills` | Yes | List an agent's skills (`GET /agents/{agent_id}/skills`). | Agents |
 | `set_agent_skills` | Yes | Set an agent's skills (`PUT /agents/{agent_id}/skills`). | Agents |
 | `list_agent_integrations` | Yes | List an agent's integrations (`GET /agents/{agent_id}/integrations`). | Agents |
@@ -82,7 +82,7 @@ Use Orchestra's hosted MCP endpoint:
 | `create_skill` | Yes | Create a skill (`POST /skills`). | Skills |
 | `get_skill` | Yes | Get a skill (`GET /skills/{skill_id}`). | Skills |
 | `update_skill` | Yes | Update a skill (`PATCH /skills/{skill_id}`). | Skills |
-| `delete_skill` | Yes | **Disabled by default.** Delete a skill (`DELETE /skills/{skill_id}`). Set `ORCHESTRA_ENABLE_DELETE` to expose it. | Skills |
+| `delete_skill` | Yes | Delete a skill (`DELETE /skills/{skill_id}`). Only runs for a user signed in with OAuth; with an Orchestra API key it is refused. | Skills |
 | `import_skill` | Yes | Import a skill from git (`POST /skills/import`). | Skills |
 | `list_audit_events` | Yes | List audit events (`GET /audit_events`). | Audit |
 | `get_incident_settings` | Yes | Get incident settings (`GET /incident_settings`). | Incident settings |
@@ -92,7 +92,7 @@ Use Orchestra's hosted MCP endpoint:
 | `reorder_monitors` | Yes | Reorder monitors (`POST /monitors/reorder`). | Monitors |
 | `get_monitor` | Yes | Get a monitor (`GET /monitors/{monitor_id}`). | Monitors |
 | `update_monitor` | Yes | Update a monitor (`PUT /monitors/{monitor_id}`). | Monitors |
-| `delete_monitor` | Yes | **Disabled by default.** Delete a monitor (`DELETE /monitors/{monitor_id}`). Set `ORCHESTRA_ENABLE_DELETE` to expose it. | Monitors |
+| `delete_monitor` | Yes | Delete a monitor (`DELETE /monitors/{monitor_id}`). Only runs for a user signed in with OAuth; with an Orchestra API key it is refused. | Monitors |
 <!-- available-tools:end -->
 
 ### Cursor
@@ -200,20 +200,16 @@ Valid values:
 - `stage`
 - `dev`
 
-### (Optional) Enable destructive deletion
+### (Optional) Disable destructive deletion
 
-By default, the destructive `delete_pipeline` and `delete_environment` tools are not registered to avoid accidental destructive actions.
-To expose them, set `ORCHESTRA_ENABLE_DELETE` before starting the server:
+The delete tools are registered by default, but only run for a user signed in with OAuth to
+the hosted endpoint: called with an Orchestra API key, including when running the server
+locally, they are refused. To hide them, set `ORCHESTRA_ENABLE_DELETE` to anything other
+than `true` (in any case) or `1` before starting the server:
 
 ```bash
-export ORCHESTRA_ENABLE_DELETE="true"
+export ORCHESTRA_ENABLE_DELETE="false"
 ```
-
-Only the following values are recognized:
-
-- `"true"`
-- `"TRUE"`
-- `"1"`
 
 ### Run the server
 
