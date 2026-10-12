@@ -28,6 +28,7 @@ GATED_DELETES = {
     "delete_agent",
     "delete_skill",
     "delete_integration_connection",
+    "delete_monitor",
 }
 
 ENGINE_BASE_URL = "https://example.com/api/engine"
