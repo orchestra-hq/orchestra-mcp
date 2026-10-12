@@ -23,6 +23,8 @@ def test_render_table_lists_every_tool():
         "delete_environment",
         "delete_agent",
         "delete_skill",
+        "delete_integration_connection",
+        "delete_monitor",
     }
 
 

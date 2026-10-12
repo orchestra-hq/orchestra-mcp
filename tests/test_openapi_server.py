@@ -16,11 +16,19 @@ PLATFORM = str(Path(__file__).parent / "fixtures" / "openapi_platform.json")
 AGENTS = str(Path(__file__).parent / "fixtures" / "openapi_agents.json")
 
 # Ceilings on the surface every model call re-reads, set just above the current
-# live numbers (60 tools, ~84 KB) so routine upstream growth trips the test and
+# live numbers (76 tools, ~122 KB) so routine upstream growth trips the test and
 # gets looked at. Raising them is a decision, not a formality: check first whether
 # the growth is worth its tokens, and whether coarsening in spec.py would pay for it.
-MAX_TOOLS = 62
-MAX_SCHEMA_BYTES = 88_000
+MAX_TOOLS = 78
+MAX_SCHEMA_BYTES = 126_000
+
+GATED_DELETES = {
+    "delete_pipeline",
+    "delete_environment",
+    "delete_agent",
+    "delete_skill",
+    "delete_integration_connection",
+}
 
 ENGINE_BASE_URL = "https://example.com/api/engine"
 PLATFORM_BASE_URL = "https://example.com/public/v1"
@@ -91,7 +99,7 @@ async def test_generated_tool_calls_through_client():
 
 async def test_live_surface_gates_deletes_and_registers_handwritten():
     tools = set(await _tools_by_name(_server()))
-    assert not {"delete_pipeline", "delete_environment", "delete_agent", "delete_skill"} & tools
+    assert not GATED_DELETES & tools
     assert {
         "get_pipeline_run_lineage_url",
         "download_task_run_log",
@@ -100,8 +108,9 @@ async def test_live_surface_gates_deletes_and_registers_handwritten():
 
 
 async def test_live_surface_exposes_deletes_when_enabled():
-    tools = set(await _tools_by_name(_server(include_deletes=True)))
-    assert {"delete_pipeline", "delete_environment", "delete_agent", "delete_skill"} <= tools
+    tools = await _tools_by_name(_server(include_deletes=True))
+    assert GATED_DELETES <= set(tools)
+    assert tools["delete_integration_connection"].annotations.destructiveHint is True
 
 
 async def test_every_live_tool_has_a_title():
