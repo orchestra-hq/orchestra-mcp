@@ -1,0 +1,19 @@
+orchestramcp/spec.py
+  s_906f067a130896::t_6d2013fb74ad09 81-82
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "035585b4fe65c5a909b985e64a9105fc346951e3",
+  "prompts": {},
+  "sessions": {
+    "s_906f067a130896": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ae903c3d-7bbc-4966-ab7f-5add0dc970ec",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Will Davies <42768478+willdavies0@users.noreply.github.com>"
+    }
+  }
+}
