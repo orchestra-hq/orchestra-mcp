@@ -1,0 +1,23 @@
+README.md
+  s_55735b99410df5::t_44334248e3ea0b 208
+tests/conftest.py
+  s_55735b99410df5::t_f652d5aab7643d 90-91
+tests/test_openapi_server.py
+  s_55735b99410df5::t_4bfe81c489a2a7 281
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "2198c289cdf0709f1f2208b1db6bffc10b258b6f",
+  "prompts": {},
+  "sessions": {
+    "s_55735b99410df5": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "582e57dd-f241-42be-94f1-1f75af6609ae",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Will Davies <42768478+willdavies0@users.noreply.github.com>"
+    }
+  }
+}
