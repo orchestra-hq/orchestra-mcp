@@ -6,9 +6,11 @@ import httpx
 import pytest
 from fastmcp import Client
 
-from orchestramcp.adaptations import ADAPTATIONS
+from orchestramcp.adaptations import ADAPTATIONS, DELETE_NEEDS_OAUTH
+from orchestramcp.client import build_http_client
 from orchestramcp.openapi_server import ApiSource, build_server
 from orchestramcp.spec import load_spec, mcp_operations
+from tests.conftest import DELETE_TOOLS
 
 SAMPLE = str(Path(__file__).parent / "fixtures" / "openapi_sample.json")
 LIVE = str(Path(__file__).parent / "fixtures" / "openapi_live.json")
@@ -21,15 +23,6 @@ AGENTS = str(Path(__file__).parent / "fixtures" / "openapi_agents.json")
 # the growth is worth its tokens, and whether coarsening in spec.py would pay for it.
 MAX_TOOLS = 78
 MAX_SCHEMA_BYTES = 126_000
-
-GATED_DELETES = {
-    "delete_pipeline",
-    "delete_environment",
-    "delete_agent",
-    "delete_skill",
-    "delete_integration_connection",
-    "delete_monitor",
-}
 
 ENGINE_BASE_URL = "https://example.com/api/engine"
 PLATFORM_BASE_URL = "https://example.com/public/v1"
@@ -100,7 +93,7 @@ async def test_generated_tool_calls_through_client():
 
 async def test_live_surface_gates_deletes_and_registers_handwritten():
     tools = set(await _tools_by_name(_server()))
-    assert not GATED_DELETES & tools
+    assert not DELETE_TOOLS & tools
     assert {
         "get_pipeline_run_lineage_url",
         "download_task_run_log",
@@ -110,7 +103,7 @@ async def test_live_surface_gates_deletes_and_registers_handwritten():
 
 async def test_live_surface_exposes_deletes_when_enabled():
     tools = await _tools_by_name(_server(include_deletes=True))
-    assert GATED_DELETES <= set(tools)
+    assert DELETE_TOOLS <= set(tools)
     assert tools["delete_integration_connection"].annotations.destructiveHint is True
 
 
@@ -255,3 +248,45 @@ async def test_agent_session_history_is_exposed_only_as_messages():
     tools = await _tools_by_name(_server())
     assert "get_agent_session_history_messages" in tools
     assert "stream_agent_session_history" not in tools
+
+
+@pytest.mark.parametrize(
+    "token, expected_calls",
+    [
+        pytest.param("an-api-key", [], id="api key is refused"),
+        pytest.param("header.payload.signature", ["DELETE"], id="oauth token is forwarded"),
+    ],
+)
+async def test_delete_tools_only_run_for_an_oauth_token(monkeypatch, token, expected_calls):
+    calls = []
+
+    def handler(request):
+        calls.append(request.method)
+        return httpx.Response(204)
+
+    monkeypatch.setenv("ORCHESTRA_API_KEY", token)
+    engine = build_http_client(ENGINE_BASE_URL)
+    engine._transport = httpx.MockTransport(handler)
+    server = build_server(
+        ApiSource(load_spec(LIVE), engine),
+        ApiSource(load_spec(PLATFORM), _client(PLATFORM_BASE_URL)),
+        ApiSource(load_spec(AGENTS), _client(AGENTS_BASE_URL)),
+        include_deletes=True,
+    )
+
+    async with Client(server) as client:
+        result = await client.call_tool(
+            "delete_pipeline", {"alias": "my_pipeline"}, raise_on_error=False
+        )
+
+    assert calls == expected_calls
+    assert result.is_error == (not expected_calls)
+    if not expected_calls:
+        assert DELETE_NEEDS_OAUTH in result.content[0].text
+
+
+async def test_every_delete_tool_says_it_needs_oauth():
+    tools = await _tools_by_name(_server(include_deletes=True))
+    deletes = [tool for name, tool in tools.items() if name.startswith("delete_")]
+    assert deletes
+    assert all(tool.description.endswith(DELETE_NEEDS_OAUTH) for tool in deletes)

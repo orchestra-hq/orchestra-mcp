@@ -4,26 +4,20 @@ import httpx
 import pytest
 
 from orchestramcp import server
-from tests.conftest import EXPECTED_TOOLS
+from tests.conftest import DELETE_TOOLS, EXPECTED_TOOLS
 
 
 async def test_get_mcp_builds_expected_surface():
     tool_names = {tool.name for tool in await server.get_mcp().list_tools()}
-    assert tool_names == EXPECTED_TOOLS
+    assert tool_names == EXPECTED_TOOLS | DELETE_TOOLS
 
 
-async def test_deletes_gated_off_by_default():
-    tool_names = {tool.name for tool in await server.get_mcp().list_tools()}
-    assert "delete_pipeline" not in tool_names
-    assert "delete_environment" not in tool_names
-
-
-async def test_deletes_exposed_when_enabled(monkeypatch):
-    monkeypatch.setenv("ORCHESTRA_ENABLE_DELETE", "true")
+async def test_deletes_hidden_when_disabled(monkeypatch):
+    monkeypatch.setenv("ORCHESTRA_ENABLE_DELETE", "false")
     server.get_mcp.cache_clear()
 
     tool_names = {tool.name for tool in await server.get_mcp().list_tools()}
-    assert {"delete_pipeline", "delete_environment"} <= tool_names
+    assert tool_names == EXPECTED_TOOLS
 
 
 def test_invalid_environment_rejected(monkeypatch):
@@ -89,10 +83,10 @@ async def test_every_api_receives_the_caller_credential(monkeypatch):
 
 def test_delete_enabled_flag(monkeypatch):
     monkeypatch.delenv("ORCHESTRA_ENABLE_DELETE", raising=False)
-    assert server._delete_enabled() is False
+    assert server._delete_enabled() is True
     for truthy in ("1", "true", "TRUE"):
         monkeypatch.setenv("ORCHESTRA_ENABLE_DELETE", truthy)
         assert server._delete_enabled() is True
-    for falsy in ("yes", "on", "0", "", "random"):
+    for falsy in ("false", "yes", "on", "0", "", "random"):
         monkeypatch.setenv("ORCHESTRA_ENABLE_DELETE", falsy)
         assert server._delete_enabled() is False

@@ -10,6 +10,15 @@ LIVE_SPEC = str(Path(__file__).parent / "fixtures" / "openapi_live.json")
 PLATFORM_SPEC = str(Path(__file__).parent / "fixtures" / "openapi_platform.json")
 AGENTS_SPEC = str(Path(__file__).parent / "fixtures" / "openapi_agents.json")
 
+DELETE_TOOLS = {
+    "delete_agent",
+    "delete_environment",
+    "delete_integration_connection",
+    "delete_monitor",
+    "delete_pipeline",
+    "delete_skill",
+}
+
 EXPECTED_TOOLS = {
     "cancel_agent_session_prompt",
     "cancel_pipeline_run",
@@ -101,6 +110,8 @@ def orchestra_env():
     os.environ["ORCHESTRA_OPENAPI_URL"] = LIVE_SPEC
     os.environ["ORCHESTRA_PLATFORM_OPENAPI_URL"] = PLATFORM_SPEC
     os.environ["ORCHESTRA_AGENTS_OPENAPI_URL"] = AGENTS_SPEC
+    os.environ.pop("ORCHESTRA_ENABLE_DELETE", None)
+    get_mcp.cache_clear()
     yield
     for key in (
         "ORCHESTRA_ENV",
