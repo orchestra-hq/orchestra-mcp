@@ -278,7 +278,7 @@ async def test_delete_tools_only_run_for_an_oauth_token(monkeypatch, token, expe
         )
 
     assert calls == expected_calls
-    assert result.is_error is not expected_calls
+    assert result.is_error == (not expected_calls)
     if not expected_calls:
         assert DELETE_NEEDS_OAUTH in result.content[0].text
 

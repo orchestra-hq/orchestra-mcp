@@ -205,7 +205,7 @@ Valid values:
 The delete tools are registered by default, but only run for a user signed in with OAuth to
 the hosted endpoint: called with an Orchestra API key, including when running the server
 locally, they are refused. To hide them, set `ORCHESTRA_ENABLE_DELETE` to anything other
-than `"true"`, `"TRUE"` or `"1"` before starting the server:
+than `true` (in any case) or `1` before starting the server:
 
 ```bash
 export ORCHESTRA_ENABLE_DELETE="false"

@@ -87,6 +87,8 @@ def orchestra_env():
     os.environ["ORCHESTRA_OPENAPI_URL"] = LIVE_SPEC
     os.environ["ORCHESTRA_PLATFORM_OPENAPI_URL"] = PLATFORM_SPEC
     os.environ["ORCHESTRA_AGENTS_OPENAPI_URL"] = AGENTS_SPEC
+    os.environ.pop("ORCHESTRA_ENABLE_DELETE", None)
+    get_mcp.cache_clear()
     yield
     for key in (
         "ORCHESTRA_ENV",
