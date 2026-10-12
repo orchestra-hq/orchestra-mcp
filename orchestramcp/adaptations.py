@@ -20,12 +20,13 @@ ADAPTATIONS: dict[str, Adaptation] = {
     "list_pipeline_runs": Adaptation(
         description=(
             "List pipeline runs with optional filters. status accepts comma-separated values: "
-            "CREATED, RUNNING, SUCCEEDED, WARNING, FAILED, CANCELLING, CANCELLED."
+            "CREATED, QUEUED, RUNNING, SUCCEEDED, WARNING, FAILED, SKIPPED, CANCELLING, "
+            "CANCELLED."
         ),
         annotations=ToolAnnotations(title="List Pipeline Runs"),
     ),
     "cancel_pipeline_run": Adaptation(
-        description="Cancel a running pipeline run by its ID.",
+        description="Cancel a running or queued pipeline run by its ID.",
         annotations=ToolAnnotations(title="Cancel Pipeline Run", destructiveHint=True),
     ),
     "get_pipeline": Adaptation(
