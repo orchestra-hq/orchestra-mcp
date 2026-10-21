@@ -1,0 +1,19 @@
+tests/test_openapi_server.py
+  s_92a4dc8d791f75::t_e411f9162f4976 94,104
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "4f42b6f7a3f9054d67e83f53f4330606ee85f6c5",
+  "prompts": {},
+  "sessions": {
+    "s_92a4dc8d791f75": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "a9bfb42b-131e-42af-9e74-b24932417273",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Will Davies <42768478+willdavies0@users.noreply.github.com>"
+    }
+  }
+}

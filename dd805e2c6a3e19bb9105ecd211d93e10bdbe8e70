@@ -1,0 +1,33 @@
+README.md
+  s_906f067a130896::t_044de1aaf9914f 26,205
+orchestramcp/adaptations.py
+  s_906f067a130896::t_26aa87b0087e2e 41-42
+orchestramcp/spec.py
+  s_906f067a130896::t_f8959920f69cab 16-18,79-81,95-99
+scripts/update_readme.py
+  s_906f067a130896::t_a7652c0d572937 13,87
+tests/conftest.py
+  s_906f067a130896::t_4b51bfd9e8c174 22
+tests/test_openapi_server.py
+  s_906f067a130896::t_0e755d836eeb4a 94-95
+tests/test_server.py
+  s_906f067a130896::t_2a9a6f5d7d570a 18
+tests/test_spec.py
+  s_906f067a130896::t_876f55ac982065 35-41
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "dd805e2c6a3e19bb9105ecd211d93e10bdbe8e70",
+  "prompts": {},
+  "sessions": {
+    "s_906f067a130896": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ae903c3d-7bbc-4966-ab7f-5add0dc970ec",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Will Davies <42768478+willdavies0@users.noreply.github.com>"
+    }
+  }
+}

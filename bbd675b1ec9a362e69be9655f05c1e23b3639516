@@ -1,0 +1,22 @@
+orchestramcp/oauth.py
+  s_63aee0a7f431c8::t_e16a875e421954 14,21-22,46-50,99-102
+tests/test_oauth.py
+  s_63aee0a7f431c8::t_e16a875e421954 174-177,179-181
+  s_63aee0a7f431c8::t_d577164d51e339 178
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "bbd675b1ec9a362e69be9655f05c1e23b3639516",
+  "prompts": {},
+  "sessions": {
+    "s_63aee0a7f431c8": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "fa7c5cda-3418-4a08-b3ab-0690e6ded78b",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Will Davies <42768478+willdavies0@users.noreply.github.com>"
+    }
+  }
+}

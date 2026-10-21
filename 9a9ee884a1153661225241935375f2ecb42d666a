@@ -1,0 +1,19 @@
+orchestramcp/openapi_server.py
+  s_a07d4b979c7e2f::t_d2f4173dfb230f 1,61-63
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "9a9ee884a1153661225241935375f2ecb42d666a",
+  "prompts": {},
+  "sessions": {
+    "s_a07d4b979c7e2f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8e7c3d64-304f-4588-ba24-1795b8941e7c",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Will Davies <42768478+willdavies0@users.noreply.github.com>"
+    }
+  }
+}

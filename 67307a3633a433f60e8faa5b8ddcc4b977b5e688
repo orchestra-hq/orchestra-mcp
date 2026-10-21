@@ -1,0 +1,21 @@
+orchestramcp/adaptations.py
+  s_f062bb00833eff::t_542728e17baab4 64-65
+tests/test_openapi_server.py
+  s_f062bb00833eff::t_542728e17baab4 107-113
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "67307a3633a433f60e8faa5b8ddcc4b977b5e688",
+  "prompts": {},
+  "sessions": {
+    "s_f062bb00833eff": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "5db081b7-e181-4862-b600-0e0ac01013ef",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Will Davies <42768478+willdavies0@users.noreply.github.com>"
+    }
+  }
+}

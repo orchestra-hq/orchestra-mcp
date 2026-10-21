@@ -1,0 +1,37 @@
+tests/test_openapi_server.py
+  s_92a4dc8d791f75::t_fe53802fc8fc85 16,27,35-37,41,211,224,226-247
+  s_92a4dc8d791f75::t_83e81cc36d3184 19,22-23
+tests/fixtures/openapi_agents.json
+  s_92a4dc8d791f75::t_4dd29ae22b8b72 1-4054
+orchestramcp/server.py
+  s_92a4dc8d791f75::t_4dd29ae22b8b72 28-31,44-47,64
+tests/conftest.py
+  s_92a4dc8d791f75::t_dae6293fb34ffa 11,14,16-17,21,25-28,37,39,41-45,54,62-64,67,71,87,93
+orchestramcp/openapi_server.py
+  s_92a4dc8d791f75::t_4dd29ae22b8b72 45,50,57
+scripts/update_readme.py
+  s_92a4dc8d791f75::t_4dd29ae22b8b72 17,46-48,128,130-131
+tests/test_server.py
+  s_92a4dc8d791f75::t_fe53802fc8fc85 38,44,47,50-53,70,78,86
+tests/test_update_readme.py
+  s_92a4dc8d791f75::t_fe53802fc8fc85 17-19,21-26
+README.md
+  s_92a4dc8d791f75::t_83e81cc36d3184 63-85
+  s_92a4dc8d791f75::t_69e085e6981937 221-225
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "7ef347527b3f4e29c5b3db35e4ccadbafc653f21",
+  "prompts": {},
+  "sessions": {
+    "s_92a4dc8d791f75": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "a9bfb42b-131e-42af-9e74-b24932417273",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Will Davies <42768478+willdavies0@users.noreply.github.com>"
+    }
+  }
+}
