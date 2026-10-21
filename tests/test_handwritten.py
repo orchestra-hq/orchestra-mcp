@@ -439,6 +439,36 @@ async def test_diagnose_reports_the_seven_day_limit_when_the_task_run_is_not_fou
             await client.call_tool("diagnose", {"task_run_id": "tr-1"})
 
 
+def _assert_seven_day_window(params):
+    span = datetime.fromisoformat(params["time_to"]) - datetime.fromisoformat(params["time_from"])
+    assert timedelta(hours=MAX_WINDOW_HOURS - 1) < span < timedelta(hours=MAX_WINDOW_HOURS)
+
+
+async def test_diagnose_looks_the_task_run_up_across_seven_days_not_the_api_default():
+    server, requests = _triage_server({r"/task_runs$": _page([])})
+
+    async with Client(server) as client:
+        with pytest.raises(ToolError):
+            await client.call_tool("diagnose", {"task_run_id": "tr-1"})
+
+    _assert_seven_day_window(_params(requests, r"/public/task_runs$")[0])
+
+
+async def test_pipeline_context_reads_seven_days_of_runs_not_the_api_default():
+    server, requests = _triage_server(
+        {
+            r"/pipelines/data$": {"pipeline": {}},
+            r"/public/pipeline$": {"id": "pipe-1", "name": "nightly"},
+            r"/pipeline_runs$": _page([]),
+        }
+    )
+
+    async with Client(server) as client:
+        await client.call_tool("pipeline_context", {"pipeline_id_or_alias": "nightly"})
+
+    _assert_seven_day_window(_params(requests, r"/pipeline_runs$")[0])
+
+
 async def test_diagnose_survives_a_log_download_failure():
     server, _ = _triage_server(
         {
