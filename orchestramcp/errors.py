@@ -30,10 +30,8 @@ class OrchestraAPIError(Exception):
 
 
 def is_waf_block(response: httpx.Response) -> bool:
-    """Our APIs only send JSON 403s, so any other 403 is AWS WAF's block page."""
-    return response.status_code == 403 and "application/json" not in response.headers.get(
-        "content-type", ""
-    )
+    """Our APIs only send JSON 403s, so an HTML 403 is AWS WAF's block page."""
+    return response.status_code == 403 and "text/html" in response.headers.get("content-type", "")
 
 
 def parse_error_response(response: httpx.Response) -> str:
