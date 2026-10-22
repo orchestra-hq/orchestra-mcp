@@ -27,6 +27,7 @@ Use Orchestra's hosted MCP endpoint:
 | `get_pipeline_data` | Yes | Get pipeline data (`GET /pipelines/data`). | Pipelines |
 | `start_pipeline` | Yes | Start a pipeline run (`POST /pipelines/{pipeline_id_or_alias}/start`). | Pipelines |
 | `pause_pipeline` | Yes | Pause or unpause a pipeline (`PUT /pipelines/{pipeline_id_or_alias}/pause`). | Pipelines |
+| `move_pipeline` | Yes | Move a pipeline to a folder (`PUT /pipelines/{pipeline_id_or_alias}/folder`). | Pipelines |
 | `validate_pipeline` | No | Validate pipeline schema (`POST /pipelines/schema`). | Pipelines |
 | `migrate_pipeline` | Yes | Migrate an Orchestra-backed pipeline to git-backed storage. Identify it with pipeline_id or alias, and omit working_branch when it equals default_branch (`PATCH /pipelines/storage-settings`). | Pipelines |
 | `import_pipeline` | Yes | Import a pipeline (`POST /pipelines/import`). | Pipelines |
@@ -46,6 +47,14 @@ Use Orchestra's hosted MCP endpoint:
 | `mute_incident` | Yes | Mute an incident (`POST /incidents/{incident_id}/mute`). | Incidents |
 | `unmute_incident` | Yes | Unmute an incident (`POST /incidents/{incident_id}/unmute`). | Incidents |
 | `create_incident_comment` | Yes | Write to an incident's timeline (`POST /incidents/{incident_id}/comments`). | Incidents |
+| `get_incident_settings` | Yes | Get incident settings (`GET /incident_settings`). | Incident settings |
+| `update_incident_settings` | Yes | Update incident settings (`PATCH /incident_settings`). | Incident settings |
+| `list_monitors` | Yes | List monitors (`GET /monitors`). | Monitors |
+| `create_monitor` | Yes | Create a monitor (`POST /monitors`). | Monitors |
+| `reorder_monitors` | Yes | Reorder monitors (`POST /monitors/reorder`). | Monitors |
+| `get_monitor` | Yes | Get a monitor (`GET /monitors/{monitor_id}`). | Monitors |
+| `update_monitor` | Yes | Update a monitor (`PUT /monitors/{monitor_id}`). | Monitors |
+| `delete_monitor` | Yes | Delete a monitor (`DELETE /monitors/{monitor_id}`). Only runs for a user signed in with OAuth; with an Orchestra API key it is refused. | Monitors |
 | `list_operations` | Yes | List operations (`GET /operations`). | Operations |
 | `list_assets` | Yes | List assets (`GET /assets`). | Assets |
 | `get_asset_by_id` | Yes | Get an asset (`GET /assets/{asset_id}`). | Assets |
@@ -53,13 +62,19 @@ Use Orchestra's hosted MCP endpoint:
 | `download_task_run_log` | Yes | Download a task run log (`GET /pipeline_runs/{pipeline_run_id}/task_runs/{task_run_id}/logs/download`). | Logs |
 | `list_task_run_artifacts` | Yes | List task run artifacts (`GET /pipeline_runs/{pipeline_run_id}/task_runs/{task_run_id}/artifacts`). | Artifacts |
 | `download_task_run_artifact` | Yes | Download a task run artifact (`GET /pipeline_runs/{pipeline_run_id}/task_runs/{task_run_id}/artifacts/download`). | Artifacts |
-| `list_integration_connections` | Yes | List integration connections (`GET /integrations/connections`). | Integrations |
+| `get_integration` | Yes | Get an integration (`GET /integrations/{integration}`). | Integrations |
+| `list_integration_connections` | Yes | List integration connections (`GET /integrations/connections`). | Integration Connections |
+| `get_integration_connection` | Yes | Get an integration connection (`GET /integrations/{integration}/auth/{connection_id}`). | Integration Connections |
+| `update_integration_connection` | Yes | Update an integration connection (`PATCH /integrations/{integration}/auth/{connection_id}`). | Integration Connections |
+| `delete_integration_connection` | Yes | Delete an integration connection (`DELETE /integrations/{integration}/auth/{connection_id}`). Only runs for a user signed in with OAuth; with an Orchestra API key it is refused. | Integration Connections |
+| `create_integration_connection` | Yes | Create an integration connection (`POST /integrations/{integration}/auth`). | Integration Connections |
 | `list_environments` | Yes | List environments (`GET /environments`). | Environments |
 | `create_environment` | Yes | Create an environment (`POST /environments`). | Environments |
 | `get_environment` | Yes | Get an environment (`GET /environments/{environment_id}`). | Environments |
 | `update_environment` | Yes | Update an environment (`PATCH /environments/{environment_id}`). | Environments |
 | `delete_environment` | Yes | Delete an environment (`DELETE /environments/{environment_id}`). Only runs for a user signed in with OAuth; with an Orchestra API key it is refused. | Environments |
 | `get_integration_state_for_state_aware` | Yes | Get integration state (`GET /state/{integration}`). | State |
+| `list_audit_events` | Yes | List audit events (`GET /audit_events`). | Audit |
 | `list_accounts` | Yes | List workspaces (`GET /accounts`). | Accounts |
 | `list_agent_avatars` | Yes | List agent avatars (`GET /agents/avatar-catalog`). | Agents |
 | `create_agent` | Yes | Create an agent (`POST /agents`). | Agents |
@@ -84,15 +99,6 @@ Use Orchestra's hosted MCP endpoint:
 | `update_skill` | Yes | Update a skill (`PATCH /skills/{skill_id}`). | Skills |
 | `delete_skill` | Yes | Delete a skill (`DELETE /skills/{skill_id}`). Only runs for a user signed in with OAuth; with an Orchestra API key it is refused. | Skills |
 | `import_skill` | Yes | Import a skill from git (`POST /skills/import`). | Skills |
-| `list_audit_events` | Yes | List audit events (`GET /audit_events`). | Audit |
-| `get_incident_settings` | Yes | Get incident settings (`GET /incident_settings`). | Incident settings |
-| `update_incident_settings` | Yes | Update incident settings (`PATCH /incident_settings`). | Incident settings |
-| `list_monitors` | Yes | List monitors (`GET /monitors`). | Monitors |
-| `create_monitor` | Yes | Create a monitor (`POST /monitors`). | Monitors |
-| `reorder_monitors` | Yes | Reorder monitors (`POST /monitors/reorder`). | Monitors |
-| `get_monitor` | Yes | Get a monitor (`GET /monitors/{monitor_id}`). | Monitors |
-| `update_monitor` | Yes | Update a monitor (`PUT /monitors/{monitor_id}`). | Monitors |
-| `delete_monitor` | Yes | Delete a monitor (`DELETE /monitors/{monitor_id}`). Only runs for a user signed in with OAuth; with an Orchestra API key it is refused. | Monitors |
 <!-- available-tools:end -->
 
 ### Cursor
