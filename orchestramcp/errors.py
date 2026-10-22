@@ -2,6 +2,7 @@ import httpx
 
 MAX_ERROR_BODY_CHARS = 500
 MAX_ERROR_LIST_ITEMS = 5
+SUPPORT_ID_HEADER = "X-Orchestra-Support-Id"
 
 # Statuses whose API message names a problem but no next step. The hint is appended
 # to what the agent sees, so a call that fails on credentials or workspace
@@ -20,16 +21,23 @@ STATUS_HINTS = {
 
 
 class OrchestraAPIError(Exception):
-    def __init__(self, status_code: int, message: str):
+    def __init__(self, status_code: int, message: str, hint: str | None = None):
         self.status_code = status_code
         self.message = message
-        hint = STATUS_HINTS.get(status_code)
         # Dashed off rather than space-joined: the API's message may not end in
         # punctuation, and the hint has to read as ours rather than the server's.
         super().__init__(f"{status_code}: {message}" + (f" — {hint}" if hint else ""))
 
 
+def is_waf_block(response: httpx.Response) -> bool:
+    """Our APIs only send JSON 403s, so an HTML 403 is AWS WAF's block page."""
+    return response.status_code == 403 and "text/html" in response.headers.get("content-type", "")
+
+
 def parse_error_response(response: httpx.Response) -> str:
+    if is_waf_block(response):
+        support_id = response.request.headers.get(SUPPORT_ID_HEADER)
+        return f"Your request was blocked. Contact Orchestra support with ID: {support_id}"
     try:
         data = response.json()
     except Exception:

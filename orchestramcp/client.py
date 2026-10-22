@@ -1,10 +1,17 @@
 import os
+import secrets
 
 import httpx
 from fastmcp.exceptions import ToolError
 
 from orchestramcp.adaptations import DELETE_NEEDS_OAUTH
-from orchestramcp.errors import OrchestraAPIError, parse_error_response
+from orchestramcp.errors import (
+    STATUS_HINTS,
+    SUPPORT_ID_HEADER,
+    OrchestraAPIError,
+    is_waf_block,
+    parse_error_response,
+)
 from orchestramcp.oauth import looks_like_jwt
 
 
@@ -30,11 +37,17 @@ class _BearerAuth(httpx.Auth):
         yield request
 
 
+async def _add_support_id(request: httpx.Request) -> None:
+    request.headers[SUPPORT_ID_HEADER] = secrets.token_hex(6)
+
+
 async def _raise_on_error(response: httpx.Response) -> None:
     if response.is_success:
         return
     await response.aread()
-    raise OrchestraAPIError(response.status_code, parse_error_response(response))
+    # The hints explain our APIs' refusals; a WAF block is not one of them.
+    hint = None if is_waf_block(response) else STATUS_HINTS.get(response.status_code)
+    raise OrchestraAPIError(response.status_code, parse_error_response(response), hint)
 
 
 def build_http_client(base_url: str) -> httpx.AsyncClient:
@@ -48,5 +61,5 @@ def build_http_client(base_url: str) -> httpx.AsyncClient:
         auth=_BearerAuth(),
         timeout=30.0,
         limits=httpx.Limits(max_keepalive_connections=0),
-        event_hooks={"response": [_raise_on_error]},
+        event_hooks={"request": [_add_support_id], "response": [_raise_on_error]},
     )

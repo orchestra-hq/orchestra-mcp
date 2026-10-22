@@ -1,4 +1,5 @@
 import os
+import re
 
 import httpx
 import pytest
@@ -46,3 +47,46 @@ async def test_error_response_becomes_orchestra_error():
         await client.post("/public/pipelines", json={})
     assert exc_info.value.status_code == 422
     assert exc_info.value.message == "bad input"
+
+
+async def test_requests_carry_a_fresh_support_id():
+    seen = []
+
+    def handler(request):
+        seen.append(request.headers.get("X-Orchestra-Support-Id"))
+        return httpx.Response(200, json={})
+
+    client = _client(handler)
+    await client.get("/public/pipelines")
+    await client.get("/public/pipelines")
+    assert all(re.fullmatch(r"[0-9a-f]{12}", support_id) for support_id in seen)
+    assert seen[0] != seen[1]
+
+
+async def test_waf_block_names_the_support_id():
+    seen = {}
+
+    def handler(request):
+        seen["support_id"] = request.headers["X-Orchestra-Support-Id"]
+        return httpx.Response(
+            403,
+            headers={"content-type": "text/html"},
+            text="<html><head><title>403 Forbidden</title></head></html>",
+        )
+
+    client = _client(handler)
+    with pytest.raises(OrchestraAPIError) as exc_info:
+        await client.get("/public/pipelines")
+    message = f"Your request was blocked. Contact Orchestra support with ID: {seen['support_id']}"
+    assert exc_info.value.status_code == 403
+    assert exc_info.value.message == message
+    assert str(exc_info.value) == f"403: {message}"
+
+
+async def test_json_403_keeps_the_api_message_and_hint():
+    client = _client(lambda r: httpx.Response(403, json={"detail": "Forbidden"}))
+    with pytest.raises(OrchestraAPIError) as exc_info:
+        await client.get("/public/pipelines")
+    assert exc_info.value.status_code == 403
+    assert exc_info.value.message == "Forbidden"
+    assert "Metadata API" in str(exc_info.value)
