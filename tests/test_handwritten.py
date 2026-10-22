@@ -225,6 +225,12 @@ def _params(requests, pattern):
     return [dict(r.url.params) for r in requests if re.search(pattern, r.url.path)]
 
 
+def _assert_widest_window(params):
+    # Without time_from/time_to the API falls back to the last 24 hours.
+    span = datetime.fromisoformat(params["time_to"]) - datetime.fromisoformat(params["time_from"])
+    assert timedelta(hours=MAX_WINDOW_HOURS - 1) < span < timedelta(hours=MAX_WINDOW_HOURS)
+
+
 async def test_whats_broken_joins_failed_tasks_onto_their_pipeline_runs():
     server, requests = _triage_server(
         {
@@ -429,6 +435,7 @@ async def test_diagnose_gathers_upstream_statuses_log_tail_and_artifacts():
     download = next(r for r in requests if r.url.path.endswith("/logs/download"))
     assert download.headers["Range"] == f"bytes=-{LOG_TAIL_BYTES}"
     assert dict(download.url.params)["filename"] == "attempt-2.log"
+    _assert_widest_window(_params(requests, r"/public/task_runs$")[0])
 
 
 async def test_diagnose_reports_the_seven_day_limit_when_the_task_run_is_not_found():
@@ -512,6 +519,7 @@ async def test_pipeline_context_summarises_runs_and_integrations_for_an_alias():
     assert result.data["medianSucceededDurationSeconds"] == 180
     assert _params(requests, r"/public/pipeline$")[0] == {"alias": "nightly"}
     assert _params(requests, r"/pipeline_runs$")[0]["pipeline_ids"] == "pipe-1"
+    _assert_widest_window(_params(requests, r"/pipeline_runs$")[0])
 
 
 async def test_pipeline_context_selects_by_id_when_given_a_uuid():
