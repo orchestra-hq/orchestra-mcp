@@ -58,8 +58,10 @@ def _account_headers(account_id: UUID | None) -> dict[str, str]:
 
 
 # GET /task_runs and GET /pipeline_runs serve at most a 7-day window, so a requested
-# triage window is clamped to it rather than rejected by the API.
+# triage window is clamped to it rather than rejected by the API. Without an explicit
+# window these endpoints return only the last 24 hours, so _paged defaults them to 7 days.
 MAX_WINDOW_HOURS = 7 * 24
+WINDOWED_PATHS = frozenset({"/public/task_runs", "/public/pipeline_runs", "/public/operations"})
 DEFAULT_WINDOW_HOURS = 24
 
 # The largest page each paginated endpoint accepts.
@@ -327,6 +329,9 @@ def _register_triage(server: FastMCP, client: httpx.AsyncClient, ui_base_url: st
         Returns the results alongside the endpoint's reported total, so a caller can
         say what it truncated against.
         """
+        if path in WINDOWED_PATHS and "time_from" not in params:
+            time_from, time_to, _ = _window(MAX_WINDOW_HOURS)
+            params = {**params, "time_from": time_from, "time_to": time_to}
         results: list[dict] = []
         total = 0
         page = 1
