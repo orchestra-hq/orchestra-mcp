@@ -497,7 +497,7 @@ async def test_diagnose_lists_failed_operations_over_the_task_runs_lifetime():
 
 
 async def test_diagnose_clamps_the_operations_window_and_survives_a_bad_timestamp():
-    ten_days_ago = (datetime.now(tz=UTC) - timedelta(days=10)).isoformat()
+    ten_days_ago = (datetime.now(tz=UTC) - timedelta(days=10)).replace(tzinfo=None).isoformat()
     still_running = {**OLD_TASK_RUN, "createdAt": ten_days_ago, "completedAt": "not a time"}
     routes = {**_diagnose_routes(_page([])), r"/public/task_runs/[^/]+$": still_running}
     server, requests = _triage_server(routes)

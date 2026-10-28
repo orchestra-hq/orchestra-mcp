@@ -134,9 +134,10 @@ def _bound_strings(value, limit: int = MAX_PARAMETER_CHARS):
 
 def _parse_time(value: str | None) -> datetime | None:
     try:
-        return datetime.fromisoformat(value)
+        parsed = datetime.fromisoformat(value)
     except (TypeError, ValueError):
         return None
+    return parsed if parsed.tzinfo else parsed.replace(tzinfo=UTC)
 
 
 def _operations_window(task_run: dict) -> tuple[dict, bool]:
