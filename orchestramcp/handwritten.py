@@ -99,6 +99,16 @@ def _window(hours: int) -> tuple[str, str, int]:
     return time_from.isoformat(), now.isoformat(), hours
 
 
+def _duration_seconds(started_at: str | None, completed_at: str | None) -> int | None:
+    """Whole seconds between two API timestamps, or None if either cannot be read."""
+    try:
+        started = datetime.fromisoformat(started_at)
+        completed = datetime.fromisoformat(completed_at)
+        return round((completed - started).total_seconds())
+    except (TypeError, ValueError):
+        return None
+
+
 def _bound_strings(value, limit: int = MAX_PARAMETER_CHARS):
     """Cut over-long strings anywhere inside a parameter object, keeping its shape.
 
@@ -123,16 +133,6 @@ def _parse_time(value: str | None) -> datetime | None:
     except (TypeError, ValueError):
         return None
     return parsed if parsed.tzinfo else parsed.replace(tzinfo=UTC)
-
-
-def _duration_seconds(started_at: str | None, completed_at: str | None) -> int | None:
-    """Whole seconds between two API timestamps, or None if either cannot be read."""
-    try:
-        started = datetime.fromisoformat(started_at)
-        completed = datetime.fromisoformat(completed_at)
-        return round((completed - started).total_seconds())
-    except (TypeError, ValueError):
-        return None
 
 
 def _task_run_window(task_run: dict) -> dict:
