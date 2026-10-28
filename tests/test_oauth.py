@@ -111,12 +111,13 @@ def test_www_authenticate_header_omitted_when_disabled():
     assert oauth.www_authenticate_header("invalid_token", "bad token") is None
 
 
-def test_www_authenticate_header_points_at_the_metadata_document(monkeypatch):
+def test_www_authenticate_header_points_at_the_metadata_document_and_scopes(monkeypatch):
     _enable(monkeypatch)
 
     assert oauth.www_authenticate_header("invalid_token", "bad token") == (
         'Bearer error="invalid_token", error_description="bad token", '
-        f'resource_metadata="{METADATA_URL}"'
+        f'resource_metadata="{METADATA_URL}", '
+        'scope="orchestra:read orchestra:write offline_access"'
     )
 
 
@@ -131,6 +132,7 @@ def test_metadata_matches_the_url_users_type_and_the_configured_issuer(monkeypat
     assert response["statusCode"] == 200
     assert metadata["resource"] == RESOURCE_URL
     assert metadata["authorization_servers"] == [ISSUER]
+    assert metadata["scopes_supported"] == ["orchestra:read", "orchestra:write", "offline_access"]
 
 
 def test_metadata_echoes_a_trailing_slash_the_operator_configured(monkeypatch):
@@ -142,8 +144,8 @@ def test_metadata_echoes_a_trailing_slash_the_operator_configured(monkeypatch):
     )
 
     assert json.loads(response["body"])["resource"] == f"{RESOURCE_URL}/"
-    assert oauth.www_authenticate_header("invalid_token", "bad").endswith(
-        f'resource_metadata="{METADATA_URL}"'
+    assert f'resource_metadata="{METADATA_URL}",' in oauth.www_authenticate_header(
+        "invalid_token", "bad"
     )
 
 
