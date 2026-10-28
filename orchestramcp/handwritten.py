@@ -1,3 +1,4 @@
+import asyncio
 import base64
 import json
 import statistics
@@ -75,6 +76,11 @@ MAX_RECENT_RUNS = 20
 MAX_ARTIFACT_NAMES = 50
 MAX_PARAMETER_CHARS = 2 * 1024
 LOG_TAIL_BYTES = 8 * 1024
+MAX_FAILED_OPERATIONS = 20
+MAX_OPERATION_DETAIL_CHARS = 500
+
+# Operations are recorded after their task run completes, so the lookup runs this far past it.
+OPERATIONS_GRACE = timedelta(hours=1)
 
 
 def _lineage_url(ui_base_url: str, pipeline_run_id: str) -> str:
@@ -119,6 +125,25 @@ def _bound_strings(value, limit: int = MAX_PARAMETER_CHARS):
     if isinstance(value, list):
         return [_bound_strings(item, limit) for item in value]
     return value
+
+
+def _parse_time(value: str | None) -> datetime | None:
+    try:
+        parsed = datetime.fromisoformat(value)
+    except (TypeError, ValueError):
+        return None
+    return parsed if parsed.tzinfo else parsed.replace(tzinfo=UTC)
+
+
+def _task_run_window(task_run: dict) -> dict:
+    """The task run's own lifetime, since /operations otherwise searches only the last day."""
+    now = datetime.now(tz=UTC)
+    completed = _parse_time(task_run.get("completedAt"))
+    time_to = min(completed + OPERATIONS_GRACE, now) if completed else now
+    widest = time_to - timedelta(hours=MAX_WINDOW_HOURS) + timedelta(seconds=1)
+    created = _parse_time(task_run.get("createdAt"))
+    time_from = max(created, widest) if created else widest
+    return {"time_from": time_from.isoformat(), "time_to": time_to.isoformat()}
 
 
 def _anomalies(record: dict) -> list[dict]:
@@ -385,6 +410,42 @@ def _register_triage(server: FastMCP, client: httpx.AsyncClient, ui_base_url: st
             "truncated": received >= LOG_TAIL_BYTES,
         }
 
+    async def _failed_operations(task_run: dict, account_id: UUID | None) -> dict:
+        """The task run's failed and warning operations, e.g. the dbt models that broke."""
+        params = {"task_run_id": task_run["id"], **_task_run_window(task_run)}
+        try:
+            pages = await asyncio.gather(
+                *(
+                    _get(
+                        "/public/operations",
+                        account_id,
+                        {**params, "status": status, "page_size": MAX_FAILED_OPERATIONS},
+                    )
+                    for status in ("FAILED", "WARNING")
+                )
+            )
+        except OrchestraAPIError as exc:
+            return {"unavailable": str(exc)}
+        operations = [op for page in pages for op in page.get("results") or []]
+        total = sum(page.get("total") or 0 for page in pages)
+        return {
+            "total": total,
+            "operations": [
+                _compact(
+                    {
+                        "name": op.get("operationName"),
+                        "status": op.get("operationStatus"),
+                        "message": op.get("message"),
+                        "detail": _bound_strings(
+                            op.get("externalDetail"), MAX_OPERATION_DETAIL_CHARS
+                        ),
+                    }
+                )
+                for op in operations[:MAX_FAILED_OPERATIONS]
+            ],
+            "truncated": total > min(len(operations), MAX_FAILED_OPERATIONS),
+        }
+
     @server.tool(
         description=(
             "Start here for 'what is broken' or 'why did last night's run fail'. Returns every "
@@ -485,10 +546,11 @@ def _register_triage(server: FastMCP, client: httpx.AsyncClient, ui_base_url: st
         description=(
             "Deep dive on one failed task run: its status and messages, taskParameters and "
             "runParameters, the statuses of the upstream tasks it depends on, the tail of its "
-            "newest log, and its artifact filenames. "
-            "Over-long parameter values, the log tail and the artifact list are capped, and the "
-            "response says which parts were cut. Use download_task_run_log or "
-            "download_task_run_artifact when the tail is not enough."
+            "newest log, its artifact filenames, and its failed and warning operations (e.g. "
+            "dbt models), however old the run. "
+            "Over-long values and lists are capped, and the response says which parts were "
+            "cut. Use download_task_run_log or download_task_run_artifact when the tail is not "
+            "enough."
         ),
         annotations=ToolAnnotations(title="Diagnose Task Run", readOnlyHint=True),
     )
@@ -550,6 +612,7 @@ def _register_triage(server: FastMCP, client: httpx.AsyncClient, ui_base_url: st
             "logTail": await _log_tail(base_path, account_id=account_id),
             "artifactCount": len(filenames),
             "artifacts": filenames[:MAX_ARTIFACT_NAMES],
+            "failedOperations": await _failed_operations(task_run, account_id),
             "lineageUrl": _lineage_url(ui_base_url, pipeline_run_id),
         }
 
