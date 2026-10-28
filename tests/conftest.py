@@ -95,6 +95,7 @@ EXPECTED_TOOLS = {
     "update_pipeline",
     "update_skill",
     "validate_pipeline",
+    "watch_run",
     "whats_broken",
 }
 

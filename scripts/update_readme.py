@@ -66,6 +66,11 @@ HANDWRITTEN_ROWS = (
         "Triage",
     ),
     (
+        "watch_run",
+        "Follow a pipeline run: waits briefly for it to finish, then returns its status, task run statuses and failed tasks.",
+        "Triage",
+    ),
+    (
         "pipeline_context",
         "A pipeline's metadata, full definition, integrations, recent run outcomes and median succeeded duration.",
         "Triage",

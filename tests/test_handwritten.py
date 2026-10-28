@@ -9,6 +9,7 @@ import pytest
 from fastmcp import Client, FastMCP
 from fastmcp.exceptions import ToolError
 
+from orchestramcp import handwritten
 from orchestramcp.client import build_http_client
 from orchestramcp.handwritten import (
     LOG_TAIL_BYTES,
@@ -710,6 +711,7 @@ ACCOUNT_ID = "3f2504e0-4f89-41d3-9a0c-0305e82c3302"
 
 # Every request each tool can make, so the calls below reach every call site.
 ACCOUNT_ROUTES = {
+    r"/status$": {"id": "pr", "runStatus": "SUCCEEDED"},
     r"/environments$": [{"environmentId": "env-1", "name": "Production"}],
     r"/pipeline_runs/[^/]+/task_runs$": _page([]),
     r"/pipeline_runs$": _page([{"id": "run-1", "pipelineId": "pipe-1"}]),
@@ -726,6 +728,7 @@ ACCOUNT_ROUTES = {
 ACCOUNT_TOOL_CALLS = {
     "whats_broken": {"environment": "Production"},
     "diagnose": {"task_run_id": "tr-1"},
+    "watch_run": {"pipeline_run_id": "pr"},
     "pipeline_context": {"pipeline_id_or_alias": "nightly"},
     "download_task_run_log": {"pipeline_run_id": "pr", "task_run_id": "tr", "filename": "a.log"},
     "download_task_run_artifact": {
@@ -786,3 +789,75 @@ async def test_account_id_that_is_not_a_uuid4_is_rejected_before_any_request():
             await client.call_tool("diagnose", {"task_run_id": "tr-1", "account_id": "acme"})
 
     assert requests == []
+
+
+# --- watch_run ---
+
+
+@pytest.fixture
+def quick_watch(monkeypatch):
+    monkeypatch.setattr(handwritten, "WATCH_POLL_SECONDS", 0)
+    monkeypatch.setattr(handwritten, "WATCH_SECONDS", 1)
+
+
+def _run_statuses(*statuses):
+    """Answer each status check with the next status, repeating the last."""
+    remaining = list(statuses)
+
+    def status(request):
+        current = remaining.pop(0) if len(remaining) > 1 else remaining[0]
+        return {"id": "run-1", "pipelineName": "orders", "runStatus": current}
+
+    return status
+
+
+async def test_watch_run_waits_for_the_run_to_finish(quick_watch):
+    server, requests = _triage_server(
+        {
+            r"/status$": _run_statuses("RUNNING", "RUNNING", "FAILED"),
+            r"/pipeline_runs/[^/]+/task_runs$": _page(
+                [
+                    {"id": "tr-1", "taskName": "extract", "status": "SUCCEEDED"},
+                    {"id": "tr-2", "taskName": "load", "status": "FAILED", "message": "boom"},
+                ]
+            ),
+        }
+    )
+
+    async with Client(server) as client:
+        result = await client.call_tool("watch_run", {"pipeline_run_id": "run-1"})
+
+    assert result.data["finished"] is True
+    assert result.data["runStatus"] == "FAILED"
+    assert result.data["taskStatusCounts"] == {"SUCCEEDED": 1, "FAILED": 1}
+    assert [task["task"] for task in result.data["failedTasks"]] == ["load"]
+    assert result.data["taskRunsTruncated"] is False
+    assert len([r for r in requests if r.url.path.endswith("/status")]) == 3
+
+
+async def test_watch_run_returns_an_unfinished_run_when_its_time_is_up(monkeypatch):
+    monkeypatch.setattr(handwritten, "WATCH_SECONDS", 0)
+    server, _ = _triage_server(
+        {
+            r"/status$": _run_statuses("RUNNING"),
+            r"/pipeline_runs/[^/]+/task_runs$": _page(
+                [{"id": "tr-1", "taskName": "extract", "status": "RUNNING"}]
+            ),
+        }
+    )
+
+    async with Client(server) as client:
+        result = await client.call_tool("watch_run", {"pipeline_run_id": "run-1"})
+
+    assert result.data["finished"] is False
+    assert result.data["taskStatusCounts"] == {"RUNNING": 1}
+
+
+async def test_watch_run_reports_an_unknown_pipeline_run_id(quick_watch):
+    server, _ = _triage_server(
+        {r"/status$": lambda request: httpx.Response(404, json={"detail": "x"})}
+    )
+
+    async with Client(server) as client:
+        with pytest.raises(ToolError, match="No pipeline run found with ID run-1"):
+            await client.call_tool("watch_run", {"pipeline_run_id": "run-1"})
