@@ -498,8 +498,8 @@ def _register_triage(
         """One account's failures, or why it could not be swept, so it cannot sink the rest."""
         try:
             broken = await _broken_in(environment, time_from, time_to, account_id=account["id"])
-        except (OrchestraAPIError, ToolError) as exc:
-            broken = {"unavailable": str(exc)}
+        except (OrchestraAPIError, ToolError, httpx.HTTPError) as exc:
+            broken = {"unavailable": str(exc) or type(exc).__name__}
         return {**_compact({"accountId": account["id"], "account": account.get("name")}), **broken}
 
     @server.tool(
@@ -527,11 +527,13 @@ def _register_triage(
             return {"window": window, **broken}
         if account_id:
             raise ToolError("Pass account_id or account_ids, not both.")
+        if not account_ids:
+            raise ToolError("account_ids is empty; pass account IDs or 'all'.")
 
         if account_ids == "all":
             accounts = (await platform_client.get("/accounts")).json()
         else:
-            accounts = [{"id": str(account)} for account in account_ids]
+            accounts = [{"id": str(account)} for account in dict.fromkeys(account_ids)]
         swept = await asyncio.gather(
             *(
                 _broken_in_account(account, environment, time_from, time_to)

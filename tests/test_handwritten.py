@@ -222,8 +222,10 @@ def _triage_server(routes, ui_base_url="https://app.getorchestra.io"):
     os.environ["ORCHESTRA_API_KEY"] = "test-api-key"
     client = build_http_client("https://example.com/api/engine")
     client._transport = httpx.MockTransport(handler)
+    platform_client = build_http_client("https://example.com/public/v1")
+    platform_client._transport = httpx.MockTransport(handler)
     server = FastMCP("test")
-    register_handwritten(server, client, ui_base_url, client)
+    register_handwritten(server, client, ui_base_url, platform_client)
     return server, requests
 
 
@@ -392,7 +394,10 @@ def _failing_run_in_each_account(request):
 async def test_whats_broken_sweeps_every_account_and_survives_one_it_cannot_read():
     server, _ = _triage_server(
         {
-            r"/accounts$": [{"id": ACCOUNT_A, "name": "Acme"}, {"id": ACCOUNT_B, "name": "Beta"}],
+            r"^/public/v1/accounts$": [
+                {"id": ACCOUNT_A, "name": "Acme"},
+                {"id": ACCOUNT_B, "name": "Beta"},
+            ],
             r"/public/pipeline_runs$": _failing_run_in_each_account,
             r"/public/task_runs$": _page([]),
         }
@@ -423,6 +428,23 @@ async def test_whats_broken_sweeps_the_listed_accounts_up_to_the_cap():
     swept = {r.headers["X-Orchestra-Account-Id"] for r in requests}
     assert swept == set(ids[:MAX_SWEPT_ACCOUNTS])
     assert not any(r.url.path.endswith("/accounts") for r in requests)
+
+
+async def test_whats_broken_sweeps_a_repeated_account_once():
+    server, _ = _triage_server({r"/public/pipeline_runs$": _page([])})
+
+    async with Client(server) as client:
+        result = await client.call_tool("whats_broken", {"account_ids": [ACCOUNT_A, ACCOUNT_A]})
+
+    assert [a["accountId"] for a in result.data["accounts"]] == [ACCOUNT_A]
+
+
+async def test_whats_broken_refuses_an_empty_account_list():
+    server, _ = _triage_server({})
+
+    async with Client(server) as client:
+        with pytest.raises(ToolError, match="account_ids is empty"):
+            await client.call_tool("whats_broken", {"account_ids": []})
 
 
 async def test_whats_broken_refuses_account_id_with_account_ids():
