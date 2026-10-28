@@ -13,12 +13,15 @@ from orchestramcp.client import build_http_client
 from orchestramcp.handwritten import (
     LOG_TAIL_BYTES,
     MAX_ARTIFACT_NAMES,
+    MAX_DETAIL_CHARS,
     MAX_DOWNLOAD_BYTES,
     MAX_FAILED_TASKS_PER_RUN,
     MAX_SIBLING_TASK_RUNS,
     MAX_WINDOW_HOURS,
+    OPERATIONS_GRACE,
     RUN_TASK_RUNS_PAGE_SIZE,
     _duration_seconds,
+    _operations_window,
     register_handwritten,
 )
 
@@ -437,6 +440,146 @@ async def test_diagnose_reports_the_seven_day_limit_when_the_task_run_is_not_fou
     async with Client(server) as client:
         with pytest.raises(ToolError, match="last 7 days"):
             await client.call_tool("diagnose", {"task_run_id": "tr-1"})
+
+
+DIAGNOSED_TASK_RUN = {
+    "id": "tr-1",
+    "pipelineRunId": "run-1",
+    "taskName": "dbt_build",
+    "integration": "DBT_CORE",
+    "connectionId": "dbt_prod",
+    "status": "FAILED",
+    "createdAt": "2026-10-20T16:05:10+00:00",
+    "completedAt": "2026-10-20T16:06:50+00:00",
+}
+
+
+def _diagnose_routes(operations, connection):
+    return {
+        r"/pipeline_runs/[^/]+/task_runs$": _page([]),
+        r"/task_runs$": _page([DIAGNOSED_TASK_RUN]),
+        r"/logs$": {"filenames": []},
+        r"/artifacts$": {"filenames": []},
+        r"/operations$": operations,
+        r"/integrations/DBT_CORE/auth/dbt_prod$": connection,
+    }
+
+
+async def test_diagnose_summarises_operations_and_the_connection_without_its_credentials():
+    operations = [
+        {
+            "id": "op-1",
+            "operationName": "fct_orders",
+            "operationType": "MODEL",
+            "operationStatus": "FAILED",
+            "message": "Database Error",
+            "externalDetail": "select " + "x" * 2000,
+            "operationDuration": 12.5,
+        },
+        {
+            "id": "op-2",
+            "operationName": "stg_a",
+            "operationStatus": "SUCCEEDED",
+            "operationDuration": 40,
+        },
+        {
+            "id": "op-3",
+            "operationName": "stg_b",
+            "operationStatus": "SUCCEEDED",
+            "operationDuration": 90,
+            "anomalies": TASK_ANOMALY,
+        },
+        {
+            "id": "op-4",
+            "operationName": "src.orders",
+            "operationStatus": "WARNING",
+            "operationDuration": 1,
+        },
+    ]
+    connection = {
+        "connectionId": "dbt_prod",
+        "connectionName": "dbt prod",
+        "authStatus": "FAILED",
+        "credentialStore": "AZURE_KEY_VAULT",
+        "message": "dbt Core validation failed",
+        "externalMessage": "preamble " * 200 + "Connection test: FAILED token expired",
+        "parameters": {"profiles_yaml": "token: d*******51"},
+    }
+    server, requests = _triage_server(_diagnose_routes(_page(operations), connection))
+
+    async with Client(server) as client:
+        result = await client.call_tool("diagnose", {"task_run_id": "tr-1"})
+
+    summary = result.data["operations"]
+    assert summary["statusCounts"] == {"FAILED": 1, "SUCCEEDED": 2, "WARNING": 1}
+    assert [op["name"] for op in summary["failed"]] == ["fct_orders", "src.orders"]
+    assert len(summary["failed"][0]["detail"]) < MAX_DETAIL_CHARS + 50
+    assert [op["name"] for op in summary["anomalous"]] == ["stg_b"]
+    assert [op["name"] for op in summary["slowest"]][:2] == ["stg_b", "stg_a"]
+    assert summary["truncated"] is False
+
+    conn = result.data["connection"]
+    assert conn["authStatus"] == "FAILED"
+    assert conn["credentialStore"] == "AZURE_KEY_VAULT"
+    assert conn["externalMessage"].endswith("token expired")
+    assert "parameters" not in conn and "d*******51" not in json.dumps(result.data)
+
+    op_params = _params(requests, r"/operations$")[0]
+    assert op_params["task_run_id"] == "tr-1"
+    assert op_params["time_from"] == "2026-10-20T16:05:10+00:00"
+    assert (
+        datetime.fromisoformat(op_params["time_to"])
+        == datetime.fromisoformat(DIAGNOSED_TASK_RUN["completedAt"]) + OPERATIONS_GRACE
+    )
+
+
+async def test_diagnose_fetches_failures_separately_when_the_operations_listing_is_capped():
+    def operations(request):
+        if request.url.params.get("status") == "FAILED":
+            return _page(
+                [{"id": "op-late", "operationName": "late_fail", "operationStatus": "FAILED"}]
+            )
+        if request.url.params.get("status") == "WARNING":
+            return _page([])
+        page = int(request.url.params["page"])
+        batch = [{"id": f"op-{page}", "operationStatus": "SUCCEEDED"}] if page == 1 else []
+        return _page(batch, total=5000, page=page)
+
+    server, _ = _triage_server(_diagnose_routes(operations, {"authStatus": "SUCCEEDED"}))
+
+    async with Client(server) as client:
+        result = await client.call_tool("diagnose", {"task_run_id": "tr-1"})
+
+    summary = result.data["operations"]
+    assert summary["total"] == 5000
+    assert [op["name"] for op in summary["failed"]] == ["late_fail"]
+    assert summary["truncated"] is True
+
+
+async def test_diagnose_keeps_the_rest_when_operations_or_the_connection_cannot_be_read():
+    forbidden = lambda request: httpx.Response(403, json={"detail": "Forbidden"})  # noqa: E731
+    server, _ = _triage_server(_diagnose_routes(forbidden, forbidden))
+
+    async with Client(server) as client:
+        result = await client.call_tool("diagnose", {"task_run_id": "tr-1"})
+
+    assert "403" in result.data["operations"]["unavailable"]
+    assert "403" in result.data["connection"]["unavailable"]
+    assert result.data["taskRun"]["taskRunId"] == "tr-1"
+
+
+def test_operations_window_spans_the_task_run_and_never_exceeds_seven_days():
+    finished = _operations_window(DIAGNOSED_TASK_RUN)
+    assert finished["time_from"] == DIAGNOSED_TASK_RUN["createdAt"]
+
+    running = _operations_window({"createdAt": DIAGNOSED_TASK_RUN["createdAt"]})
+    assert datetime.fromisoformat(running["time_to"]) > datetime.fromisoformat(
+        DIAGNOSED_TASK_RUN["completedAt"]
+    )  # still running: the window runs to now
+
+    unknown = _operations_window({})
+    span = datetime.fromisoformat(unknown["time_to"]) - datetime.fromisoformat(unknown["time_from"])
+    assert span < timedelta(hours=MAX_WINDOW_HOURS)
 
 
 async def test_diagnose_survives_a_log_download_failure():
