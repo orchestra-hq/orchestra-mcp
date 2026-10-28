@@ -99,16 +99,6 @@ def _window(hours: int) -> tuple[str, str, int]:
     return time_from.isoformat(), now.isoformat(), hours
 
 
-def _duration_seconds(started_at: str | None, completed_at: str | None) -> int | None:
-    """Whole seconds between two API timestamps, or None if either cannot be read."""
-    try:
-        started = datetime.fromisoformat(started_at)
-        completed = datetime.fromisoformat(completed_at)
-        return round((completed - started).total_seconds())
-    except (TypeError, ValueError):
-        return None
-
-
 def _bound_strings(value, limit: int = MAX_PARAMETER_CHARS):
     """Cut over-long strings anywhere inside a parameter object, keeping its shape.
 
@@ -135,6 +125,16 @@ def _parse_time(value: str | None) -> datetime | None:
     return parsed if parsed.tzinfo else parsed.replace(tzinfo=UTC)
 
 
+def _duration_seconds(started_at: str | None, completed_at: str | None) -> int | None:
+    """Whole seconds between two API timestamps, or None if either cannot be read."""
+    try:
+        started = datetime.fromisoformat(started_at)
+        completed = datetime.fromisoformat(completed_at)
+        return round((completed - started).total_seconds())
+    except (TypeError, ValueError):
+        return None
+
+
 def _task_run_window(task_run: dict) -> dict:
     """The task run's own lifetime, since /operations otherwise searches only the last day."""
     now = datetime.now(tz=UTC)
@@ -142,7 +142,7 @@ def _task_run_window(task_run: dict) -> dict:
     time_to = min(completed + OPERATIONS_GRACE, now) if completed else now
     widest = time_to - timedelta(hours=MAX_WINDOW_HOURS) + timedelta(seconds=1)
     created = _parse_time(task_run.get("createdAt"))
-    time_from = max(created, widest) if created else widest
+    time_from = min(max(created, widest), time_to) if created else widest
     return {"time_from": time_from.isoformat(), "time_to": time_to.isoformat()}
 
 
@@ -410,9 +410,9 @@ def _register_triage(server: FastMCP, client: httpx.AsyncClient, ui_base_url: st
             "truncated": received >= LOG_TAIL_BYTES,
         }
 
-    async def _failed_operations(task_run: dict, account_id: UUID | None) -> dict:
+    async def _failed_operations(task_run_id: str, task_run: dict, account_id: UUID | None) -> dict:
         """The task run's failed and warning operations, e.g. the dbt models that broke."""
-        params = {"task_run_id": task_run["id"], **_task_run_window(task_run)}
+        params = {"task_run_id": task_run_id, **_task_run_window(task_run)}
         try:
             pages = await asyncio.gather(
                 *(
@@ -424,8 +424,8 @@ def _register_triage(server: FastMCP, client: httpx.AsyncClient, ui_base_url: st
                     for status in ("FAILED", "WARNING")
                 )
             )
-        except OrchestraAPIError as exc:
-            return {"unavailable": str(exc)}
+        except (OrchestraAPIError, httpx.HTTPError) as exc:
+            return {"unavailable": str(exc) or type(exc).__name__}
         operations = [op for page in pages for op in page.get("results") or []]
         total = sum(page.get("total") or 0 for page in pages)
         return {
@@ -583,7 +583,11 @@ def _register_triage(server: FastMCP, client: httpx.AsyncClient, ui_base_url: st
         ]
 
         base_path = f"/public/pipeline_runs/{pipeline_run_id}/task_runs/{task_run_id}"
-        artifacts = await _get(f"{base_path}/artifacts", account_id=account_id)
+        artifacts, log_tail, failed_operations = await asyncio.gather(
+            _get(f"{base_path}/artifacts", account_id=account_id),
+            _log_tail(base_path, account_id=account_id),
+            _failed_operations(task_run_id, task_run, account_id),
+        )
 
         detail = _task_digest(task_run)
         detail.update(
@@ -609,10 +613,10 @@ def _register_triage(server: FastMCP, client: httpx.AsyncClient, ui_base_url: st
             # unresolved, which would otherwise be indistinguishable from a dependency
             # that has no task run at all.
             "upstreamTruncated": sibling_total > len(siblings),
-            "logTail": await _log_tail(base_path, account_id=account_id),
+            "logTail": log_tail,
             "artifactCount": len(filenames),
             "artifacts": filenames[:MAX_ARTIFACT_NAMES],
-            "failedOperations": await _failed_operations(task_run, account_id),
+            "failedOperations": failed_operations,
             "lineageUrl": _lineage_url(ui_base_url, pipeline_run_id),
         }
 
