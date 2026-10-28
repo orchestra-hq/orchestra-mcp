@@ -132,20 +132,27 @@ def _bound_strings(value, limit: int = MAX_PARAMETER_CHARS):
     return value
 
 
-def _operations_window(task_run: dict) -> dict:
-    """The task run's own lifetime, as an operations lookup's time_from/time_to.
+def _parse_time(value: str | None) -> datetime | None:
+    try:
+        return datetime.fromisoformat(value)
+    except (TypeError, ValueError):
+        return None
 
-    /operations has no get-by-task-run endpoint, and its list applies a 24-hour
-    default window even when filtered by task run.
+
+def _operations_window(task_run: dict) -> tuple[dict, bool]:
+    """The task run's own lifetime as an operations lookup window, and whether it was cut.
+
+    /operations has no get-by-task-run endpoint, its list applies a 24-hour default
+    window even when filtered by task run, and it rejects windows over 7 days.
     """
     now = datetime.now(tz=UTC)
-    completed = task_run.get("completedAt")
-    end = min(datetime.fromisoformat(completed) + OPERATIONS_GRACE, now) if completed else now
+    completed = _parse_time(task_run.get("completedAt"))
+    end = min(completed + OPERATIONS_GRACE, now) if completed else now
     widest = end - timedelta(hours=MAX_WINDOW_HOURS) + timedelta(seconds=1)
-    return {
-        "time_from": task_run.get("createdAt") or widest.isoformat(),
-        "time_to": end.isoformat(),
-    }
+    created = _parse_time(task_run.get("createdAt"))
+    start = max(created, widest) if created else widest
+    window = {"time_from": start.isoformat(), "time_to": end.isoformat()}
+    return window, created is None or created < widest
 
 
 def _anomalies(record: dict) -> list[dict]:
@@ -414,10 +421,11 @@ def _register_triage(server: FastMCP, client: httpx.AsyncClient, ui_base_url: st
 
     async def _operations(task_run: dict, account_id: UUID | None) -> dict:
         """Count a task run's operations by status and list the failed ones."""
+        window, window_cut = _operations_window(task_run)
         try:
             operations, total = await _paged(
                 "/public/operations",
-                {"task_run_id": task_run["id"], **_operations_window(task_run)},
+                {"task_run_id": task_run["id"], **window},
                 OPERATIONS_PAGE_SIZE,
                 MAX_OPERATIONS,
                 account_id=account_id,
@@ -439,7 +447,9 @@ def _register_triage(server: FastMCP, client: httpx.AsyncClient, ui_base_url: st
                 )
                 for op in failed[:MAX_FAILED_OPERATIONS]
             ],
-            "truncated": total > len(operations) or len(failed) > MAX_FAILED_OPERATIONS,
+            "truncated": (
+                window_cut or total > len(operations) or len(failed) > MAX_FAILED_OPERATIONS
+            ),
         }
 
     @server.tool(

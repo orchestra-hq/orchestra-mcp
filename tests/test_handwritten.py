@@ -2,7 +2,7 @@ import base64
 import json
 import os
 import re
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 
 import httpx
 import pytest
@@ -494,6 +494,19 @@ async def test_diagnose_lists_failed_operations_over_the_task_runs_lifetime():
     assert datetime.fromisoformat(op_params["time_to"]) == (
         datetime.fromisoformat(OLD_TASK_RUN["completedAt"]) + OPERATIONS_GRACE
     )
+
+
+async def test_diagnose_clamps_the_operations_window_and_survives_a_bad_timestamp():
+    ten_days_ago = (datetime.now(tz=UTC) - timedelta(days=10)).isoformat()
+    still_running = {**OLD_TASK_RUN, "createdAt": ten_days_ago, "completedAt": "not a time"}
+    routes = {**_diagnose_routes(_page([])), r"/public/task_runs/[^/]+$": still_running}
+    server, requests = _triage_server(routes)
+
+    async with Client(server) as client:
+        result = await client.call_tool("diagnose", {"task_run_id": "tr-1"})
+
+    _assert_widest_window(_params(requests, r"/operations$")[0])
+    assert result.data["operations"]["truncated"] is True  # the run's first 3 days are cut
 
 
 async def test_diagnose_counts_operations_across_every_page():
