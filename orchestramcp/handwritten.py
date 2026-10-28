@@ -1,8 +1,6 @@
-import asyncio
 import base64
 import json
 import statistics
-from collections import Counter
 from datetime import UTC, datetime, timedelta
 from typing import Annotated, Any
 from uuid import UUID
@@ -77,15 +75,6 @@ MAX_RECENT_RUNS = 20
 MAX_ARTIFACT_NAMES = 50
 MAX_PARAMETER_CHARS = 2 * 1024
 LOG_TAIL_BYTES = 8 * 1024
-OPERATIONS_PAGE_SIZE = 100
-# Paged in full for the status counts, up to this many, so the Lambda's time stays bounded.
-MAX_OPERATIONS = 2000
-MAX_FAILED_OPERATIONS = 20
-MAX_DETAIL_CHARS = 500
-
-# An integration reports its operations after the task run completes, so the
-# operations lookup runs this far past the task run's completion.
-OPERATIONS_GRACE = timedelta(hours=1)
 
 
 def _lineage_url(ui_base_url: str, pipeline_run_id: str) -> str:
@@ -130,22 +119,6 @@ def _bound_strings(value, limit: int = MAX_PARAMETER_CHARS):
     if isinstance(value, list):
         return [_bound_strings(item, limit) for item in value]
     return value
-
-
-def _operations_window(task_run: dict) -> dict:
-    """The task run's own lifetime, as an operations lookup's time_from/time_to.
-
-    /operations has no get-by-task-run endpoint, and its list applies a 24-hour
-    default window even when filtered by task run.
-    """
-    now = datetime.now(tz=UTC)
-    completed = task_run.get("completedAt")
-    end = min(datetime.fromisoformat(completed) + OPERATIONS_GRACE, now) if completed else now
-    widest = end - timedelta(hours=MAX_WINDOW_HOURS) + timedelta(seconds=1)
-    return {
-        "time_from": task_run.get("createdAt") or widest.isoformat(),
-        "time_to": end.isoformat(),
-    }
 
 
 def _anomalies(record: dict) -> list[dict]:
@@ -412,36 +385,6 @@ def _register_triage(server: FastMCP, client: httpx.AsyncClient, ui_base_url: st
             "truncated": received >= LOG_TAIL_BYTES,
         }
 
-    async def _operations(task_run: dict, account_id: UUID | None) -> dict:
-        """Count a task run's operations by status and list the failed ones."""
-        try:
-            operations, total = await _paged(
-                "/public/operations",
-                {"task_run_id": task_run["id"], **_operations_window(task_run)},
-                OPERATIONS_PAGE_SIZE,
-                MAX_OPERATIONS,
-                account_id=account_id,
-            )
-        except OrchestraAPIError as exc:
-            return {"unavailable": str(exc)}
-        failed = [op for op in operations if op.get("operationStatus") in ("FAILED", "WARNING")]
-        return {
-            "total": total,
-            "statusCounts": dict(Counter(op.get("operationStatus") for op in operations)),
-            "failed": [
-                _compact(
-                    {
-                        "name": op.get("operationName"),
-                        "status": op.get("operationStatus"),
-                        "message": op.get("message"),
-                        "detail": _bound_strings(op.get("externalDetail"), MAX_DETAIL_CHARS),
-                    }
-                )
-                for op in failed[:MAX_FAILED_OPERATIONS]
-            ],
-            "truncated": total > len(operations) or len(failed) > MAX_FAILED_OPERATIONS,
-        }
-
     @server.tool(
         description=(
             "Start here for 'what is broken' or 'why did last night's run fail'. Returns every "
@@ -542,11 +485,10 @@ def _register_triage(server: FastMCP, client: httpx.AsyncClient, ui_base_url: st
         description=(
             "Deep dive on one failed task run: its status and messages, taskParameters and "
             "runParameters, the statuses of the upstream tasks it depends on, the tail of its "
-            "newest log, its artifact filenames, and its operations by status with the failed "
-            "ones (e.g. dbt models). Over-long values and lists are capped, and the response "
-            "says which parts were cut. Use "
-            "download_task_run_log, download_task_run_artifact or list_operations when the "
-            "summary is not enough."
+            "newest log, and its artifact filenames. "
+            "Over-long parameter values, the log tail and the artifact list are capped, and the "
+            "response says which parts were cut. Use download_task_run_log or "
+            "download_task_run_artifact when the tail is not enough."
         ),
         annotations=ToolAnnotations(title="Diagnose Task Run", readOnlyHint=True),
     )
@@ -579,11 +521,7 @@ def _register_triage(server: FastMCP, client: httpx.AsyncClient, ui_base_url: st
         ]
 
         base_path = f"/public/pipeline_runs/{pipeline_run_id}/task_runs/{task_run_id}"
-        artifacts, log_tail, operations = await asyncio.gather(
-            _get(f"{base_path}/artifacts", account_id=account_id),
-            _log_tail(base_path, account_id=account_id),
-            _operations(task_run, account_id),
-        )
+        artifacts = await _get(f"{base_path}/artifacts", account_id=account_id)
 
         detail = _task_digest(task_run)
         detail.update(
@@ -609,10 +547,9 @@ def _register_triage(server: FastMCP, client: httpx.AsyncClient, ui_base_url: st
             # unresolved, which would otherwise be indistinguishable from a dependency
             # that has no task run at all.
             "upstreamTruncated": sibling_total > len(siblings),
-            "logTail": log_tail,
+            "logTail": await _log_tail(base_path, account_id=account_id),
             "artifactCount": len(filenames),
             "artifacts": filenames[:MAX_ARTIFACT_NAMES],
-            "operations": operations,
             "lineageUrl": _lineage_url(ui_base_url, pipeline_run_id),
         }
 
