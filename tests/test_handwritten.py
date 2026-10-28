@@ -21,7 +21,6 @@ from orchestramcp.handwritten import (
     OPERATIONS_GRACE,
     RUN_TASK_RUNS_PAGE_SIZE,
     _duration_seconds,
-    _operations_window,
     register_handwritten,
 )
 
@@ -194,6 +193,11 @@ def _page(results, total=None, page=1):
         "total": len(results) if total is None else total,
         "results": results,
     }
+
+
+def _one(results):
+    """A single-record response, written like the _page fixture it replaces."""
+    return results[0]
 
 
 def _triage_server(routes, ui_base_url="https://app.getorchestra.io"):
@@ -383,7 +387,7 @@ async def test_diagnose_gathers_upstream_statuses_log_tail_and_artifacts():
                     {"id": "tr-1", "taskId": "load", "taskName": "load", "status": "FAILED"},
                 ]
             ),
-            r"/task_runs$": _page(
+            r"/public/task_runs/[^/]+$": _one(
                 [
                     {
                         "id": "tr-1",
@@ -434,126 +438,67 @@ async def test_diagnose_gathers_upstream_statuses_log_tail_and_artifacts():
     assert dict(download.url.params)["filename"] == "attempt-2.log"
 
 
-async def test_diagnose_reports_the_seven_day_limit_when_the_task_run_is_not_found():
-    server, _ = _triage_server({r"/task_runs$": _page([])})
+async def test_diagnose_reports_an_unknown_task_run_id():
+    server, _ = _triage_server(
+        {r"/public/task_runs/[^/]+$": lambda request: httpx.Response(404, json={"detail": "x"})}
+    )
 
     async with Client(server) as client:
-        with pytest.raises(ToolError, match="last 7 days"):
+        with pytest.raises(ToolError, match="No task run found with ID tr-1"):
             await client.call_tool("diagnose", {"task_run_id": "tr-1"})
 
 
-DIAGNOSED_TASK_RUN = {
+OLD_TASK_RUN = {
     "id": "tr-1",
     "pipelineRunId": "run-1",
-    "taskName": "dbt_build",
     "integration": "DBT_CORE",
     "connectionId": "dbt_prod",
-    "status": "FAILED",
-    "createdAt": "2026-10-20T16:05:10+00:00",
-    "completedAt": "2026-10-20T16:06:50+00:00",
+    "createdAt": "2026-10-05T10:00:00+00:00",
+    "completedAt": "2026-10-05T10:05:00+00:00",
 }
 
 
 def _diagnose_routes(operations, connection):
     return {
         r"/pipeline_runs/[^/]+/task_runs$": _page([]),
-        r"/task_runs$": _page([DIAGNOSED_TASK_RUN]),
+        r"/public/task_runs/[^/]+$": OLD_TASK_RUN,
         r"/logs$": {"filenames": []},
         r"/artifacts$": {"filenames": []},
         r"/operations$": operations,
-        r"/integrations/DBT_CORE/auth/dbt_prod$": connection,
+        r"/auth/dbt_prod$": connection,
     }
 
 
-async def test_diagnose_summarises_operations_and_the_connection_without_its_credentials():
+async def test_diagnose_lists_failed_operations_and_connection_status_without_secrets():
     operations = [
-        {
-            "id": "op-1",
-            "operationName": "fct_orders",
-            "operationType": "MODEL",
-            "operationStatus": "FAILED",
-            "message": "Database Error",
-            "externalDetail": "select " + "x" * 2000,
-            "operationDuration": 12.5,
-        },
-        {
-            "id": "op-2",
-            "operationName": "stg_a",
-            "operationStatus": "SUCCEEDED",
-            "operationDuration": 40,
-        },
-        {
-            "id": "op-3",
-            "operationName": "stg_b",
-            "operationStatus": "SUCCEEDED",
-            "operationDuration": 90,
-            "anomalies": TASK_ANOMALY,
-        },
-        {
-            "id": "op-4",
-            "operationName": "src.orders",
-            "operationStatus": "WARNING",
-            "operationDuration": 1,
-        },
+        {"operationName": "fct_orders", "operationStatus": "FAILED", "externalDetail": "x" * 2000},
+        {"operationName": "stg_orders", "operationStatus": "SUCCEEDED"},
     ]
     connection = {
-        "connectionId": "dbt_prod",
-        "connectionName": "dbt prod",
         "authStatus": "FAILED",
         "credentialStore": "AZURE_KEY_VAULT",
-        "message": "dbt Core validation failed",
-        "externalMessage": "preamble " * 200 + "Connection test: FAILED token expired",
-        "parameters": {"profiles_yaml": "token: d*******51"},
+        "externalMessage": "preamble " * 200 + "token expired",
+        "parameters": {"token": "d*******51"},
     }
     server, requests = _triage_server(_diagnose_routes(_page(operations), connection))
 
     async with Client(server) as client:
         result = await client.call_tool("diagnose", {"task_run_id": "tr-1"})
 
-    summary = result.data["operations"]
-    assert summary["statusCounts"] == {"FAILED": 1, "SUCCEEDED": 2, "WARNING": 1}
-    assert [op["name"] for op in summary["failed"]] == ["fct_orders", "src.orders"]
-    assert len(summary["failed"][0]["detail"]) < MAX_DETAIL_CHARS + 50
-    assert [op["name"] for op in summary["anomalous"]] == ["stg_b"]
-    assert [op["name"] for op in summary["slowest"]][:2] == ["stg_b", "stg_a"]
-    assert summary["truncated"] is False
-
+    ops = result.data["operations"]
+    assert ops["statusCounts"] == {"FAILED": 1, "SUCCEEDED": 1}
+    assert [op["name"] for op in ops["failed"]] == ["fct_orders"]
+    assert len(ops["failed"][0]["detail"]) < MAX_DETAIL_CHARS + 50
     conn = result.data["connection"]
-    assert conn["authStatus"] == "FAILED"
-    assert conn["credentialStore"] == "AZURE_KEY_VAULT"
-    assert conn["externalMessage"].endswith("token expired")
-    assert "parameters" not in conn and "d*******51" not in json.dumps(result.data)
+    assert conn["authStatus"] == "FAILED" and conn["externalMessage"].endswith("token expired")
+    assert "d*******51" not in json.dumps(result.data)
 
+    # A 23-day-old task run: the operations lookup spans its lifetime, not the last 24 hours.
     op_params = _params(requests, r"/operations$")[0]
-    assert op_params["task_run_id"] == "tr-1"
-    assert op_params["time_from"] == "2026-10-20T16:05:10+00:00"
-    assert (
-        datetime.fromisoformat(op_params["time_to"])
-        == datetime.fromisoformat(DIAGNOSED_TASK_RUN["completedAt"]) + OPERATIONS_GRACE
+    assert op_params["time_from"] == OLD_TASK_RUN["createdAt"]
+    assert datetime.fromisoformat(op_params["time_to"]) == (
+        datetime.fromisoformat(OLD_TASK_RUN["completedAt"]) + OPERATIONS_GRACE
     )
-
-
-async def test_diagnose_fetches_failures_separately_when_the_operations_listing_is_capped():
-    def operations(request):
-        if request.url.params.get("status") == "FAILED":
-            return _page(
-                [{"id": "op-late", "operationName": "late_fail", "operationStatus": "FAILED"}]
-            )
-        if request.url.params.get("status") == "WARNING":
-            return _page([])
-        page = int(request.url.params["page"])
-        batch = [{"id": f"op-{page}", "operationStatus": "SUCCEEDED"}] if page == 1 else []
-        return _page(batch, total=5000, page=page)
-
-    server, _ = _triage_server(_diagnose_routes(operations, {"authStatus": "SUCCEEDED"}))
-
-    async with Client(server) as client:
-        result = await client.call_tool("diagnose", {"task_run_id": "tr-1"})
-
-    summary = result.data["operations"]
-    assert summary["total"] == 5000
-    assert [op["name"] for op in summary["failed"]] == ["late_fail"]
-    assert summary["truncated"] is True
 
 
 async def test_diagnose_keeps_the_rest_when_operations_or_the_connection_cannot_be_read():
@@ -568,25 +513,13 @@ async def test_diagnose_keeps_the_rest_when_operations_or_the_connection_cannot_
     assert result.data["taskRun"]["taskRunId"] == "tr-1"
 
 
-def test_operations_window_spans_the_task_run_and_never_exceeds_seven_days():
-    finished = _operations_window(DIAGNOSED_TASK_RUN)
-    assert finished["time_from"] == DIAGNOSED_TASK_RUN["createdAt"]
-
-    running = _operations_window({"createdAt": DIAGNOSED_TASK_RUN["createdAt"]})
-    assert datetime.fromisoformat(running["time_to"]) > datetime.fromisoformat(
-        DIAGNOSED_TASK_RUN["completedAt"]
-    )  # still running: the window runs to now
-
-    unknown = _operations_window({})
-    span = datetime.fromisoformat(unknown["time_to"]) - datetime.fromisoformat(unknown["time_from"])
-    assert span < timedelta(hours=MAX_WINDOW_HOURS)
-
-
 async def test_diagnose_survives_a_log_download_failure():
     server, _ = _triage_server(
         {
             r"/pipeline_runs/[^/]+/task_runs$": _page([]),
-            r"/task_runs$": _page([{"id": "tr-1", "pipelineRunId": "run-1", "taskName": "load"}]),
+            r"/public/task_runs/[^/]+$": _one(
+                [{"id": "tr-1", "pipelineRunId": "run-1", "taskName": "load"}]
+            ),
             r"/logs/download$": lambda request: httpx.Response(416, content=b""),
             r"/logs$": {"filenames": ["attempt-1.log"], "files": {}},
             r"/artifacts$": {"filenames": []},
@@ -695,7 +628,9 @@ async def test_diagnose_bounds_the_log_tail_when_the_range_header_is_ignored():
     server, _ = _triage_server(
         {
             r"/pipeline_runs/[^/]+/task_runs$": _page([]),
-            r"/task_runs$": _page([{"id": "tr-1", "pipelineRunId": "run-1", "taskName": "load"}]),
+            r"/public/task_runs/[^/]+$": _one(
+                [{"id": "tr-1", "pipelineRunId": "run-1", "taskName": "load"}]
+            ),
             # A server that ignores the suffix range and returns the entire log.
             r"/logs/download$": lambda request: httpx.Response(200, content=whole_log),
             r"/logs$": {"filenames": ["run.log"], "files": {}},
@@ -716,7 +651,9 @@ async def test_diagnose_flags_a_truncated_tail_when_the_range_header_is_honoured
     server, _ = _triage_server(
         {
             r"/pipeline_runs/[^/]+/task_runs$": _page([]),
-            r"/task_runs$": _page([{"id": "tr-1", "pipelineRunId": "run-1", "taskName": "load"}]),
+            r"/public/task_runs/[^/]+$": _one(
+                [{"id": "tr-1", "pipelineRunId": "run-1", "taskName": "load"}]
+            ),
             # A server honouring the suffix range returns exactly the cap, whatever the
             # log's real size, so the tail is the only evidence that it was cut.
             r"/logs/download$": lambda request: httpx.Response(
@@ -771,7 +708,7 @@ async def test_diagnose_flags_an_unresolved_dependency_from_a_capped_sibling_lis
             # More task runs in the run than the listing returns, so "extract" is
             # unresolved because of the cap rather than because it does not exist.
             r"/pipeline_runs/[^/]+/task_runs$": _page(siblings, total=MAX_SIBLING_TASK_RUNS + 50),
-            r"/task_runs$": _page(
+            r"/public/task_runs/[^/]+$": _one(
                 [
                     {
                         "id": "tr-x",
@@ -798,7 +735,7 @@ async def test_diagnose_bounds_a_huge_parameter_value_and_caps_the_artifact_list
     server, _ = _triage_server(
         {
             r"/pipeline_runs/[^/]+/task_runs$": _page([]),
-            r"/task_runs$": _page(
+            r"/public/task_runs/[^/]+$": _one(
                 [
                     {
                         "id": "tr-1",
@@ -835,6 +772,7 @@ ACCOUNT_ROUTES = {
     r"/environments$": [{"environmentId": "env-1", "name": "Production"}],
     r"/pipeline_runs/[^/]+/task_runs$": _page([]),
     r"/pipeline_runs$": _page([{"id": "run-1", "pipelineId": "pipe-1"}]),
+    r"/public/task_runs/[^/]+$": {"id": "tr-1", "pipelineRunId": "run-1", "taskName": "load"},
     r"/task_runs$": _page([{"id": "tr-1", "pipelineRunId": "run-1", "taskName": "load"}]),
     r"/download$": lambda request: httpx.Response(200, content=b"data"),
     r"/logs$": {"filenames": ["run.log"], "files": {}},

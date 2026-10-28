@@ -78,14 +78,11 @@ MAX_ARTIFACT_NAMES = 50
 MAX_PARAMETER_CHARS = 2 * 1024
 LOG_TAIL_BYTES = 8 * 1024
 OPERATIONS_PAGE_SIZE = 100
-MAX_OPERATIONS = 500
 MAX_FAILED_OPERATIONS = 20
-MAX_ANOMALOUS_OPERATIONS = 10
-MAX_SLOWEST_OPERATIONS = 5
 MAX_DETAIL_CHARS = 500
 
-# An integration reports its operations back after the task run itself completes, so
-# the operations lookup window runs past the task run's completion by this much.
+# An integration reports its operations after the task run completes, so the
+# operations lookup runs this far past the task run's completion.
 OPERATIONS_GRACE = timedelta(hours=1)
 
 
@@ -134,80 +131,28 @@ def _bound_strings(value, limit: int = MAX_PARAMETER_CHARS):
 
 
 def _tail(text: str | None, limit: int = MAX_DETAIL_CHARS) -> str | None:
-    """Keep the end of a long message, where a validation or CLI log reports its error."""
+    """Keep the end of a long message, where a validation log reports its error."""
     if not text or len(text) <= limit:
         return text
     return f"…({len(text)} chars) {text[-limit:]}"
 
 
 def _operations_window(task_run: dict) -> dict:
-    """Span a task run's own lifetime, as the time_from/time_to an operations lookup needs.
+    """The task run's own lifetime, as an operations lookup's time_from/time_to.
 
-    /operations applies its 24-hour default window even when filtered by task run, so
-    an older task run's operations are only found inside an explicit window.
+    /operations has no get-by-task-run endpoint, and its list applies a 24-hour
+    default window even when filtered by task run.
     """
     now = datetime.now(tz=UTC)
-    longest = timedelta(hours=MAX_WINDOW_HOURS) - timedelta(seconds=1)
     try:
         end = min(datetime.fromisoformat(task_run.get("completedAt")) + OPERATIONS_GRACE, now)
     except (TypeError, ValueError):
         end = now
     try:
-        start = datetime.fromisoformat(task_run.get("createdAt") or task_run.get("startedAt"))
+        start = datetime.fromisoformat(task_run.get("createdAt"))
     except (TypeError, ValueError):
-        start = end - longest
-    start = max(start, end - longest)
+        start = end - timedelta(hours=MAX_WINDOW_HOURS) + timedelta(seconds=1)
     return {"time_from": start.isoformat(), "time_to": end.isoformat()}
-
-
-def _operation_summary(operations: list[dict], total: int) -> dict:
-    """Reduce a task run's operations to the ones that explain a failure or a slowdown."""
-
-    def name(op: dict) -> str | None:
-        return op.get("operationName") or op.get("externalId")
-
-    failed = [op for op in operations if op.get("operationStatus") in ("FAILED", "WARNING")]
-    anomalous = [op for op in operations if op.get("anomalies")]
-    timed = [op for op in operations if op.get("operationDuration") is not None]
-    slowest = sorted(timed, key=lambda op: op["operationDuration"], reverse=True)
-    return {
-        "total": total,
-        "statusCounts": dict(Counter(op.get("operationStatus") or "UNKNOWN" for op in operations)),
-        "failed": [
-            _compact(
-                {
-                    "name": name(op),
-                    "type": op.get("operationType"),
-                    "status": op.get("operationStatus"),
-                    "message": op.get("message"),
-                    "externalStatus": op.get("externalStatus"),
-                    "externalId": op.get("externalId"),
-                    "durationSeconds": op.get("operationDuration"),
-                    "detail": _bound_strings(op.get("externalDetail"), MAX_DETAIL_CHARS),
-                }
-            )
-            for op in failed[:MAX_FAILED_OPERATIONS]
-        ],
-        "anomalous": [
-            {
-                "name": name(op),
-                "durationSeconds": op.get("operationDuration"),
-                "anomalies": _anomalies(op),
-            }
-            for op in anomalous[:MAX_ANOMALOUS_OPERATIONS]
-        ],
-        "slowest": [
-            {"name": name(op), "durationSeconds": op["operationDuration"]}
-            for op in slowest[:MAX_SLOWEST_OPERATIONS]
-        ],
-        # Counts and the slowest list cover the operations fetched; failures are fetched
-        # separately when the listing was capped, so a failure is never what gets cut.
-        "truncated": (
-            total > len(operations)
-            or len(failed) > MAX_FAILED_OPERATIONS
-            or len(anomalous) > MAX_ANOMALOUS_OPERATIONS
-        ),
-    }
 
 
 def _anomalies(record: dict) -> list[dict]:
@@ -475,50 +420,54 @@ def _register_triage(server: FastMCP, client: httpx.AsyncClient, ui_base_url: st
         }
 
     async def _operations(task_run: dict, account_id: UUID | None) -> dict:
-        """Summarise a task run's operations, or say why they could not be read."""
-        params = {"task_run_id": task_run["id"], **_operations_window(task_run)}
+        """Count a task run's operations by status and list the failed ones."""
         try:
             operations, total = await _paged(
-                "/public/operations", params, OPERATIONS_PAGE_SIZE, MAX_OPERATIONS, account_id
+                "/public/operations",
+                {"task_run_id": task_run["id"], **_operations_window(task_run)},
+                OPERATIONS_PAGE_SIZE,
+                OPERATIONS_PAGE_SIZE,
+                account_id=account_id,
             )
-            if total > len(operations):
-                seen = {op.get("id") for op in operations}
-                for status in ("FAILED", "WARNING"):
-                    extra, _ = await _paged(
-                        "/public/operations",
-                        {**params, "status": status},
-                        OPERATIONS_PAGE_SIZE,
-                        MAX_FAILED_OPERATIONS,
-                        account_id,
-                    )
-                    operations += [op for op in extra if op.get("id") not in seen]
         except OrchestraAPIError as exc:
             return {"unavailable": str(exc)}
-        return _operation_summary(operations, total)
+        failed = [op for op in operations if op.get("operationStatus") in ("FAILED", "WARNING")]
+        return {
+            "total": total,
+            "statusCounts": dict(Counter(op.get("operationStatus") for op in operations)),
+            "failed": [
+                _compact(
+                    {
+                        "name": op.get("operationName"),
+                        "status": op.get("operationStatus"),
+                        "message": op.get("message"),
+                        "detail": _bound_strings(op.get("externalDetail"), MAX_DETAIL_CHARS),
+                    }
+                )
+                for op in failed[:MAX_FAILED_OPERATIONS]
+            ],
+            "truncated": total > len(operations) or len(failed) > MAX_FAILED_OPERATIONS,
+        }
 
     async def _connection(task_run: dict, account_id: UUID | None) -> dict | None:
-        """Read the auth state of the connection a task run used, without its credentials."""
+        """Read the auth state of the task run's connection, never its credentials."""
         connection_id = task_run.get("connectionId")
-        integration = task_run.get("integration")
-        if not connection_id or not integration:
+        if not connection_id or not task_run.get("integration"):
             return None
         try:
             connection = await _get(
-                f"/public/integrations/{integration}/auth/{connection_id}", account_id=account_id
+                f"/public/integrations/{task_run['integration']}/auth/{connection_id}",
+                account_id=account_id,
             )
         except OrchestraAPIError as exc:
             return {"connectionId": connection_id, "unavailable": str(exc)}
-        # The response's parameters hold the connection's settings and obfuscated secrets;
-        # none of them explain a failure, so they are never passed through.
         return _compact(
             {
                 "connectionId": connection_id,
-                "name": connection.get("connectionName"),
                 "authStatus": connection.get("authStatus"),
                 "credentialStore": connection.get("credentialStore"),
                 "message": connection.get("message"),
                 "externalMessage": _tail(connection.get("externalMessage")),
-                "updatedAt": connection.get("updatedAt"),
             }
         )
 
@@ -622,10 +571,8 @@ def _register_triage(server: FastMCP, client: httpx.AsyncClient, ui_base_url: st
         description=(
             "Deep dive on one failed task run: its status and messages, taskParameters and "
             "runParameters, the statuses of the upstream tasks it depends on, the tail of its "
-            "newest log, its artifact filenames, a summary of its operations (status counts, "
-            "the failed and anomalous ones such as dbt models, and the slowest), and the auth "
-            "status of the connection it used. Task runs are queryable for 7 days only. "
-            "Over-long parameter values, the log tail, the artifact list and the operation "
+            "newest log, its artifact filenames, its operations by status with the failed ones "
+            "(e.g. dbt models), and the auth status of its connection. Over-long values and "
             "lists are capped, and the response says which parts were cut. Use "
             "download_task_run_log, download_task_run_artifact or list_operations when the "
             "summary is not enough."
@@ -633,20 +580,12 @@ def _register_triage(server: FastMCP, client: httpx.AsyncClient, ui_base_url: st
         annotations=ToolAnnotations(title="Diagnose Task Run", readOnlyHint=True),
     )
     async def diagnose(task_run_id: str, account_id: AccountId = None) -> dict:
-        matches, _ = await _paged(
-            "/public/task_runs",
-            {"task_run_ids": task_run_id, "include_superseded": "true"},
-            RUNS_PAGE_SIZE,
-            1,
-            account_id=account_id,
-        )
-        if not matches:
-            raise ToolError(
-                f"No task run found with ID {task_run_id} in the last 7 days, which is the "
-                "widest window the task runs API serves. Check the ID, or open the run in the "
-                "Orchestra UI."
-            )
-        task_run = matches[0]
+        try:
+            task_run = await _get(f"/public/task_runs/{task_run_id}", account_id=account_id)
+        except OrchestraAPIError as exc:
+            if exc.status_code == 404:
+                raise ToolError(f"No task run found with ID {task_run_id}.") from exc
+            raise
         pipeline_run_id = task_run["pipelineRunId"]
 
         siblings, sibling_total = await _paged(
