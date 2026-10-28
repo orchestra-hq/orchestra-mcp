@@ -42,7 +42,8 @@ def test_post_without_bearer_challenges_with_the_metadata_pointer(lambda_context
     assert response["statusCode"] == 401
     assert response["headers"]["www-authenticate"] == (
         'Bearer error="invalid_request", error_description="Missing or invalid Authorization '
-        f'header", resource_metadata="{RESOURCE_URL}/.well-known/oauth-protected-resource"'
+        f'header", resource_metadata="{RESOURCE_URL}/.well-known/oauth-protected-resource", '
+        'scope="orchestra:read orchestra:write offline_access"'
     )
 
 

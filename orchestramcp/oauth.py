@@ -20,6 +20,9 @@ from orchestramcp.openapi_server import SERVER_NAME
 _METADATA_SEGMENT = "oauth-protected-resource"
 # RFC 9728 serves this at the origin root, which a Lambda routed one path prefix never sees.
 _METADATA_PATH_SUFFIX = f"/.well-known/{_METADATA_SEGMENT}"
+# Clients such as Claude Code request only the scopes we advertise, and the
+# authorization server withholds a refresh token unless offline_access is asked for.
+_SCOPES = ("orchestra:read", "orchestra:write", "offline_access")
 
 
 def _setting(name: str) -> str:
@@ -80,7 +83,7 @@ def www_authenticate_header(error: str, description: str) -> str | None:
         return None
     return (
         f'Bearer error="{error}", error_description="{description}", '
-        f'resource_metadata="{_resource_metadata_url()}"'
+        f'resource_metadata="{_resource_metadata_url()}", scope="{" ".join(_SCOPES)}"'
     )
 
 
@@ -90,6 +93,7 @@ def _protected_resource_metadata() -> dict[str, Any]:
         "resource": _resource_url(),
         "authorization_servers": [_issuer()],
         "bearer_methods_supported": ["header"],
+        "scopes_supported": list(_SCOPES),
         "resource_name": SERVER_NAME,
     }
 
