@@ -16,6 +16,7 @@ from orchestramcp.handwritten import (
     MAX_DOWNLOAD_BYTES,
     MAX_FAILED_TASKS_PER_RUN,
     MAX_SIBLING_TASK_RUNS,
+    MAX_SWEPT_ACCOUNTS,
     MAX_WINDOW_HOURS,
     RUN_TASK_RUNS_PAGE_SIZE,
     _duration_seconds,
@@ -29,7 +30,7 @@ def _server(handler=None, ui_base_url="https://stage.getorchestra.io"):
         base_url="https://example.com/api/engine", transport=httpx.MockTransport(handler)
     )
     server = FastMCP("test")
-    register_handwritten(server, client, ui_base_url)
+    register_handwritten(server, client, ui_base_url, client)
     return server
 
 
@@ -222,7 +223,7 @@ def _triage_server(routes, ui_base_url="https://app.getorchestra.io"):
     client = build_http_client("https://example.com/api/engine")
     client._transport = httpx.MockTransport(handler)
     server = FastMCP("test")
-    register_handwritten(server, client, ui_base_url)
+    register_handwritten(server, client, ui_base_url, client)
     return server, requests
 
 
@@ -375,6 +376,63 @@ async def test_whats_broken_explains_a_403_from_the_metadata_api():
     async with Client(server) as client:
         with pytest.raises(ToolError, match="Metadata API may not be enabled"):
             await client.call_tool("whats_broken", {})
+
+
+ACCOUNT_A = "11111111-1111-4111-8111-111111111111"
+ACCOUNT_B = "22222222-2222-4222-8222-222222222222"
+
+
+def _failing_run_in_each_account(request):
+    account = request.headers["X-Orchestra-Account-Id"]
+    if account == ACCOUNT_B:
+        return httpx.Response(403, json={"detail": "Forbidden"})
+    return _page([{"id": "run-1", "pipelineId": "p-1", "pipelineName": "orders"}])
+
+
+async def test_whats_broken_sweeps_every_account_and_survives_one_it_cannot_read():
+    server, _ = _triage_server(
+        {
+            r"/accounts$": [{"id": ACCOUNT_A, "name": "Acme"}, {"id": ACCOUNT_B, "name": "Beta"}],
+            r"/public/pipeline_runs$": _failing_run_in_each_account,
+            r"/public/task_runs$": _page([]),
+        }
+    )
+
+    async with Client(server) as client:
+        result = await client.call_tool("whats_broken", {"account_ids": "all"})
+
+    acme, beta = result.data["accounts"]
+    assert acme["accountId"] == ACCOUNT_A
+    assert acme["account"] == "Acme"
+    assert acme["failures"][0]["pipeline"] == "orders"
+    assert beta["account"] == "Beta"
+    assert "403" in beta["unavailable"]
+    assert "accountsNotSwept" not in result.data
+    assert "window" in result.data
+
+
+async def test_whats_broken_sweeps_the_listed_accounts_up_to_the_cap():
+    ids = [f"{i:08d}-0000-4000-8000-000000000000" for i in range(MAX_SWEPT_ACCOUNTS + 2)]
+    server, requests = _triage_server({r"/public/pipeline_runs$": _page([])})
+
+    async with Client(server) as client:
+        result = await client.call_tool("whats_broken", {"account_ids": ids})
+
+    assert [a["accountId"] for a in result.data["accounts"]] == ids[:MAX_SWEPT_ACCOUNTS]
+    assert result.data["accountsNotSwept"] == ids[MAX_SWEPT_ACCOUNTS:]
+    swept = {r.headers["X-Orchestra-Account-Id"] for r in requests}
+    assert swept == set(ids[:MAX_SWEPT_ACCOUNTS])
+    assert not any(r.url.path.endswith("/accounts") for r in requests)
+
+
+async def test_whats_broken_refuses_account_id_with_account_ids():
+    server, _ = _triage_server({})
+
+    async with Client(server) as client:
+        with pytest.raises(ToolError, match="not both"):
+            await client.call_tool(
+                "whats_broken", {"account_id": ACCOUNT_A, "account_ids": [ACCOUNT_B]}
+            )
 
 
 async def test_diagnose_gathers_upstream_statuses_log_tail_and_artifacts():
