@@ -520,7 +520,7 @@ async def test_diagnose_flags_more_failed_operations_than_it_lists():
 
     failed = result.data["failedOperations"]
     assert len(failed["operations"]) == MAX_FAILED_OPERATIONS
-    assert failed["total"] == 90  # both status lookups answer with the same page here
+    assert failed["counts"] == {"FAILED": 45, "WARNING": 45}  # both lookups get the same page
     assert failed["truncated"] is True
 
 

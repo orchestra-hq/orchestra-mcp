@@ -78,6 +78,7 @@ MAX_PARAMETER_CHARS = 2 * 1024
 LOG_TAIL_BYTES = 8 * 1024
 MAX_FAILED_OPERATIONS = 20
 MAX_OPERATION_DETAIL_CHARS = 500
+OPERATION_PROBLEM_STATUSES = ("FAILED", "WARNING")
 
 # Operations are recorded after their task run completes, so the lookup runs this far past it.
 OPERATIONS_GRACE = timedelta(hours=1)
@@ -421,15 +422,18 @@ def _register_triage(server: FastMCP, client: httpx.AsyncClient, ui_base_url: st
                         account_id,
                         {**params, "status": status, "page_size": MAX_FAILED_OPERATIONS},
                     )
-                    for status in ("FAILED", "WARNING")
+                    for status in OPERATION_PROBLEM_STATUSES
                 )
             )
         except (OrchestraAPIError, httpx.HTTPError) as exc:
             return {"unavailable": str(exc) or type(exc).__name__}
         operations = [op for page in pages for op in page.get("results") or []]
-        total = sum(page.get("total") or 0 for page in pages)
+        counts = {
+            status: page.get("total") or 0
+            for status, page in zip(OPERATION_PROBLEM_STATUSES, pages, strict=True)
+        }
         return {
-            "total": total,
+            "counts": counts,
             "operations": [
                 _compact(
                     {
@@ -443,7 +447,7 @@ def _register_triage(server: FastMCP, client: httpx.AsyncClient, ui_base_url: st
                 )
                 for op in operations[:MAX_FAILED_OPERATIONS]
             ],
-            "truncated": total > min(len(operations), MAX_FAILED_OPERATIONS),
+            "truncated": sum(counts.values()) > min(len(operations), MAX_FAILED_OPERATIONS),
         }
 
     @server.tool(
