@@ -54,8 +54,7 @@ AccountId = Annotated[
 ]
 
 
-# Each account is swept concurrently, but every sweep pages several endpoints, so the
-# fan-out is capped to keep one call inside the Lambda's time budget.
+# Every account sweep pages several endpoints, so the fan-out is capped for the Lambda's budget.
 MAX_SWEPT_ACCOUNTS = 10
 
 AccountIds = Annotated[
