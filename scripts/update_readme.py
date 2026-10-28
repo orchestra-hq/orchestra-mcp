@@ -62,7 +62,7 @@ HANDWRITTEN_ROWS = (
     ),
     (
         "diagnose",
-        "Deep dive on one task run: parameters, upstream task statuses, log tail and artifact filenames.",
+        "Deep dive on one task run: parameters, upstream task statuses, log tail, artifact filenames, failed operations by status.",
         "Triage",
     ),
     (
