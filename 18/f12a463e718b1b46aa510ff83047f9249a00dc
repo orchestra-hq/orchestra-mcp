@@ -1,0 +1,23 @@
+tests/test_oauth.py
+  s_256b1f2587afa6::t_ac495a8279a0f7 114,119-120,135,147-148
+orchestramcp/oauth.py
+  s_256b1f2587afa6::t_ac495a8279a0f7 23-25,86,96
+tests/test_lambda_handler.py
+  s_256b1f2587afa6::t_ac495a8279a0f7 45-46
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "18f12a463e718b1b46aa510ff83047f9249a00dc",
+  "prompts": {},
+  "sessions": {
+    "s_256b1f2587afa6": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "149a3733-bd12-4f69-962a-f9ffaa53d941",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Will Davies <42768478+willdavies0@users.noreply.github.com>"
+    }
+  }
+}
