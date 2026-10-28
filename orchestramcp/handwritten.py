@@ -485,7 +485,7 @@ def _register_triage(server: FastMCP, client: httpx.AsyncClient, ui_base_url: st
         description=(
             "Deep dive on one failed task run: its status and messages, taskParameters and "
             "runParameters, the statuses of the upstream tasks it depends on, the tail of its "
-            "newest log, and its artifact filenames. Task runs are queryable for 7 days only. "
+            "newest log, and its artifact filenames. "
             "Over-long parameter values, the log tail and the artifact list are capped, and the "
             "response says which parts were cut. Use download_task_run_log or "
             "download_task_run_artifact when the tail is not enough."
@@ -493,27 +493,12 @@ def _register_triage(server: FastMCP, client: httpx.AsyncClient, ui_base_url: st
         annotations=ToolAnnotations(title="Diagnose Task Run", readOnlyHint=True),
     )
     async def diagnose(task_run_id: str, account_id: AccountId = None) -> dict:
-        # Without an explicit window the API searches only the last 24 hours.
-        time_from, time_to, _ = _window(MAX_WINDOW_HOURS)
-        matches, _ = await _paged(
-            "/public/task_runs",
-            {
-                "task_run_ids": task_run_id,
-                "include_superseded": "true",
-                "time_from": time_from,
-                "time_to": time_to,
-            },
-            RUNS_PAGE_SIZE,
-            1,
-            account_id=account_id,
-        )
-        if not matches:
-            raise ToolError(
-                f"No task run found with ID {task_run_id} in the last 7 days, which is the "
-                "widest window the task runs API serves. Check the ID, or open the run in the "
-                "Orchestra UI."
-            )
-        task_run = matches[0]
+        try:
+            task_run = await _get(f"/public/task_runs/{task_run_id}", account_id=account_id)
+        except OrchestraAPIError as exc:
+            if exc.status_code == 404:
+                raise ToolError(f"No task run found with ID {task_run_id}.") from exc
+            raise
         pipeline_run_id = task_run["pipelineRunId"]
 
         siblings, sibling_total = await _paged(

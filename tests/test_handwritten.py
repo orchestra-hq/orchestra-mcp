@@ -193,6 +193,11 @@ def _page(results, total=None, page=1):
     }
 
 
+def _one(results):
+    """A single-record response, written like the _page fixture it replaces."""
+    return results[0]
+
+
 def _triage_server(routes, ui_base_url="https://app.getorchestra.io"):
     """Serve each request from the first route whose pattern matches its path.
 
@@ -386,7 +391,7 @@ async def test_diagnose_gathers_upstream_statuses_log_tail_and_artifacts():
                     {"id": "tr-1", "taskId": "load", "taskName": "load", "status": "FAILED"},
                 ]
             ),
-            r"/task_runs$": _page(
+            r"/public/task_runs/[^/]+$": _one(
                 [
                     {
                         "id": "tr-1",
@@ -435,14 +440,16 @@ async def test_diagnose_gathers_upstream_statuses_log_tail_and_artifacts():
     download = next(r for r in requests if r.url.path.endswith("/logs/download"))
     assert download.headers["Range"] == f"bytes=-{LOG_TAIL_BYTES}"
     assert dict(download.url.params)["filename"] == "attempt-2.log"
-    _assert_widest_window(_params(requests, r"/public/task_runs$")[0])
+    assert _params(requests, r"/public/task_runs$") == []  # looked up by ID, no window
 
 
-async def test_diagnose_reports_the_seven_day_limit_when_the_task_run_is_not_found():
-    server, _ = _triage_server({r"/task_runs$": _page([])})
+async def test_diagnose_reports_an_unknown_task_run_id():
+    server, _ = _triage_server(
+        {r"/public/task_runs/[^/]+$": lambda request: httpx.Response(404, json={"detail": "x"})}
+    )
 
     async with Client(server) as client:
-        with pytest.raises(ToolError, match="last 7 days"):
+        with pytest.raises(ToolError, match="No task run found with ID tr-1"):
             await client.call_tool("diagnose", {"task_run_id": "tr-1"})
 
 
@@ -450,7 +457,9 @@ async def test_diagnose_survives_a_log_download_failure():
     server, _ = _triage_server(
         {
             r"/pipeline_runs/[^/]+/task_runs$": _page([]),
-            r"/task_runs$": _page([{"id": "tr-1", "pipelineRunId": "run-1", "taskName": "load"}]),
+            r"/public/task_runs/[^/]+$": _one(
+                [{"id": "tr-1", "pipelineRunId": "run-1", "taskName": "load"}]
+            ),
             r"/logs/download$": lambda request: httpx.Response(416, content=b""),
             r"/logs$": {"filenames": ["attempt-1.log"], "files": {}},
             r"/artifacts$": {"filenames": []},
@@ -560,7 +569,9 @@ async def test_diagnose_bounds_the_log_tail_when_the_range_header_is_ignored():
     server, _ = _triage_server(
         {
             r"/pipeline_runs/[^/]+/task_runs$": _page([]),
-            r"/task_runs$": _page([{"id": "tr-1", "pipelineRunId": "run-1", "taskName": "load"}]),
+            r"/public/task_runs/[^/]+$": _one(
+                [{"id": "tr-1", "pipelineRunId": "run-1", "taskName": "load"}]
+            ),
             # A server that ignores the suffix range and returns the entire log.
             r"/logs/download$": lambda request: httpx.Response(200, content=whole_log),
             r"/logs$": {"filenames": ["run.log"], "files": {}},
@@ -581,7 +592,9 @@ async def test_diagnose_flags_a_truncated_tail_when_the_range_header_is_honoured
     server, _ = _triage_server(
         {
             r"/pipeline_runs/[^/]+/task_runs$": _page([]),
-            r"/task_runs$": _page([{"id": "tr-1", "pipelineRunId": "run-1", "taskName": "load"}]),
+            r"/public/task_runs/[^/]+$": _one(
+                [{"id": "tr-1", "pipelineRunId": "run-1", "taskName": "load"}]
+            ),
             # A server honouring the suffix range returns exactly the cap, whatever the
             # log's real size, so the tail is the only evidence that it was cut.
             r"/logs/download$": lambda request: httpx.Response(
@@ -636,7 +649,7 @@ async def test_diagnose_flags_an_unresolved_dependency_from_a_capped_sibling_lis
             # More task runs in the run than the listing returns, so "extract" is
             # unresolved because of the cap rather than because it does not exist.
             r"/pipeline_runs/[^/]+/task_runs$": _page(siblings, total=MAX_SIBLING_TASK_RUNS + 50),
-            r"/task_runs$": _page(
+            r"/public/task_runs/[^/]+$": _one(
                 [
                     {
                         "id": "tr-x",
@@ -663,7 +676,7 @@ async def test_diagnose_bounds_a_huge_parameter_value_and_caps_the_artifact_list
     server, _ = _triage_server(
         {
             r"/pipeline_runs/[^/]+/task_runs$": _page([]),
-            r"/task_runs$": _page(
+            r"/public/task_runs/[^/]+$": _one(
                 [
                     {
                         "id": "tr-1",
@@ -700,6 +713,7 @@ ACCOUNT_ROUTES = {
     r"/environments$": [{"environmentId": "env-1", "name": "Production"}],
     r"/pipeline_runs/[^/]+/task_runs$": _page([]),
     r"/pipeline_runs$": _page([{"id": "run-1", "pipelineId": "pipe-1"}]),
+    r"/public/task_runs/[^/]+$": {"id": "tr-1", "pipelineRunId": "run-1", "taskName": "load"},
     r"/task_runs$": _page([{"id": "tr-1", "pipelineRunId": "run-1", "taskName": "load"}]),
     r"/download$": lambda request: httpx.Response(200, content=b"data"),
     r"/logs$": {"filenames": ["run.log"], "files": {}},
