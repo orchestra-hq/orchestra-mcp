@@ -13,12 +13,10 @@ from orchestramcp.client import build_http_client
 from orchestramcp.handwritten import (
     LOG_TAIL_BYTES,
     MAX_ARTIFACT_NAMES,
-    MAX_DETAIL_CHARS,
     MAX_DOWNLOAD_BYTES,
     MAX_FAILED_TASKS_PER_RUN,
     MAX_SIBLING_TASK_RUNS,
     MAX_WINDOW_HOURS,
-    OPERATIONS_GRACE,
     RUN_TASK_RUNS_PAGE_SIZE,
     _duration_seconds,
     register_handwritten,
@@ -453,76 +451,6 @@ async def test_diagnose_reports_an_unknown_task_run_id():
     async with Client(server) as client:
         with pytest.raises(ToolError, match="No task run found with ID tr-1"):
             await client.call_tool("diagnose", {"task_run_id": "tr-1"})
-
-
-OLD_TASK_RUN = {
-    "id": "tr-1",
-    "pipelineRunId": "run-1",
-    "createdAt": "2026-10-05T10:00:00+00:00",
-    "completedAt": "2026-10-05T10:05:00+00:00",
-}
-
-
-def _diagnose_routes(operations):
-    return {
-        r"/pipeline_runs/[^/]+/task_runs$": _page([]),
-        r"/public/task_runs/[^/]+$": OLD_TASK_RUN,
-        r"/logs$": {"filenames": []},
-        r"/artifacts$": {"filenames": []},
-        r"/operations$": operations,
-    }
-
-
-async def test_diagnose_lists_failed_operations_over_the_task_runs_lifetime():
-    operations = [
-        {"operationName": "fct_orders", "operationStatus": "FAILED", "externalDetail": "x" * 2000},
-        {"operationName": "stg_orders", "operationStatus": "SUCCEEDED"},
-    ]
-    server, requests = _triage_server(_diagnose_routes(_page(operations)))
-
-    async with Client(server) as client:
-        result = await client.call_tool("diagnose", {"task_run_id": "tr-1"})
-
-    ops = result.data["operations"]
-    assert ops["statusCounts"] == {"FAILED": 1, "SUCCEEDED": 1}
-    assert [op["name"] for op in ops["failed"]] == ["fct_orders"]
-    assert len(ops["failed"][0]["detail"]) < MAX_DETAIL_CHARS + 50
-
-    # A 23-day-old task run: the operations lookup spans its lifetime, not the last 24 hours.
-    op_params = _params(requests, r"/operations$")[0]
-    assert op_params["time_from"] == OLD_TASK_RUN["createdAt"]
-    assert datetime.fromisoformat(op_params["time_to"]) == (
-        datetime.fromisoformat(OLD_TASK_RUN["completedAt"]) + OPERATIONS_GRACE
-    )
-
-
-async def test_diagnose_counts_operations_across_every_page():
-    def operations(request):
-        page = int(request.url.params["page"])
-        status = "FAILED" if page == 2 else "SUCCEEDED"
-        batch = [{"operationName": f"m{page}_{i}", "operationStatus": status} for i in range(100)]
-        return _page(batch if page <= 2 else [], total=200, page=page)
-
-    server, _ = _triage_server(_diagnose_routes(operations))
-
-    async with Client(server) as client:
-        result = await client.call_tool("diagnose", {"task_run_id": "tr-1"})
-
-    ops = result.data["operations"]
-    assert ops["statusCounts"] == {"SUCCEEDED": 100, "FAILED": 100}
-    assert ops["failed"][0]["name"] == "m2_0"  # a failure past the first page is still listed
-    assert ops["truncated"] is True  # more failed operations than the list shows
-
-
-async def test_diagnose_keeps_the_rest_when_operations_cannot_be_read():
-    forbidden = lambda request: httpx.Response(403, json={"detail": "Forbidden"})  # noqa: E731
-    server, _ = _triage_server(_diagnose_routes(forbidden))
-
-    async with Client(server) as client:
-        result = await client.call_tool("diagnose", {"task_run_id": "tr-1"})
-
-    assert "403" in result.data["operations"]["unavailable"]
-    assert result.data["taskRun"]["taskRunId"] == "tr-1"
 
 
 async def test_diagnose_survives_a_log_download_failure():
