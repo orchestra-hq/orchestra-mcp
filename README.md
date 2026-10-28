@@ -18,7 +18,7 @@ Use Orchestra's hosted MCP endpoint:
 |------|---------------|---------|------|
 | `whats_broken` | Yes | Failing and warning pipeline runs in a window, pre-joined to the task runs that failed inside them, with messages, platform links and duration anomalies. | Triage |
 | `diagnose` | Yes | Deep dive on one task run: parameters, upstream task statuses, log tail and artifact filenames. | Triage |
-| `watch_run` | Yes | Follow a pipeline run: waits briefly for it to finish, then returns its status, task run statuses and failed tasks. | Triage |
+| `watch_run` | Yes | Follow a pipeline run: waits up to 10 seconds, then returns its status, whether it has finished, task run statuses and failed tasks; call again until finished. | Triage |
 | `pipeline_context` | Yes | A pipeline's metadata, full definition, integrations, recent run outcomes and median succeeded duration. | Triage |
 | `get_pipeline` | Yes | Fetch a single pipeline. Provide exactly one selector: pipeline_id, alias, or repository together with yaml_path (`GET /pipeline`). | Pipelines |
 | `list_pipelines` | Yes | List pipelines (`GET /pipelines`). | Pipelines |
