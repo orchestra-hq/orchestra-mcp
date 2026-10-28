@@ -458,36 +458,27 @@ async def test_diagnose_reports_an_unknown_task_run_id():
 OLD_TASK_RUN = {
     "id": "tr-1",
     "pipelineRunId": "run-1",
-    "integration": "DBT_CORE",
-    "connectionId": "dbt_prod",
     "createdAt": "2026-10-05T10:00:00+00:00",
     "completedAt": "2026-10-05T10:05:00+00:00",
 }
 
 
-def _diagnose_routes(operations, connection):
+def _diagnose_routes(operations):
     return {
         r"/pipeline_runs/[^/]+/task_runs$": _page([]),
         r"/public/task_runs/[^/]+$": OLD_TASK_RUN,
         r"/logs$": {"filenames": []},
         r"/artifacts$": {"filenames": []},
         r"/operations$": operations,
-        r"/auth/dbt_prod$": connection,
     }
 
 
-async def test_diagnose_lists_failed_operations_and_connection_status_without_secrets():
+async def test_diagnose_lists_failed_operations_over_the_task_runs_lifetime():
     operations = [
         {"operationName": "fct_orders", "operationStatus": "FAILED", "externalDetail": "x" * 2000},
         {"operationName": "stg_orders", "operationStatus": "SUCCEEDED"},
     ]
-    connection = {
-        "authStatus": "FAILED",
-        "credentialStore": "AZURE_KEY_VAULT",
-        "externalMessage": "preamble " * 200 + "token expired",
-        "parameters": {"token": "d*******51"},
-    }
-    server, requests = _triage_server(_diagnose_routes(_page(operations), connection))
+    server, requests = _triage_server(_diagnose_routes(_page(operations)))
 
     async with Client(server) as client:
         result = await client.call_tool("diagnose", {"task_run_id": "tr-1"})
@@ -496,9 +487,6 @@ async def test_diagnose_lists_failed_operations_and_connection_status_without_se
     assert ops["statusCounts"] == {"FAILED": 1, "SUCCEEDED": 1}
     assert [op["name"] for op in ops["failed"]] == ["fct_orders"]
     assert len(ops["failed"][0]["detail"]) < MAX_DETAIL_CHARS + 50
-    conn = result.data["connection"]
-    assert conn["authStatus"] == "FAILED" and conn["externalMessage"].endswith("token expired")
-    assert "d*******51" not in json.dumps(result.data)
 
     # A 23-day-old task run: the operations lookup spans its lifetime, not the last 24 hours.
     op_params = _params(requests, r"/operations$")[0]
@@ -515,7 +503,7 @@ async def test_diagnose_counts_operations_across_every_page():
         batch = [{"operationName": f"m{page}_{i}", "operationStatus": status} for i in range(100)]
         return _page(batch if page <= 2 else [], total=200, page=page)
 
-    server, _ = _triage_server(_diagnose_routes(operations, {"authStatus": "SUCCEEDED"}))
+    server, _ = _triage_server(_diagnose_routes(operations))
 
     async with Client(server) as client:
         result = await client.call_tool("diagnose", {"task_run_id": "tr-1"})
@@ -526,15 +514,14 @@ async def test_diagnose_counts_operations_across_every_page():
     assert ops["truncated"] is True  # more failed operations than the list shows
 
 
-async def test_diagnose_keeps_the_rest_when_operations_or_the_connection_cannot_be_read():
+async def test_diagnose_keeps_the_rest_when_operations_cannot_be_read():
     forbidden = lambda request: httpx.Response(403, json={"detail": "Forbidden"})  # noqa: E731
-    server, _ = _triage_server(_diagnose_routes(forbidden, forbidden))
+    server, _ = _triage_server(_diagnose_routes(forbidden))
 
     async with Client(server) as client:
         result = await client.call_tool("diagnose", {"task_run_id": "tr-1"})
 
     assert "403" in result.data["operations"]["unavailable"]
-    assert "403" in result.data["connection"]["unavailable"]
     assert result.data["taskRun"]["taskRunId"] == "tr-1"
 
 

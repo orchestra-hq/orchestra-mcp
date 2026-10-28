@@ -132,13 +132,6 @@ def _bound_strings(value, limit: int = MAX_PARAMETER_CHARS):
     return value
 
 
-def _tail(text: str | None, limit: int = MAX_DETAIL_CHARS) -> str | None:
-    """Keep the end of a long message, where a validation log reports its error."""
-    if not text or len(text) <= limit:
-        return text
-    return f"…({len(text)} chars) {text[-limit:]}"
-
-
 def _operations_window(task_run: dict) -> dict:
     """The task run's own lifetime, as an operations lookup's time_from/time_to.
 
@@ -146,15 +139,13 @@ def _operations_window(task_run: dict) -> dict:
     default window even when filtered by task run.
     """
     now = datetime.now(tz=UTC)
-    try:
-        end = min(datetime.fromisoformat(task_run.get("completedAt")) + OPERATIONS_GRACE, now)
-    except (TypeError, ValueError):
-        end = now
-    try:
-        start = datetime.fromisoformat(task_run.get("createdAt"))
-    except (TypeError, ValueError):
-        start = end - timedelta(hours=MAX_WINDOW_HOURS) + timedelta(seconds=1)
-    return {"time_from": start.isoformat(), "time_to": end.isoformat()}
+    completed = task_run.get("completedAt")
+    end = min(datetime.fromisoformat(completed) + OPERATIONS_GRACE, now) if completed else now
+    widest = end - timedelta(hours=MAX_WINDOW_HOURS) + timedelta(seconds=1)
+    return {
+        "time_from": task_run.get("createdAt") or widest.isoformat(),
+        "time_to": end.isoformat(),
+    }
 
 
 def _anomalies(record: dict) -> list[dict]:
@@ -451,28 +442,6 @@ def _register_triage(server: FastMCP, client: httpx.AsyncClient, ui_base_url: st
             "truncated": total > len(operations) or len(failed) > MAX_FAILED_OPERATIONS,
         }
 
-    async def _connection(task_run: dict, account_id: UUID | None) -> dict | None:
-        """Read the auth state of the task run's connection, never its credentials."""
-        connection_id = task_run.get("connectionId")
-        if not connection_id or not task_run.get("integration"):
-            return None
-        try:
-            connection = await _get(
-                f"/public/integrations/{task_run['integration']}/auth/{connection_id}",
-                account_id=account_id,
-            )
-        except OrchestraAPIError as exc:
-            return {"connectionId": connection_id, "unavailable": str(exc)}
-        return _compact(
-            {
-                "connectionId": connection_id,
-                "authStatus": connection.get("authStatus"),
-                "credentialStore": connection.get("credentialStore"),
-                "message": connection.get("message"),
-                "externalMessage": _tail(connection.get("externalMessage")),
-            }
-        )
-
     @server.tool(
         description=(
             "Start here for 'what is broken' or 'why did last night's run fail'. Returns every "
@@ -573,9 +542,9 @@ def _register_triage(server: FastMCP, client: httpx.AsyncClient, ui_base_url: st
         description=(
             "Deep dive on one failed task run: its status and messages, taskParameters and "
             "runParameters, the statuses of the upstream tasks it depends on, the tail of its "
-            "newest log, its artifact filenames, its operations by status with the failed ones "
-            "(e.g. dbt models), and the auth status of its connection. Over-long values and "
-            "lists are capped, and the response says which parts were cut. Use "
+            "newest log, its artifact filenames, and its operations by status with the failed "
+            "ones (e.g. dbt models). Over-long values and lists are capped, and the response "
+            "says which parts were cut. Use "
             "download_task_run_log, download_task_run_artifact or list_operations when the "
             "summary is not enough."
         ),
@@ -610,11 +579,10 @@ def _register_triage(server: FastMCP, client: httpx.AsyncClient, ui_base_url: st
         ]
 
         base_path = f"/public/pipeline_runs/{pipeline_run_id}/task_runs/{task_run_id}"
-        artifacts, log_tail, operations, connection = await asyncio.gather(
+        artifacts, log_tail, operations = await asyncio.gather(
             _get(f"{base_path}/artifacts", account_id=account_id),
             _log_tail(base_path, account_id=account_id),
             _operations(task_run, account_id),
-            _connection(task_run, account_id),
         )
 
         detail = _task_digest(task_run)
@@ -645,7 +613,6 @@ def _register_triage(server: FastMCP, client: httpx.AsyncClient, ui_base_url: st
             "artifactCount": len(filenames),
             "artifacts": filenames[:MAX_ARTIFACT_NAMES],
             "operations": operations,
-            "connection": connection,
             "lineageUrl": _lineage_url(ui_base_url, pipeline_run_id),
         }
 
