@@ -57,7 +57,7 @@ CATEGORY_ORDER = (
 HANDWRITTEN_ROWS = (
     (
         "whats_broken",
-        "Failing and warning pipeline runs in a window, pre-joined to the task runs that failed inside them, with messages, platform links and duration anomalies; one account, several, or all of them.",
+        "Failing and warning pipeline runs in a window, pre-joined to the task runs that failed inside them, with messages, platform links and duration anomalies; one account, or up to 10 at once, listing any it did not sweep.",
         "Triage",
     ),
     (
