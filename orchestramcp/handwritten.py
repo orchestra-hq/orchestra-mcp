@@ -79,8 +79,7 @@ MAX_ARTIFACT_NAMES = 50
 MAX_PARAMETER_CHARS = 2 * 1024
 LOG_TAIL_BYTES = 8 * 1024
 
-# API Gateway cuts a Lambda call off at 29 seconds, so a watch returns well inside that
-# and the agent calls again rather than one call waiting out the whole run.
+# API Gateway cuts a call off at 29 seconds, so a watch returns well before and is called again.
 WATCH_SECONDS = 15
 WATCH_POLL_SECONDS = 3
 FINISHED_RUN_STATUSES = frozenset({"SUCCEEDED", "WARNING", "FAILED", "SKIPPED", "CANCELLED"})
