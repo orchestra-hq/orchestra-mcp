@@ -232,6 +232,12 @@ def _params(requests, pattern):
     return [dict(r.url.params) for r in requests if re.search(pattern, r.url.path)]
 
 
+def _assert_widest_window(params):
+    # Without time_from/time_to the API falls back to the last 24 hours.
+    span = datetime.fromisoformat(params["time_to"]) - datetime.fromisoformat(params["time_from"])
+    assert timedelta(hours=MAX_WINDOW_HOURS - 1) < span < timedelta(hours=MAX_WINDOW_HOURS)
+
+
 async def test_whats_broken_joins_failed_tasks_onto_their_pipeline_runs():
     server, requests = _triage_server(
         {
@@ -436,6 +442,7 @@ async def test_diagnose_gathers_upstream_statuses_log_tail_and_artifacts():
     download = next(r for r in requests if r.url.path.endswith("/logs/download"))
     assert download.headers["Range"] == f"bytes=-{LOG_TAIL_BYTES}"
     assert dict(download.url.params)["filename"] == "attempt-2.log"
+    assert _params(requests, r"/public/task_runs$") == []  # looked up by ID, no window
 
 
 async def test_diagnose_reports_an_unknown_task_run_id():
@@ -499,6 +506,24 @@ async def test_diagnose_lists_failed_operations_and_connection_status_without_se
     assert datetime.fromisoformat(op_params["time_to"]) == (
         datetime.fromisoformat(OLD_TASK_RUN["completedAt"]) + OPERATIONS_GRACE
     )
+
+
+async def test_diagnose_counts_operations_across_every_page():
+    def operations(request):
+        page = int(request.url.params["page"])
+        status = "FAILED" if page == 2 else "SUCCEEDED"
+        batch = [{"operationName": f"m{page}_{i}", "operationStatus": status} for i in range(100)]
+        return _page(batch if page <= 2 else [], total=200, page=page)
+
+    server, _ = _triage_server(_diagnose_routes(operations, {"authStatus": "SUCCEEDED"}))
+
+    async with Client(server) as client:
+        result = await client.call_tool("diagnose", {"task_run_id": "tr-1"})
+
+    ops = result.data["operations"]
+    assert ops["statusCounts"] == {"SUCCEEDED": 100, "FAILED": 100}
+    assert ops["failed"][0]["name"] == "m2_0"  # a failure past the first page is still listed
+    assert ops["truncated"] is True  # more failed operations than the list shows
 
 
 async def test_diagnose_keeps_the_rest_when_operations_or_the_connection_cannot_be_read():
@@ -588,6 +613,7 @@ async def test_pipeline_context_summarises_runs_and_integrations_for_an_alias():
     assert result.data["medianSucceededDurationSeconds"] == 180
     assert _params(requests, r"/public/pipeline$")[0] == {"alias": "nightly"}
     assert _params(requests, r"/pipeline_runs$")[0]["pipeline_ids"] == "pipe-1"
+    _assert_widest_window(_params(requests, r"/pipeline_runs$")[0])
 
 
 async def test_pipeline_context_selects_by_id_when_given_a_uuid():

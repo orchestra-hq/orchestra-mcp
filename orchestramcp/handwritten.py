@@ -78,6 +78,8 @@ MAX_ARTIFACT_NAMES = 50
 MAX_PARAMETER_CHARS = 2 * 1024
 LOG_TAIL_BYTES = 8 * 1024
 OPERATIONS_PAGE_SIZE = 100
+# Paged in full for the status counts, up to this many, so the Lambda's time stays bounded.
+MAX_OPERATIONS = 2000
 MAX_FAILED_OPERATIONS = 20
 MAX_DETAIL_CHARS = 500
 
@@ -426,7 +428,7 @@ def _register_triage(server: FastMCP, client: httpx.AsyncClient, ui_base_url: st
                 "/public/operations",
                 {"task_run_id": task_run["id"], **_operations_window(task_run)},
                 OPERATIONS_PAGE_SIZE,
-                OPERATIONS_PAGE_SIZE,
+                MAX_OPERATIONS,
                 account_id=account_id,
             )
         except OrchestraAPIError as exc:
@@ -661,9 +663,11 @@ def _register_triage(server: FastMCP, client: httpx.AsyncClient, ui_base_url: st
         selector = _pipeline_selector(pipeline_id_or_alias)
         pipeline = await _get("/public/pipeline", account_id, selector)
         definition = await _get("/public/pipelines/data", account_id, selector)
+        # Without an explicit window the API returns only the last 24 hours of runs.
+        time_from, time_to, _ = _window(MAX_WINDOW_HOURS)
         runs, run_total = await _paged(
             "/public/pipeline_runs",
-            {"pipeline_ids": pipeline["id"]},
+            {"pipeline_ids": pipeline["id"], "time_from": time_from, "time_to": time_to},
             RUNS_PAGE_SIZE,
             MAX_RECENT_RUNS,
             account_id=account_id,
