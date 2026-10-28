@@ -79,8 +79,8 @@ MAX_ARTIFACT_NAMES = 50
 MAX_PARAMETER_CHARS = 2 * 1024
 LOG_TAIL_BYTES = 8 * 1024
 
-# API Gateway cuts a call off at 29 seconds, so a watch returns well before and is called again.
-WATCH_SECONDS = 15
+# A call has about 20 seconds, so the wait leaves room for the requests after it.
+WATCH_SECONDS = 10
 WATCH_POLL_SECONDS = 3
 FINISHED_RUN_STATUSES = frozenset({"SUCCEEDED", "WARNING", "FAILED", "SKIPPED", "CANCELLED"})
 
