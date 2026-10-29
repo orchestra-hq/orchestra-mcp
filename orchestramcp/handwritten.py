@@ -1,6 +1,9 @@
+import asyncio
 import base64
 import json
 import statistics
+import time
+from collections import Counter
 from datetime import UTC, datetime, timedelta
 from typing import Annotated, Any
 from uuid import UUID
@@ -75,6 +78,11 @@ MAX_RECENT_RUNS = 20
 MAX_ARTIFACT_NAMES = 50
 MAX_PARAMETER_CHARS = 2 * 1024
 LOG_TAIL_BYTES = 8 * 1024
+
+# A call has about 20 seconds, so the wait leaves room for the requests after it.
+WATCH_SECONDS = 10
+WATCH_POLL_SECONDS = 3
+FINISHED_RUN_STATUSES = frozenset({"SUCCEEDED", "WARNING", "FAILED", "SKIPPED", "CANCELLED"})
 
 
 def _lineage_url(ui_base_url: str, pipeline_run_id: str) -> str:
@@ -550,6 +558,59 @@ def _register_triage(server: FastMCP, client: httpx.AsyncClient, ui_base_url: st
             "logTail": await _log_tail(base_path, account_id=account_id),
             "artifactCount": len(filenames),
             "artifacts": filenames[:MAX_ARTIFACT_NAMES],
+            "lineageUrl": _lineage_url(ui_base_url, pipeline_run_id),
+        }
+
+    @server.tool(
+        description=(
+            "Follow a pipeline run to completion, e.g. one start_pipeline just started. Waits "
+            f"up to {WATCH_SECONDS} seconds for it to finish, then returns its status, whether "
+            "it has finished, its task runs' statuses and the failed ones. Call again with the "
+            "same ID until finished is true, and follow up on a failed task run with diagnose."
+        ),
+        annotations=ToolAnnotations(title="Watch Pipeline Run", readOnlyHint=True),
+    )
+    async def watch_run(pipeline_run_id: str, account_id: AccountId = None) -> dict:
+        deadline = time.monotonic() + WATCH_SECONDS
+        while True:
+            try:
+                run = await _get(f"/public/pipeline_runs/{pipeline_run_id}/status", account_id)
+            except OrchestraAPIError as exc:
+                if exc.status_code == 404:
+                    raise ToolError(f"No pipeline run found with ID {pipeline_run_id}.") from exc
+                raise
+            finished = run.get("runStatus") in FINISHED_RUN_STATUSES
+            if finished or time.monotonic() + WATCH_POLL_SECONDS > deadline:
+                break
+            await asyncio.sleep(WATCH_POLL_SECONDS)
+
+        task_runs, task_run_total = await _paged(
+            f"/public/pipeline_runs/{pipeline_run_id}/task_runs",
+            {"include_superseded": "false"},
+            RUN_TASK_RUNS_PAGE_SIZE,
+            MAX_SIBLING_TASK_RUNS,
+            account_id=account_id,
+        )
+        failed = [task for task in task_runs if task.get("status") in ("FAILED", "WARNING")]
+        return {
+            **_compact(
+                {
+                    "pipelineRunId": pipeline_run_id,
+                    "pipeline": run.get("pipelineName"),
+                    "runStatus": run.get("runStatus"),
+                    "message": run.get("message"),
+                    "startedAt": run.get("startedAt"),
+                    "completedAt": run.get("completedAt"),
+                    "taskStatusCounts": dict(Counter(task.get("status") for task in task_runs)),
+                    "failedTasks": [
+                        _task_digest(task) for task in failed[:MAX_FAILED_TASKS_PER_RUN]
+                    ],
+                }
+            ),
+            "finished": finished,
+            "taskRunsTruncated": (
+                task_run_total > len(task_runs) or len(failed) > MAX_FAILED_TASKS_PER_RUN
+            ),
             "lineageUrl": _lineage_url(ui_base_url, pipeline_run_id),
         }
 
