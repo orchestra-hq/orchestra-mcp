@@ -1,8 +1,9 @@
+import asyncio
 import base64
 import json
 import statistics
 from datetime import UTC, datetime, timedelta
-from typing import Annotated, Any
+from typing import Annotated, Any, Literal
 from uuid import UUID
 
 import httpx
@@ -48,6 +49,21 @@ AccountId = Annotated[
             "Act on this account rather than the one the credential resolves to. Omit it to "
             "use the credential's own account. An API key is issued to a single account, so it "
             "may only name that account; an OAuth token may name any account its grant covers."
+        )
+    ),
+]
+
+
+# Every account sweep pages several endpoints, so the fan-out is capped for the Lambda's budget.
+MAX_SWEPT_ACCOUNTS = 10
+
+AccountIds = Annotated[
+    list[UUID4] | Literal["all"] | None,
+    Field(
+        description=(
+            "Sweep several accounts in one call instead of one: a list of account IDs, or "
+            f"'all' for every account the credential can reach, up to {MAX_SWEPT_ACCOUNTS}. "
+            "Results are grouped by account. Use instead of account_id."
         )
     ),
 ]
@@ -177,7 +193,12 @@ def _definition_integrations(definition: dict) -> list[str]:
     return sorted(integrations)
 
 
-def register_handwritten(server: FastMCP, client: httpx.AsyncClient, ui_base_url: str) -> None:
+def register_handwritten(
+    server: FastMCP,
+    client: httpx.AsyncClient,
+    ui_base_url: str,
+    platform_client: httpx.AsyncClient,
+) -> None:
     """Register the tools that cannot be generated from the spec.
 
     ``get_pipeline_run_lineage_url`` has no backing endpoint; the downloads return
@@ -185,7 +206,7 @@ def register_handwritten(server: FastMCP, client: httpx.AsyncClient, ui_base_url
     posts a body the spec does not declare. The composite triage tools each join
     several endpoints, so no single operation describes them.
     """
-    _register_triage(server, client, ui_base_url)
+    _register_triage(server, client, ui_base_url, platform_client)
 
     @server.tool(
         annotations=ToolAnnotations(title="Get Pipeline Run Lineage URL", readOnlyHint=True)
@@ -306,7 +327,12 @@ def register_handwritten(server: FastMCP, client: httpx.AsyncClient, ui_base_url
         return await _download(path, filename, range_header, account_id=account_id)
 
 
-def _register_triage(server: FastMCP, client: httpx.AsyncClient, ui_base_url: str) -> None:
+def _register_triage(
+    server: FastMCP,
+    client: httpx.AsyncClient,
+    ui_base_url: str,
+    platform_client: httpx.AsyncClient,
+) -> None:
     """Register the composite read tools, each answering one triage question in a call.
 
     They join several endpoints and page internally, so the agent spends no round
@@ -385,23 +411,9 @@ def _register_triage(server: FastMCP, client: httpx.AsyncClient, ui_base_url: st
             "truncated": received >= LOG_TAIL_BYTES,
         }
 
-    @server.tool(
-        description=(
-            "Start here for 'what is broken' or 'why did last night's run fail'. Returns every "
-            "failing and warning pipeline run in the window, already joined to the task runs "
-            "that failed inside it, with each task's message, externalMessage, platformLink and "
-            "duration-vs-baseline anomalies. Retried attempts are excluded. Windows wider than "
-            f"{MAX_WINDOW_HOURS} hours are clamped to that, the widest the API serves. Follow up "
-            "on a single task run with diagnose."
-        ),
-        annotations=ToolAnnotations(title="What's Broken", readOnlyHint=True),
-    )
-    async def whats_broken(
-        window_hours: int = DEFAULT_WINDOW_HOURS,
-        environment: str | None = None,
-        account_id: AccountId = None,
+    async def _broken_in(
+        environment: str | None, time_from: str, time_to: str, account_id: UUID | None
     ) -> dict:
-        time_from, time_to, hours = _window(window_hours)
         environment_record = (
             await _resolve_environment(environment, account_id=account_id) if environment else None
         )
@@ -468,7 +480,6 @@ def _register_triage(server: FastMCP, client: httpx.AsyncClient, ui_base_url: st
             failures.append(failure)
 
         return {
-            "window": {"from": time_from, "to": time_to, "hours": hours},
             "environment": environment_record["name"] if environment_record else None,
             "failingRunCount": run_total,
             "failures": failures,
@@ -480,6 +491,59 @@ def _register_triage(server: FastMCP, client: httpx.AsyncClient, ui_base_url: st
                 run_total > len(failures) or failed_task_total > len(failed_tasks) or dropped_tasks
             ),
         }
+
+    async def _broken_in_account(
+        account: dict, environment: str | None, time_from: str, time_to: str
+    ) -> dict:
+        """One account's failures, or why it could not be swept, so it cannot sink the rest."""
+        try:
+            broken = await _broken_in(environment, time_from, time_to, account_id=account["id"])
+        except (OrchestraAPIError, ToolError, httpx.HTTPError) as exc:
+            broken = {"unavailable": str(exc) or type(exc).__name__}
+        return {**_compact({"accountId": account["id"], "account": account.get("name")}), **broken}
+
+    @server.tool(
+        description=(
+            "Start here for 'what is broken' or 'why did last night's run fail'. Returns every "
+            "failing and warning pipeline run in the window, already joined to the task runs "
+            "that failed inside it, with each task's message, externalMessage, platformLink and "
+            "duration-vs-baseline anomalies. Retried attempts are excluded. Windows wider than "
+            f"{MAX_WINDOW_HOURS} hours are clamped to that, the widest the API serves. Follow up "
+            "on a single task run with diagnose. Pass account_ids to sweep several accounts, "
+            "or all of them, in one call."
+        ),
+        annotations=ToolAnnotations(title="What's Broken", readOnlyHint=True),
+    )
+    async def whats_broken(
+        window_hours: int = DEFAULT_WINDOW_HOURS,
+        environment: str | None = None,
+        account_id: AccountId = None,
+        account_ids: AccountIds = None,
+    ) -> dict:
+        time_from, time_to, hours = _window(window_hours)
+        window = {"from": time_from, "to": time_to, "hours": hours}
+        if account_ids is None:
+            broken = await _broken_in(environment, time_from, time_to, account_id=account_id)
+            return {"window": window, **broken}
+        if account_id:
+            raise ToolError("Pass account_id or account_ids, not both.")
+        if not account_ids:
+            raise ToolError("account_ids is empty; pass account IDs or 'all'.")
+
+        if account_ids == "all":
+            accounts = (await platform_client.get("/accounts")).json()
+        else:
+            accounts = [{"id": str(account)} for account in dict.fromkeys(account_ids)]
+        swept = await asyncio.gather(
+            *(
+                _broken_in_account(account, environment, time_from, time_to)
+                for account in accounts[:MAX_SWEPT_ACCOUNTS]
+            )
+        )
+        result = {"window": window, "accounts": list(swept)}
+        if not_swept := accounts[MAX_SWEPT_ACCOUNTS:]:
+            result["accountsNotSwept"] = [account["id"] for account in not_swept]
+        return result
 
     @server.tool(
         description=(
