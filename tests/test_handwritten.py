@@ -2,7 +2,7 @@ import base64
 import json
 import os
 import re
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 
 import httpx
 import pytest
@@ -14,9 +14,11 @@ from orchestramcp.handwritten import (
     LOG_TAIL_BYTES,
     MAX_ARTIFACT_NAMES,
     MAX_DOWNLOAD_BYTES,
+    MAX_FAILED_OPERATIONS,
     MAX_FAILED_TASKS_PER_RUN,
     MAX_SIBLING_TASK_RUNS,
     MAX_WINDOW_HOURS,
+    OPERATIONS_GRACE,
     RUN_TASK_RUNS_PAGE_SIZE,
     _duration_seconds,
     register_handwritten,
@@ -451,6 +453,86 @@ async def test_diagnose_reports_an_unknown_task_run_id():
     async with Client(server) as client:
         with pytest.raises(ToolError, match="No task run found with ID tr-1"):
             await client.call_tool("diagnose", {"task_run_id": "tr-1"})
+
+
+OLD_TASK_RUN = {
+    "id": "tr-1",
+    "pipelineRunId": "run-1",
+    "createdAt": "2026-09-05T10:00:00+00:00",
+    "completedAt": "2026-09-05T10:05:00+00:00",
+}
+
+
+def _diagnose_routes(task_run, operations):
+    return {
+        r"/pipeline_runs/[^/]+/task_runs$": _page([]),
+        r"/public/task_runs/[^/]+$": task_run,
+        r"/logs$": {"filenames": []},
+        r"/artifacts$": {"filenames": []},
+        r"/operations$": operations,
+    }
+
+
+async def test_diagnose_lists_failed_operations_over_an_old_task_runs_lifetime():
+    def operations(request):
+        if request.url.params["status"] == "FAILED":
+            return _page([{"operationName": "fct_orders", "operationStatus": "FAILED"}])
+        return _page([{"operationName": "stg_orders", "operationStatus": "WARNING"}])
+
+    server, requests = _triage_server(_diagnose_routes(OLD_TASK_RUN, operations))
+
+    async with Client(server) as client:
+        result = await client.call_tool("diagnose", {"task_run_id": "tr-1"})
+
+    failed = result.data["failedOperations"]
+    assert failed["operations"] == [
+        {"name": "fct_orders", "status": "FAILED"},
+        {"name": "stg_orders", "status": "WARNING"},
+    ]
+    assert failed["truncated"] is False
+
+    # Weeks old: the window is the task run's own lifetime, not the API's default last day.
+    params = _params(requests, r"/operations$")[0]
+    assert params["task_run_id"] == "tr-1"
+    assert params["time_from"] == OLD_TASK_RUN["createdAt"]
+    assert datetime.fromisoformat(params["time_to"]) == (
+        datetime.fromisoformat(OLD_TASK_RUN["completedAt"]) + OPERATIONS_GRACE
+    )
+
+
+async def test_diagnose_clamps_the_operations_window_for_a_long_running_task():
+    ten_days_ago = (datetime.now(tz=UTC) - timedelta(days=10)).isoformat()
+    running = {"id": "tr-1", "pipelineRunId": "run-1", "createdAt": ten_days_ago}
+    server, requests = _triage_server(_diagnose_routes(running, _page([])))
+
+    async with Client(server) as client:
+        await client.call_tool("diagnose", {"task_run_id": "tr-1"})
+
+    _assert_widest_window(_params(requests, r"/operations$")[0])
+
+
+async def test_diagnose_flags_more_failed_operations_than_it_lists():
+    batch = [{"operationName": f"m{i}", "operationStatus": "FAILED"} for i in range(20)]
+    server, _ = _triage_server(_diagnose_routes(OLD_TASK_RUN, _page(batch, total=45)))
+
+    async with Client(server) as client:
+        result = await client.call_tool("diagnose", {"task_run_id": "tr-1"})
+
+    failed = result.data["failedOperations"]
+    assert len(failed["operations"]) == MAX_FAILED_OPERATIONS
+    assert failed["counts"] == {"FAILED": 45, "WARNING": 45}  # both lookups get the same page
+    assert failed["truncated"] is True
+
+
+async def test_diagnose_keeps_the_rest_when_operations_cannot_be_read():
+    forbidden = lambda request: httpx.Response(403, json={"detail": "Forbidden"})  # noqa: E731
+    server, _ = _triage_server(_diagnose_routes(OLD_TASK_RUN, forbidden))
+
+    async with Client(server) as client:
+        result = await client.call_tool("diagnose", {"task_run_id": "tr-1"})
+
+    assert "unavailable" in result.data["failedOperations"]
+    assert result.data["taskRun"]["taskRunId"] == "tr-1"
 
 
 async def test_diagnose_survives_a_log_download_failure():
