@@ -13,6 +13,7 @@ from tests.conftest import EXPECTED_TOOLS, api_gateway_event, mcp_post_event
 def lambda_context():
     context = MagicMock()
     context.aws_request_id = "test-request-id"
+    context.get_remaining_time_in_millis.return_value = 29_000
     return context
 
 
@@ -155,6 +156,30 @@ def test_error_event_logged_for_jsonrpc_error_body(lambda_context, caplog):
         _log_mcp_error_event_if_present({"statusCode": 200, "body": body}, lambda_context)
 
     assert any("mcp_response_too_large" in record.getMessage() for record in caplog.records)
+
+
+def test_timeout_error_body_logs_an_error_event_naming_the_tool(lambda_context, caplog):
+    from orchestramcp.lambda_handler import _log_mcp_error_event_if_present
+
+    body = json.dumps(
+        {
+            "jsonrpc": "2.0",
+            "id": 1,
+            "error": {
+                "code": -32603,
+                "message": "Request did not finish in time: tool 'diagnose' did not finish "
+                "within 26 seconds",
+            },
+        }
+    )
+
+    with caplog.at_level("ERROR"):
+        _log_mcp_error_event_if_present({"statusCode": 200, "body": body}, lambda_context)
+
+    assert any(
+        "mcp_request_timed_out" in record.getMessage() and "diagnose" in record.getMessage()
+        for record in caplog.records
+    )
 
 
 def test_no_error_event_for_success_body_containing_marker(lambda_context, caplog):

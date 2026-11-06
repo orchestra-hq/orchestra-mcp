@@ -10,6 +10,7 @@ from mcp_lambda import APIGatewayProxyEventV2Handler
 from orchestramcp import oauth
 from orchestramcp.in_process_request_handler import (
     INTERNAL_FAILURE_MESSAGE,
+    REQUEST_TIMED_OUT_MESSAGE,
     RESPONSE_TOO_LARGE_MESSAGE,
     FastMCPInProcessRequestHandler,
 )
@@ -100,6 +101,8 @@ def _log_mcp_error_event_if_present(response: dict[str, Any], context: Any) -> N
             context,
             RuntimeError("MCP response exceeded the maximum payload size"),
         )
+    if REQUEST_TIMED_OUT_MESSAGE in message:
+        _log_error_event("mcp_request_timed_out", context, RuntimeError(message))
 
 
 def _get_http_method(event: dict[str, Any]) -> str:
