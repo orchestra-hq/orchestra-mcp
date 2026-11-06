@@ -1,0 +1,34 @@
+orchestramcp/in_process_request_handler.py
+  s_438e5016ce35cb::t_67bdcfce6c4d64 30-35
+  s_438e5016ce35cb::t_3f63eab746ab6c 87-103
+  s_438e5016ce35cb::t_8fa1b622f2970d 129,135-148,150
+  s_438e5016ce35cb::t_9e9849bb03e63e 149
+  s_438e5016ce35cb::t_d4f5db3bb160e2 165,167-169
+orchestramcp/lambda_handler.py
+  s_438e5016ce35cb::t_e74197be6763cd 13
+  s_438e5016ce35cb::t_7a7226f1d08a01 104-105
+tests/test_in_process_request_handler.py
+  s_438e5016ce35cb::t_061dc7ff019ded 60
+  s_438e5016ce35cb::t_a92de2e1f944a3 26
+  s_438e5016ce35cb::t_bf15402a3b4f8c 1,4,6,12
+  s_438e5016ce35cb::t_6f37c63b487a4e 99-125
+tests/test_lambda_handler.py
+  s_438e5016ce35cb::t_887310f7365673 161-184
+  s_438e5016ce35cb::t_a92de2e1f944a3 16
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "f5f6ba3e2c78af375e06aff1f896287b8efe4bd1",
+  "prompts": {},
+  "sessions": {
+    "s_438e5016ce35cb": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "4f8c5633-dc20-4e44-b279-065776712e6b",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Jeroen Rijks <jeroen@getorchestra.io>"
+    }
+  }
+}
