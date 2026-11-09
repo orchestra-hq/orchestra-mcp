@@ -24,19 +24,34 @@ HANDWRITTEN_OPERATION_IDS = (
     "validate_pipeline",
 )
 
-# File bytes returned per download call. A text result over 50,000 characters is
-# saved to a file by Claude Code rather than shown to the model, so a chunk stays
-# under that even when binary content is base64-encoded (4/3 larger).
-CHUNK_BYTES = 30_000
+# Claude Code saves a text tool result over 50,000 characters (or 25,000 tokens) to a
+# file instead of showing it to the model; agents then shell out to read it back.
+# Results are kept under this budget with headroom for the envelope.
+MAX_RESULT_CHARS = 40_000
+
+# Default bytes per download call: a chunk that stays within MAX_RESULT_CHARS even
+# when binary content is base64-encoded (4/3 larger), so the agent reads it in line.
+CHUNK_BYTES = MAX_RESULT_CHARS * 3 // 4
+
+# Largest chunk a caller may ask for, bounded by the transport rather than the agent:
+# base64 makes 3MiB about 4MiB, under the Lambda's ~6MB response payload limit with
+# room for the JSON-RPC and API Gateway wrapping. For bulk reads saved to a file.
+MAX_CHUNK_BYTES = 3 * 1024 * 1024
 
 _DOWNLOAD_DESCRIPTION = (
-    "Read a task run {kind} file in chunks of up to "
-    f"{CHUNK_BYTES} bytes.{{note}} Pass offset to choose where to start: 0 reads from the "
-    "beginning, a negative offset counts back from the end (e.g. -30000 reads the last "
-    "30000 bytes, usually where an error is). The first content block reports total_bytes "
-    "and next_offset; call again with offset=next_offset until next_offset is null to read "
-    "the whole file. Text comes back as-is, binary content base64-encoded."
+    "Read a task run {kind} file in chunks.{note} Pass offset to choose where to start: 0 "
+    "reads from the beginning, a negative offset counts back from the end (e.g. -30000 "
+    "reads the last 30000 bytes, usually where an error is). The first content block "
+    "reports total_bytes and next_offset; call again with offset=next_offset until "
+    "next_offset is null to read the whole file. Text comes back as-is, binary content "
+    f"base64-encoded. chunk_bytes defaults to {CHUNK_BYTES}, which you can read in line; "
+    f"raise it up to {MAX_CHUNK_BYTES} only to save a large file to disk and process it "
+    "with a script."
 )
+
+ChunkBytes = Annotated[
+    int, Field(ge=1, le=MAX_CHUNK_BYTES, description="Bytes to return in this call.")
+]
 
 
 # Mirrors the header's description in the public spec, which the generated tools inherit.
@@ -233,11 +248,11 @@ def register_handwritten(server: FastMCP, client: httpx.AsyncClient, ui_base_url
         return response.json()
 
     async def _download(
-        path: str, filename: str, offset: int, account_id: UUID | None
+        path: str, filename: str, offset: int, chunk_bytes: int, account_id: UUID | None
     ) -> ToolResult:
         headers = _account_headers(account_id)
         if offset >= 0:
-            headers["Range"] = f"bytes={offset}-{offset + CHUNK_BYTES - 1}"
+            headers["Range"] = f"bytes={offset}-{offset + chunk_bytes - 1}"
         else:
             headers["Range"] = f"bytes={offset}"
         async with client.stream(
@@ -256,8 +271,8 @@ def register_handwritten(server: FastMCP, client: httpx.AsyncClient, ui_base_url
             start, total = _content_range(response)
             if start is None and offset >= 0:
                 start = offset  # the range was ignored and the whole file is streamed
-            content, start, total = await _read_chunk(response, start, offset, total)
-        return _chunk_result(filename, content, start, total, tail=offset < 0)
+            content, start, total = await _read_chunk(response, start, offset, total, chunk_bytes)
+        return _chunk_result(filename, content, start, total, chunk_bytes, tail=offset < 0)
 
     @server.tool(
         description=_DOWNLOAD_DESCRIPTION.format(kind="log", note=""),
@@ -268,10 +283,11 @@ def register_handwritten(server: FastMCP, client: httpx.AsyncClient, ui_base_url
         task_run_id: str,
         filename: str,
         offset: int = 0,
+        chunk_bytes: ChunkBytes = CHUNK_BYTES,
         account_id: AccountId = None,
     ) -> ToolResult:
         path = f"/public/pipeline_runs/{pipeline_run_id}/task_runs/{task_run_id}/logs/download"
-        return await _download(path, filename, offset, account_id=account_id)
+        return await _download(path, filename, offset, chunk_bytes, account_id=account_id)
 
     @server.tool(
         description=_DOWNLOAD_DESCRIPTION.format(
@@ -284,10 +300,11 @@ def register_handwritten(server: FastMCP, client: httpx.AsyncClient, ui_base_url
         task_run_id: str,
         filename: str,
         offset: int = 0,
+        chunk_bytes: ChunkBytes = CHUNK_BYTES,
         account_id: AccountId = None,
     ) -> ToolResult:
         path = f"/public/pipeline_runs/{pipeline_run_id}/task_runs/{task_run_id}/artifacts/download"
-        return await _download(path, filename, offset, account_id=account_id)
+        return await _download(path, filename, offset, chunk_bytes, account_id=account_id)
 
 
 def _content_range(response: httpx.Response) -> tuple[int | None, int | None]:
@@ -301,9 +318,13 @@ def _content_range(response: httpx.Response) -> tuple[int | None, int | None]:
 
 
 async def _read_chunk(
-    response: httpx.Response, start: int | None, offset: int, total: int | None
+    response: httpx.Response,
+    start: int | None,
+    offset: int,
+    total: int | None,
+    chunk_bytes: int,
 ) -> tuple[bytes, int, int | None]:
-    """Collect up to CHUNK_BYTES from ``start``, streaming so a server that ignores the
+    """Collect up to ``chunk_bytes`` from ``start``, streaming so a server that ignores the
     range never has a whole file buffered. ``start`` is None only for a tail read
     answered with the whole file, which keeps just the last ``-offset`` bytes."""
     buffer = b""
@@ -312,15 +333,15 @@ async def _read_chunk(
         async for chunk in response.aiter_bytes():
             received += len(chunk)
             buffer = (buffer + chunk)[offset:]
-        return buffer[:CHUNK_BYTES], received - len(buffer), received
+        return buffer[:chunk_bytes], received - len(buffer), received
     skip = 0 if response.status_code == 206 else start
     async for chunk in response.aiter_bytes():
         dropped = min(skip, len(chunk))
         skip -= dropped
         buffer += chunk[dropped:]
-        if len(buffer) >= CHUNK_BYTES:
+        if len(buffer) >= chunk_bytes:
             break
-    return buffer[:CHUNK_BYTES], start, total
+    return buffer[:chunk_bytes], start, total
 
 
 def _utf8_prefix(body: bytes, more_follows: bool) -> bytes | None:
@@ -336,7 +357,7 @@ def _utf8_prefix(body: bytes, more_follows: bool) -> bytes | None:
 
 
 def _chunk_result(
-    filename: str, content: bytes, start: int, total: int | None, tail: bool
+    filename: str, content: bytes, start: int, total: int | None, chunk_bytes: int, tail: bool
 ) -> ToolResult:
     """Return the chunk as plain text when it is UTF-8, else base64.
 
@@ -344,7 +365,7 @@ def _chunk_result(
     bytes. A multi-byte character split by either chunk boundary is left to the
     neighbouring chunk, so following next_offset still reads every byte once.
     """
-    more_follows = len(content) >= CHUNK_BYTES and (total is None or start + len(content) < total)
+    more_follows = len(content) >= chunk_bytes and (total is None or start + len(content) < total)
     lead = 0
     # Only a tail read lands at an arbitrary byte; a start reached by following
     # next_offset is on a character boundary, so stripping there could drop the
@@ -359,7 +380,7 @@ def _chunk_result(
         text, encoding = body.decode("utf-8"), "utf-8"
     start += lead
     end = start + len(body)
-    more = end < total if total is not None else len(content) >= CHUNK_BYTES
+    more = end < total if total is not None else len(content) >= chunk_bytes
     meta = {
         "filename": filename,
         "offset": start,

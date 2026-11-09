@@ -14,6 +14,7 @@ from orchestramcp.handwritten import (
     CHUNK_BYTES,
     LOG_TAIL_BYTES,
     MAX_ARTIFACT_NAMES,
+    MAX_CHUNK_BYTES,
     MAX_FAILED_TASKS_PER_RUN,
     MAX_SIBLING_TASK_RUNS,
     MAX_WINDOW_HOURS,
@@ -152,6 +153,38 @@ async def test_download_binary_artifact_is_fully_reachable(data):
 
     assert content == data
     assert calls[0][0].endswith("/task_runs/tr/artifacts/download?filename=f")
+
+
+@pytest.mark.parametrize("honour_range", [True, False])
+async def test_download_reads_a_large_chunk_when_asked(honour_range):
+    data = b'{"nodes": "' + b"x" * (2 * 1024 * 1024) + b'"}'
+    handler, calls = _file_server(data, honour_range)
+
+    async with Client(_server(handler)) as client:
+        result = await client.call_tool(
+            "download_task_run_artifact",
+            {
+                "pipeline_run_id": "pr",
+                "task_run_id": "tr",
+                "filename": "manifest.json",
+                "chunk_bytes": MAX_CHUNK_BYTES,
+            },
+        )
+        with pytest.raises(ToolError):
+            await client.call_tool(
+                "download_task_run_artifact",
+                {
+                    "pipeline_run_id": "pr",
+                    "task_run_id": "tr",
+                    "filename": "manifest.json",
+                    "chunk_bytes": MAX_CHUNK_BYTES + 1,
+                },
+            )
+
+    meta, body = _download_result(result)
+    assert body.encode() == data
+    assert meta["next_offset"] is None
+    assert calls[0][1] == f"bytes=0-{MAX_CHUNK_BYTES - 1}"
 
 
 @pytest.mark.parametrize("honour_range", [True, False])

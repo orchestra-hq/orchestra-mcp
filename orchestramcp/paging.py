@@ -4,12 +4,7 @@ import mcp.types as mt
 from fastmcp.server.middleware import CallNext, Middleware, MiddlewareContext
 from fastmcp.tools.tool import ToolResult
 
-from orchestramcp.handwritten import MAX_PARAMETER_CHARS, _bound_strings
-
-# Claude Code saves a text tool result over 50,000 characters (or 25,000 tokens) to a
-# file instead of showing it to the model; agents then shell out to read it back.
-# Results are kept under this budget with headroom for the envelope and the note.
-MAX_RESULT_CHARS = 40_000
+from orchestramcp.handwritten import MAX_PARAMETER_CHARS, MAX_RESULT_CHARS, _bound_strings
 
 # Generated list tools whose pages routinely exceed the budget, each returning the
 # API's {page, pageSize, total, results} envelope, mapped to the tool that returns
