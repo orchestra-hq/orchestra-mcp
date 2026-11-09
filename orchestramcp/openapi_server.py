@@ -18,6 +18,15 @@ from orchestramcp.spec import (
 SERVER_NAME = "Orchestra MCP Server"
 DEFAULT_UI_BASE_URL = "https://app.getorchestra.io"
 
+# Clients that defer tool loading show the model these instructions but only tool names,
+# so an agent never reads a composite tool's description unless it is pointed there.
+INSTRUCTIONS = """\
+Start with the composite tools; each replaces a chain of list and get calls:
+- whats_broken: what is failing or warning in an account or environment, joined to the failed task runs.
+- diagnose(task_run_id): why one task run failed: its messages, parameters, upstream statuses, log tail and artifact names.
+- pipeline_context(pipeline_id_or_alias): a pipeline's definition, integrations and recent runs, before editing or reasoning about it.
+Reach for list_task_runs_for_pipeline_run, list_operations, list_task_run_logs and download_task_run_log only for detail these do not return."""
+
 
 @dataclass(frozen=True)
 class ApiSource:
@@ -62,7 +71,7 @@ def build_server(
     if clashes := sorted(tool for tool, count in generated.items() if count > 1):
         raise ValueError(f"More than one operation generates the tool(s) {clashes}")
 
-    server = FastMCP(name=name)
+    server = FastMCP(name=name, instructions=INSTRUCTIONS)
     for spec, client, names in prepared:
         server.add_provider(
             OpenAPIProvider(
