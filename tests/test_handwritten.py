@@ -11,9 +11,9 @@ from fastmcp.exceptions import ToolError
 
 from orchestramcp.client import build_http_client
 from orchestramcp.handwritten import (
+    CHUNK_BYTES,
     LOG_TAIL_BYTES,
     MAX_ARTIFACT_NAMES,
-    MAX_DOWNLOAD_BYTES,
     MAX_FAILED_TASKS_PER_RUN,
     MAX_SIBLING_TASK_RUNS,
     MAX_WINDOW_HOURS,
@@ -21,6 +21,7 @@ from orchestramcp.handwritten import (
     _duration_seconds,
     register_handwritten,
 )
+from orchestramcp.paging import MAX_RESULT_CHARS
 
 
 def _server(handler=None, ui_base_url="https://stage.getorchestra.io"):
@@ -33,8 +34,49 @@ def _server(handler=None, ui_base_url="https://stage.getorchestra.io"):
     return server
 
 
-def _download_result(result) -> dict:
-    return json.loads(result.content[0].text)
+def _download_result(result) -> tuple[dict, str]:
+    meta, body = result.content
+    return json.loads(meta.text), body.text
+
+
+def _file_server(data: bytes, honour_range: bool = True):
+    """Serve ``data`` the way the download endpoints do, recording each Range asked for."""
+    calls = []
+
+    def handler(request):
+        calls.append((str(request.url), request.headers.get("Range")))
+        spec = request.headers.get("Range", "")
+        if not honour_range or not spec:
+            return httpx.Response(200, content=data)
+        first, last = spec.removeprefix("bytes=").split("-")
+        if first == "":
+            start, end = max(0, len(data) - int(last)), len(data) - 1
+        else:
+            start, end = int(first), min(int(last) if last else len(data) - 1, len(data) - 1)
+        if start >= len(data):
+            return httpx.Response(416, content=b"")
+        return httpx.Response(
+            206,
+            content=data[start : end + 1],
+            headers={"Content-Range": f"bytes {start}-{end}/{len(data)}"},
+        )
+
+    return handler, calls
+
+
+async def _read_all(client, tool: str, offset: int = 0) -> tuple[bytes, list[dict]]:
+    """Follow next_offset from ``offset`` to the end, as an agent would."""
+    content, metas = b"", []
+    while offset is not None:
+        result = await client.call_tool(
+            tool, {"pipeline_run_id": "pr", "task_run_id": "tr", "filename": "f", "offset": offset}
+        )
+        meta, body = _download_result(result)
+        metas.append(meta)
+        content += base64.b64decode(body) if meta["encoding"] == "base64" else body.encode()
+        assert len(body) <= MAX_RESULT_CHARS
+        offset = meta["next_offset"]
+    return content, metas
 
 
 async def test_lineage_url_uses_ui_base():
@@ -43,97 +85,71 @@ async def test_lineage_url_uses_ui_base():
     assert result.data == "https://stage.getorchestra.io/pipeline-runs/r1/lineage"
 
 
-async def test_download_log_base64_encodes_with_range():
-    calls = []
-
-    def handler(request):
-        calls.append((str(request.url), request.headers.get("Range")))
-        return httpx.Response(200, content=b"hello logs")
+async def test_download_log_returns_text_and_hits_logs_path():
+    handler, calls = _file_server(b"hello logs")
 
     async with Client(_server(handler)) as client:
-        result = await client.call_tool(
-            "download_task_run_log",
-            {
-                "pipeline_run_id": "pr",
-                "task_run_id": "tr",
-                "filename": "run.log",
-                "range_header": "bytes=-10",
-            },
-        )
-
-    data = _download_result(result)
-    assert data["content"] == base64.b64encode(b"hello logs").decode()
-    assert data["encoding"] == "base64"
-    url, range_header = calls[0]
-    assert url.endswith(
-        "/api/engine/public/pipeline_runs/pr/task_runs/tr/logs/download?filename=run.log"
-    )
-    assert range_header == "bytes=-10"
-
-
-async def test_download_result_is_not_duplicated_as_structured_content():
-    async with Client(_server(lambda request: httpx.Response(200, content=b"data"))) as client:
         result = await client.call_tool(
             "download_task_run_log",
             {"pipeline_run_id": "pr", "task_run_id": "tr", "filename": "run.log"},
         )
 
+    meta, body = _download_result(result)
+    assert body == "hello logs"
+    assert meta == {
+        "filename": "run.log",
+        "offset": 0,
+        "size_bytes": 10,
+        "total_bytes": 10,
+        "next_offset": None,
+        "encoding": "utf-8",
+    }
+    url, range_header = calls[0]
+    assert url.endswith(
+        "/api/engine/public/pipeline_runs/pr/task_runs/tr/logs/download?filename=run.log"
+    )
+    assert range_header == f"bytes=0-{CHUNK_BYTES - 1}"
     assert result.structured_content is None
-    assert len(result.content) == 1
 
 
-async def test_download_artifact_hits_artifacts_path():
-    calls = []
-
-    def handler(request):
-        calls.append(str(request.url))
-        return httpx.Response(200, content=b"data")
+@pytest.mark.parametrize("honour_range", [True, False])
+async def test_download_reads_a_large_text_file_whole_in_chunks(honour_range):
+    # Multi-byte characters land on chunk boundaries, which must not lose a byte.
+    data = ("line é ✓ 🚀\n" * 20_000).encode()
+    handler, _ = _file_server(data, honour_range)
 
     async with Client(_server(handler)) as client:
-        result = await client.call_tool(
-            "download_task_run_artifact",
-            {"pipeline_run_id": "pr", "task_run_id": "tr", "filename": "manifest.json"},
-        )
+        content, metas = await _read_all(client, "download_task_run_log")
 
-    assert _download_result(result)["content"] == base64.b64encode(b"data").decode()
-    assert calls[0].endswith("/task_runs/tr/artifacts/download?filename=manifest.json")
-
-
-async def test_download_over_cap_errors_with_range_guidance():
-    def handler(request):
-        return httpx.Response(200, content=b"x" * (MAX_DOWNLOAD_BYTES + 1))
-
-    async with Client(_server(handler)) as client:
-        with pytest.raises(ToolError, match="range_header"):
-            await client.call_tool(
-                "download_task_run_artifact",
-                {"pipeline_run_id": "pr", "task_run_id": "tr", "filename": "manifest.json"},
-            )
+    assert content == data
+    assert len(metas) > 1
+    assert all(meta["encoding"] == "utf-8" for meta in metas)
+    assert metas[0]["total_bytes"] == len(data)
 
 
-async def test_download_artifact_forwards_range_and_returns_content_range():
-    calls = []
-
-    def handler(request):
-        calls.append(request.headers.get("Range"))
-        return httpx.Response(206, content=b"2345", headers={"Content-Range": "bytes 2-5/10"})
+async def test_download_binary_artifact_is_base64_and_fully_reachable():
+    data = bytes(range(256)) * 300
+    handler, calls = _file_server(data)
 
     async with Client(_server(handler)) as client:
-        result = await client.call_tool(
-            "download_task_run_artifact",
-            {
-                "pipeline_run_id": "pr",
-                "task_run_id": "tr",
-                "filename": "manifest.json",
-                "range_header": "bytes=2-5",
-            },
-        )
+        content, metas = await _read_all(client, "download_task_run_artifact")
 
-    data = _download_result(result)
-    assert calls[0] == "bytes=2-5"
-    assert base64.b64decode(data["content"]) == b"2345"
-    assert data["size_bytes"] == 4
-    assert data["content_range"] == "bytes 2-5/10"
+    assert content == data
+    assert metas[0]["encoding"] == "base64"
+    assert calls[0][0].endswith("/task_runs/tr/artifacts/download?filename=f")
+
+
+@pytest.mark.parametrize("honour_range", [True, False])
+async def test_download_negative_offset_reads_the_tail(honour_range):
+    data = b"".join(f"line {i}\n".encode() for i in range(20_000))
+    handler, calls = _file_server(data, honour_range)
+
+    async with Client(_server(handler)) as client:
+        content, metas = await _read_all(client, "download_task_run_log", offset=-50_000)
+
+    assert content == data[-50_000:]
+    assert metas[0]["offset"] == len(data) - 50_000
+    assert calls[0][1] == "bytes=-50000"
 
 
 async def test_download_http_error_raises_tool_error():
@@ -148,20 +164,14 @@ async def test_download_http_error_raises_tool_error():
             )
 
 
-async def test_download_unsatisfiable_range_raises_tool_error_with_hint():
-    def handler(request):
-        return httpx.Response(416, content=b"")
+async def test_download_offset_past_the_end_raises_tool_error_with_hint():
+    handler, _ = _file_server(b"short")
 
     async with Client(_server(handler)) as client:
-        with pytest.raises(ToolError, match="not satisfiable"):
+        with pytest.raises(ToolError, match="past the end"):
             await client.call_tool(
                 "download_task_run_log",
-                {
-                    "pipeline_run_id": "pr",
-                    "task_run_id": "tr",
-                    "filename": "run.log",
-                    "range_header": "bytes=99999999-",
-                },
+                {"pipeline_run_id": "pr", "task_run_id": "tr", "filename": "run.log", "offset": 99},
             )
 
 

@@ -1,5 +1,6 @@
 import base64
 import json
+import re
 import statistics
 from datetime import UTC, datetime, timedelta
 from typing import Annotated, Any
@@ -9,13 +10,13 @@ import httpx
 from fastmcp import FastMCP
 from fastmcp.exceptions import ToolError
 from fastmcp.tools.tool import ToolResult
-from mcp.types import ToolAnnotations
+from mcp.types import TextContent, ToolAnnotations
 from pydantic import UUID4, Field
 
 from orchestramcp.errors import OrchestraAPIError
 
 # Operations excluded from generation because they are served by the hand-written
-# tools below: binary downloads that need base64 wrapping, and an endpoint whose
+# tools below: chunked file downloads, and an endpoint whose
 # upstream handler reads the raw request, so the spec declares no body for it.
 HANDWRITTEN_OPERATION_IDS = (
     "download_task_run_log",
@@ -23,20 +24,18 @@ HANDWRITTEN_OPERATION_IDS = (
     "validate_pipeline",
 )
 
-# Cap on raw file bytes returned per call. Base64 inflates content by ~33% and the
-# Lambda response payload is hard-limited to ~6MB, so 3MiB raw (~4MiB encoded)
-# leaves headroom for the JSON-RPC and API Gateway wrapping. The result is returned
-# as a single text content block (no structuredContent) so the payload is not
-# duplicated in the response.
-MAX_DOWNLOAD_BYTES = 3 * 1024 * 1024
-
-_RANGE_EXAMPLE = f"bytes=0-{MAX_DOWNLOAD_BYTES - 1}"
+# File bytes returned per download call. A text result over 50,000 characters is
+# saved to a file by Claude Code rather than shown to the model, so a chunk stays
+# under that even when binary content is base64-encoded (4/3 larger).
+CHUNK_BYTES = 30_000
 
 _DOWNLOAD_DESCRIPTION = (
-    "Download a task run {kind} file, returned base64-encoded.{note} At most "
-    f"{MAX_DOWNLOAD_BYTES // (1024 * 1024)}MiB of file content is returned per call; "
-    f"fetch larger files in chunks by passing range_header (e.g. '{_RANGE_EXAMPLE}') "
-    "and advancing the range each call."
+    "Read a task run {kind} file in chunks of up to "
+    f"{CHUNK_BYTES} bytes.{{note}} Pass offset to choose where to start: 0 reads from the "
+    "beginning, a negative offset counts back from the end (e.g. -30000 reads the last "
+    "30000 bytes, usually where an error is). The first content block reports total_bytes "
+    "and next_offset; call again with offset=next_offset until next_offset is null to read "
+    "the whole file. Text comes back as-is, binary content base64-encoded."
 )
 
 
@@ -180,8 +179,8 @@ def _definition_integrations(definition: dict) -> list[str]:
 def register_handwritten(server: FastMCP, client: httpx.AsyncClient, ui_base_url: str) -> None:
     """Register the tools that cannot be generated from the spec.
 
-    ``get_pipeline_run_lineage_url`` has no backing endpoint; the downloads return
-    binary content that is base64-encoded so it survives as JSON; ``validate_pipeline``
+    ``get_pipeline_run_lineage_url`` has no backing endpoint; the downloads read a
+    file in chunks an agent can take in line; ``validate_pipeline``
     posts a body the spec does not declare. The composite triage tools each join
     several endpoints, so no single operation describes them.
     """
@@ -234,46 +233,31 @@ def register_handwritten(server: FastMCP, client: httpx.AsyncClient, ui_base_url
         return response.json()
 
     async def _download(
-        path: str, filename: str, range_header: str | None, account_id: UUID | None
+        path: str, filename: str, offset: int, account_id: UUID | None
     ) -> ToolResult:
         headers = _account_headers(account_id)
-        if range_header:
-            headers["Range"] = range_header
+        if offset >= 0:
+            headers["Range"] = f"bytes={offset}-{offset + CHUNK_BYTES - 1}"
+        else:
+            headers["Range"] = f"bytes={offset}"
         async with client.stream(
             "GET", path, params={"filename": filename}, headers=headers
         ) as response:
             if response.status_code >= 400:
                 await response.aread()
                 hint = (
-                    " The requested range is not satisfiable; check it against the file size."
+                    " The offset is past the end of the file."
                     if response.status_code == 416
                     else ""
                 )
                 raise ToolError(
                     f"Download of {filename} failed with HTTP {response.status_code}.{hint}"
                 )
-            chunks: list[bytes] = []
-            received = 0
-            async for chunk in response.aiter_bytes():
-                received += len(chunk)
-                if received > MAX_DOWNLOAD_BYTES:
-                    raise ToolError(
-                        f"{filename} chunk exceeds the {MAX_DOWNLOAD_BYTES} bytes of file "
-                        f"content that can be returned per call. Request the file in chunks "
-                        f"with range_header, e.g. '{_RANGE_EXAMPLE}', then advance the range."
-                    )
-                chunks.append(chunk)
-        content = b"".join(chunks)
-        result = {
-            "filename": filename,
-            "content": base64.b64encode(content).decode("utf-8"),
-            "encoding": "base64",
-            "size_bytes": len(content),
-        }
-        content_range = response.headers.get("content-range")
-        if content_range:
-            result["content_range"] = content_range
-        return ToolResult(content=json.dumps(result))
+            start, total = _content_range(response)
+            if start is None and offset >= 0:
+                start = offset  # the range was ignored and the whole file is streamed
+            content, start, total = await _read_chunk(response, start, offset, total)
+        return _chunk_result(filename, content, start, total)
 
     @server.tool(
         description=_DOWNLOAD_DESCRIPTION.format(kind="log", note=""),
@@ -283,11 +267,11 @@ def register_handwritten(server: FastMCP, client: httpx.AsyncClient, ui_base_url
         pipeline_run_id: str,
         task_run_id: str,
         filename: str,
-        range_header: str | None = None,
+        offset: int = 0,
         account_id: AccountId = None,
     ) -> ToolResult:
         path = f"/public/pipeline_runs/{pipeline_run_id}/task_runs/{task_run_id}/logs/download"
-        return await _download(path, filename, range_header, account_id=account_id)
+        return await _download(path, filename, offset, account_id=account_id)
 
     @server.tool(
         description=_DOWNLOAD_DESCRIPTION.format(
@@ -299,11 +283,83 @@ def register_handwritten(server: FastMCP, client: httpx.AsyncClient, ui_base_url
         pipeline_run_id: str,
         task_run_id: str,
         filename: str,
-        range_header: str | None = None,
+        offset: int = 0,
         account_id: AccountId = None,
     ) -> ToolResult:
         path = f"/public/pipeline_runs/{pipeline_run_id}/task_runs/{task_run_id}/artifacts/download"
-        return await _download(path, filename, range_header, account_id=account_id)
+        return await _download(path, filename, offset, account_id=account_id)
+
+
+def _content_range(response: httpx.Response) -> tuple[int | None, int | None]:
+    """Read (start, total) from a partial response, or (None, total) for a whole one."""
+    match = re.fullmatch(r"bytes (\d+)-\d+/(\d+|\*)", response.headers.get("content-range", ""))
+    if match and response.status_code == 206:
+        total = match.group(2)
+        return int(match.group(1)), None if total == "*" else int(total)
+    length = response.headers.get("content-length")
+    return None, int(length) if length and length.isdigit() else None
+
+
+async def _read_chunk(
+    response: httpx.Response, start: int | None, offset: int, total: int | None
+) -> tuple[bytes, int, int | None]:
+    """Collect up to CHUNK_BYTES from ``start``, streaming so a server that ignores the
+    range never has a whole file buffered. ``start`` is None only for a tail read
+    answered with the whole file, which keeps just the last ``-offset`` bytes."""
+    buffer = b""
+    if start is None:
+        received = 0
+        async for chunk in response.aiter_bytes():
+            received += len(chunk)
+            buffer = (buffer + chunk)[offset:]
+        return buffer[:CHUNK_BYTES], received - len(buffer), received
+    skip = 0 if response.status_code == 206 else start
+    async for chunk in response.aiter_bytes():
+        dropped = min(skip, len(chunk))
+        skip -= dropped
+        buffer += chunk[dropped:]
+        if len(buffer) >= CHUNK_BYTES:
+            break
+    return buffer[:CHUNK_BYTES], start, total
+
+
+def _chunk_result(filename: str, content: bytes, start: int, total: int | None) -> ToolResult:
+    """Return the chunk as plain text when it is UTF-8, else base64.
+
+    Plain text avoids base64 and JSON escaping, so a chunk's characters track its
+    bytes. A multi-byte character split by either chunk boundary is left to the
+    neighbouring chunk, so following next_offset still reads every byte once.
+    """
+    lead = 0
+    while start and lead < min(3, len(content)) and 0x80 <= content[lead] < 0xC0:
+        lead += 1
+    body = content[lead:]
+    try:
+        text, encoding = body.decode("utf-8"), "utf-8"
+    except UnicodeDecodeError as exc:
+        if exc.reason == "unexpected end of data" and exc.start >= len(body) - 3:
+            body = body[: exc.start]
+            text, encoding = body.decode("utf-8"), "utf-8"
+        else:
+            body, lead = content, 0
+            text, encoding = base64.b64encode(content).decode("ascii"), "base64"
+    start += lead
+    end = start + len(body)
+    more = end < total if total is not None else len(content) >= CHUNK_BYTES
+    meta = {
+        "filename": filename,
+        "offset": start,
+        "size_bytes": len(body),
+        "total_bytes": total,
+        "next_offset": end if more else None,
+        "encoding": encoding,
+    }
+    return ToolResult(
+        content=[
+            TextContent(type="text", text=json.dumps(meta)),
+            TextContent(type="text", text=text),
+        ]
+    )
 
 
 def _register_triage(server: FastMCP, client: httpx.AsyncClient, ui_base_url: str) -> None:

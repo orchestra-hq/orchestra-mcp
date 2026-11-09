@@ -8,6 +8,7 @@ from fastmcp.server.providers import OpenAPIProvider
 
 from orchestramcp.adaptations import adapt_component
 from orchestramcp.handwritten import HANDWRITTEN_OPERATION_IDS, register_handwritten
+from orchestramcp.paging import PageSizeMiddleware
 from orchestramcp.spec import (
     coarsen_spec,
     prune_spec,
@@ -62,7 +63,7 @@ def build_server(
     if clashes := sorted(tool for tool, count in generated.items() if count > 1):
         raise ValueError(f"More than one operation generates the tool(s) {clashes}")
 
-    server = FastMCP(name=name)
+    server = FastMCP(name=name, middleware=[PageSizeMiddleware()])
     for spec, client, names in prepared:
         server.add_provider(
             OpenAPIProvider(

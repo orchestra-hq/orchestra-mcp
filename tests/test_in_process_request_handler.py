@@ -68,7 +68,7 @@ def test_oversized_response_returns_error_and_logs_tool(
         )
 
     assert isinstance(response, JSONRPCError)
-    assert "range_header" in response.error.message
+    assert "offset" in response.error.message
     assert "tool 'download_task_run_artifact'" in response.error.message
     assert any(
         "MCP response too large" in record.message

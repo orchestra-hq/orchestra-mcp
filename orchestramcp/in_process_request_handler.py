@@ -71,8 +71,8 @@ def _guard_response_size(
             message=(
                 f"{RESPONSE_TOO_LARGE_MESSAGE}: {target} returned {size} bytes "
                 f"(limit {MAX_RESPONSE_BYTES}). Narrow the request: use pagination or "
-                f"filter parameters, or for file downloads request a byte range with "
-                f"range_header, e.g. 'bytes=0-1048575'."
+                f"filter parameters, or for file downloads read the file in chunks with "
+                f"offset."
             ),
         ),
     )
