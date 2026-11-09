@@ -71,6 +71,11 @@ HANDWRITTEN_ROWS = (
         "Triage",
     ),
     (
+        "triage_incident",
+        "Everything to triage one incident: its timeline, a diagnosis of each failed task run it names, and older open incidents that are likely duplicates.",
+        "Triage",
+    ),
+    (
         "get_pipeline_run_lineage_url",
         "Build the URL of a pipeline run's lineage graph in the Orchestra UI (derived from `ORCHESTRA_ENV`).",
         "Pipeline Runs",

@@ -34,6 +34,7 @@ Use Orchestra's hosted MCP endpoint:
 | `get_pipeline_run` | Yes | Get a pipeline run (`GET /pipeline_runs/{pipeline_run_id}`). | Pipeline Runs |
 | `list_pipeline_runs` | Yes | List pipeline runs with optional filters. status accepts comma-separated values: CREATED, QUEUED, RUNNING, SUCCEEDED, WARNING, FAILED, SKIPPED, CANCELLING, CANCELLED (`GET /pipeline_runs`). | Pipeline Runs |
 | `cancel_pipeline_run` | Yes | Cancel a running or queued pipeline run by its ID (`POST /pipeline_runs/{pipeline_run_id}/cancel`). | Pipeline Runs |
+| `triage_incident` | Yes | Everything to triage one incident: its timeline, a diagnosis of each failed task run it names, and older open incidents that are likely duplicates. | Triage |
 | `get_pipeline_run_lineage_url` | No | Build the URL of a pipeline run's lineage graph in the Orchestra UI (derived from `ORCHESTRA_ENV`). | Pipeline Runs |
 | `list_task_runs_for_pipeline_run` | Yes | List task runs for a pipeline run (`GET /pipeline_runs/{pipeline_run_id}/task_runs`). | Task Runs |
 | `list_task_runs` | Yes | List task runs (`GET /task_runs`). | Task Runs |

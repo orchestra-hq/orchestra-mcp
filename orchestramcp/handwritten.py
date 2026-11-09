@@ -1,3 +1,4 @@
+import asyncio
 import base64
 import json
 import statistics
@@ -75,6 +76,11 @@ MAX_RECENT_RUNS = 20
 MAX_ARTIFACT_NAMES = 50
 MAX_PARAMETER_CHARS = 2 * 1024
 LOG_TAIL_BYTES = 8 * 1024
+MAX_INCIDENT_EVENTS = 50
+MAX_INCIDENT_DIAGNOSES = 3
+MAX_OPEN_INCIDENTS_SCANNED = 200
+MAX_DUPLICATE_CANDIDATES = 10
+INCIDENTS_PAGE_SIZE = 100
 
 
 def _lineage_url(ui_base_url: str, pipeline_run_id: str) -> str:
@@ -493,6 +499,9 @@ def _register_triage(server: FastMCP, client: httpx.AsyncClient, ui_base_url: st
         annotations=ToolAnnotations(title="Diagnose Task Run", readOnlyHint=True),
     )
     async def diagnose(task_run_id: str, account_id: AccountId = None) -> dict:
+        return await _diagnose(task_run_id, account_id=account_id)
+
+    async def _diagnose(task_run_id: str, account_id: UUID | None) -> dict:
         try:
             task_run = await _get(f"/public/task_runs/{task_run_id}", account_id=account_id)
         except OrchestraAPIError as exc:
@@ -621,3 +630,122 @@ def _register_triage(server: FastMCP, client: httpx.AsyncClient, ui_base_url: st
                 round(statistics.median(succeeded_durations)) if succeeded_durations else None
             ),
         }
+
+    @server.tool(
+        description=(
+            "Start here when handed an incident. Returns the incident with its related "
+            "resources, its event timeline, a diagnose digest (messages, parameters, upstream "
+            "statuses, log tail) for each failed task run its events name, and the older open "
+            "incidents that are likely duplicates: those opened by the same monitor or with the "
+            "same name, each marked with the pipelines and tasks it shares with this one. "
+            f"At most {MAX_INCIDENT_DIAGNOSES} task runs are diagnosed; use diagnose for the rest. "
+            "Merge a duplicate with merge_incidents."
+        ),
+        annotations=ToolAnnotations(title="Triage Incident", readOnlyHint=True),
+    )
+    async def triage_incident(incident_id: str, account_id: AccountId = None) -> dict:
+        try:
+            incident = await _get(f"/public/incidents/{incident_id}", account_id=account_id)
+        except OrchestraAPIError as exc:
+            if exc.status_code == 404:
+                raise ToolError(f"No incident found with ID {incident_id}.") from exc
+            raise
+        events, event_total = await _paged(
+            f"/public/incidents/{incident_id}/events",
+            {},
+            INCIDENTS_PAGE_SIZE,
+            MAX_INCIDENT_EVENTS,
+            account_id=account_id,
+        )
+
+        task_run_ids = list(dict.fromkeys(e["taskRunId"] for e in events if e.get("taskRunId")))
+        diagnoses = []
+        for task_run_id in task_run_ids[:MAX_INCIDENT_DIAGNOSES]:
+            try:
+                diagnoses.append(await _diagnose(task_run_id, account_id=account_id))
+            except (ToolError, OrchestraAPIError) as exc:
+                diagnoses.append({"taskRunId": task_run_id, "unavailable": str(exc)})
+
+        return {
+            "incident": _compact(
+                {
+                    "incidentId": incident.get("incidentId"),
+                    "name": incident.get("name"),
+                    "description": incident.get("description"),
+                    "status": incident.get("status"),
+                    "severity": incident.get("severity"),
+                    "createdAt": incident.get("createdAt"),
+                    "monitorId": incident.get("monitorId"),
+                    "parentIncidentId": incident.get("parentIncidentId"),
+                    "childCount": incident.get("childCount"),
+                    "relatedResources": incident.get("relatedResources"),
+                }
+            ),
+            "eventCount": event_total,
+            "events": [_bound_strings(_compact(event)) for event in events],
+            "failedTaskRunCount": len(task_run_ids),
+            "diagnoses": diagnoses,
+            "likelyDuplicates": await _likely_duplicates(incident, account_id=account_id),
+        }
+
+    async def _likely_duplicates(incident: dict, account_id: UUID | None) -> list[dict]:
+        """Older open incidents from the same monitor or with the same name.
+
+        Older only, so the agent merges this incident into an existing one rather than
+        the reverse. Each candidate is fetched for its related resources, since a
+        monitor grouped by pipeline opens one incident per pipeline under one name and
+        only the shared resources tell those apart from a true duplicate.
+        """
+        # ponytail: scans the newest MAX_OPEN_INCIDENTS_SCANNED open incidents; the
+        # widest backlog seen in traces was 192.
+        open_incidents, _ = await _paged(
+            "/public/incidents",
+            {"status": "OPEN,INVESTIGATING", "sort_column": "created_at", "sort_direction": "desc"},
+            INCIDENTS_PAGE_SIZE,
+            MAX_OPEN_INCIDENTS_SCANNED,
+            account_id=account_id,
+        )
+        own_id, created_at = incident.get("incidentId"), incident.get("createdAt") or ""
+        candidates = [
+            other
+            for other in open_incidents
+            if other.get("incidentId") not in (own_id, incident.get("parentIncidentId"))
+            and (other.get("createdAt") or "") < created_at
+            and (
+                (incident.get("monitorId") and other.get("monitorId") == incident["monitorId"])
+                or other.get("name") == incident.get("name")
+            )
+        ][:MAX_DUPLICATE_CANDIDATES]
+        details = await asyncio.gather(
+            *(
+                _get(f"/public/incidents/{other['incidentId']}", account_id=account_id)
+                for other in candidates
+            )
+        )
+
+        own_resources = {r.get("resourceId") for r in incident.get("relatedResources") or []}
+        duplicates = []
+        for other, detail in zip(candidates, details):
+            duplicates.append(
+                _compact(
+                    {
+                        "incidentId": other.get("incidentId"),
+                        "name": other.get("name"),
+                        "description": other.get("description"),
+                        "status": other.get("status"),
+                        "severity": other.get("severity"),
+                        "createdAt": other.get("createdAt"),
+                        "sameMonitor": bool(incident.get("monitorId"))
+                        and other.get("monitorId") == incident.get("monitorId"),
+                        "childCount": len(other.get("children") or []),
+                        "sharedResources": [
+                            _compact({"resourceType": r.get("resourceType"), "name": r.get("name")})
+                            for r in detail.get("relatedResources") or []
+                            if r.get("resourceId") in own_resources
+                        ],
+                    }
+                )
+            )
+        # Shared pipelines or tasks are the strongest duplicate signal, so lead with them.
+        duplicates.sort(key=lambda d: not d.get("sharedResources"))
+        return duplicates

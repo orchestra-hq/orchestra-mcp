@@ -704,6 +704,116 @@ async def test_diagnose_bounds_a_huge_parameter_value_and_caps_the_artifact_list
     assert result.data["artifactCount"] == MAX_ARTIFACT_NAMES + 20
 
 
+async def test_triage_incident_diagnoses_its_task_runs_and_flags_older_duplicates():
+    incidents = {
+        "inc-new": {
+            "incidentId": "inc-new",
+            "name": "Ingestion failures by pipeline",
+            "monitorId": "mon-1",
+            "createdAt": "2026-11-09T10:00:00+00:00",
+            "subscribers": ["someone@example.com"],
+            "relatedResources": [{"resourceType": "PIPELINE", "resourceId": "pipe-1", "name": "A"}],
+        },
+        "inc-dup": {
+            "incidentId": "inc-dup",
+            "relatedResources": [{"resourceType": "PIPELINE", "resourceId": "pipe-1", "name": "A"}],
+        },
+        "inc-other-pipeline": {
+            "incidentId": "inc-other-pipeline",
+            "relatedResources": [{"resourceType": "PIPELINE", "resourceId": "pipe-2", "name": "B"}],
+        },
+    }
+    open_incidents = [
+        {"incidentId": "inc-newer", "monitorId": "mon-1", "createdAt": "2026-11-09T11:00:00+00:00"},
+        incidents["inc-new"],
+        {
+            "incidentId": "inc-other-pipeline",
+            "name": "Ingestion failures by pipeline",
+            "monitorId": "mon-1",
+            "createdAt": "2026-11-08T09:00:00+00:00",
+        },
+        {
+            "incidentId": "inc-dup",
+            "name": "Ingestion failures by pipeline",
+            "monitorId": "mon-1",
+            "createdAt": "2026-11-08T08:00:00+00:00",
+            "children": [{"incidentId": "inc-merged"}],
+        },
+        {"incidentId": "inc-unrelated", "monitorId": "mon-2", "createdAt": "2026-11-01"},
+    ]
+    server, requests = _triage_server(
+        {
+            r"/incidents/[^/]+/events$": _page(
+                [
+                    {"eventType": "EVENT", "pipelineRunId": "run-1", "taskRunId": "tr-1"},
+                    {"eventType": "EVENT", "pipelineRunId": "run-1", "taskRunId": "tr-1"},
+                    {"eventType": "CREATED", "actorType": "SYSTEM", "comment": None},
+                ]
+            ),
+            r"/incidents/[^/]+$": lambda request: incidents[request.url.path.rsplit("/", 1)[1]],
+            r"/incidents$": _page(open_incidents),
+            r"/pipeline_runs/[^/]+/task_runs$": _page([]),
+            r"/public/task_runs/[^/]+$": {
+                "id": "tr-1",
+                "pipelineRunId": "run-1",
+                "taskName": "load",
+                "status": "FAILED",
+                "message": "table not found",
+            },
+            r"/logs$": {"filenames": [], "files": {}},
+            r"/artifacts$": {"filenames": []},
+        }
+    )
+
+    async with Client(server) as client:
+        result = await client.call_tool("triage_incident", {"incident_id": "inc-new"})
+
+    data = result.data
+    assert data["incident"]["relatedResources"][0]["resourceId"] == "pipe-1"
+    assert "subscribers" not in data["incident"]
+    assert data["eventCount"] == 3
+    assert data["events"][2] == {"eventType": "CREATED", "actorType": "SYSTEM"}
+    assert data["failedTaskRunCount"] == 1  # the repeated event names one task run
+    assert [d["taskRun"]["message"] for d in data["diagnoses"]] == ["table not found"]
+    duplicates = data["likelyDuplicates"]
+    # Older same-monitor incidents only, the one sharing a pipeline first.
+    assert [d["incidentId"] for d in duplicates] == ["inc-dup", "inc-other-pipeline"]
+    assert duplicates[0]["sharedResources"] == [{"resourceType": "PIPELINE", "name": "A"}]
+    assert duplicates[0]["sameMonitor"] is True
+    assert duplicates[0]["childCount"] == 1
+    assert "sharedResources" not in duplicates[1]
+    assert _params(requests, r"/incidents$")[0]["status"] == "OPEN,INVESTIGATING"
+
+
+async def test_triage_incident_reports_an_unknown_incident_id():
+    server, _ = _triage_server(
+        {r"/incidents/[^/]+$": lambda request: httpx.Response(404, json={"detail": "x"})}
+    )
+
+    async with Client(server) as client:
+        with pytest.raises(ToolError, match="No incident found with ID inc-1"):
+            await client.call_tool("triage_incident", {"incident_id": "inc-1"})
+
+
+async def test_triage_incident_survives_a_task_run_it_cannot_diagnose():
+    server, _ = _triage_server(
+        {
+            r"/incidents/[^/]+/events$": _page([{"eventType": "EVENT", "taskRunId": "gone"}]),
+            r"/incidents/[^/]+$": {"incidentId": "inc-1", "createdAt": "2026-11-09"},
+            r"/incidents$": _page([]),
+            r"/public/task_runs/[^/]+$": lambda request: httpx.Response(404, json={"detail": "x"}),
+        }
+    )
+
+    async with Client(server) as client:
+        result = await client.call_tool("triage_incident", {"incident_id": "inc-1"})
+
+    assert result.data["diagnoses"] == [
+        {"taskRunId": "gone", "unavailable": "No task run found with ID gone."}
+    ]
+    assert result.data["likelyDuplicates"] == []
+
+
 # --- account selection ---
 
 ACCOUNT_ID = "3f2504e0-4f89-41d3-9a0c-0305e82c3302"
@@ -721,6 +831,9 @@ ACCOUNT_ROUTES = {
     r"/pipelines/data$": {"pipeline": {}},
     r"/public/pipeline$": {"id": "pipe-1", "name": "nightly"},
     r"/pipelines/schema$": {"valid": True},
+    r"/incidents/[^/]+/events$": _page([{"eventType": "EVENT", "taskRunId": "tr-1"}]),
+    r"/incidents/[^/]+$": {"incidentId": "inc-2", "monitorId": "m-1", "createdAt": "2026-11-02"},
+    r"/incidents$": _page([{"incidentId": "inc-1", "monitorId": "m-1", "createdAt": "2026-11-01"}]),
 }
 
 ACCOUNT_TOOL_CALLS = {
@@ -734,6 +847,7 @@ ACCOUNT_TOOL_CALLS = {
         "filename": "manifest.json",
     },
     "validate_pipeline": {"pipeline_definition": {"version": "v1", "name": "demo"}},
+    "triage_incident": {"incident_id": "inc-2"},
 }
 
 # Hand-written tools that never call the Orchestra API, so have no account to select.
