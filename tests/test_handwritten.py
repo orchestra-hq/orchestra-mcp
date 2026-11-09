@@ -113,7 +113,6 @@ async def test_download_log_returns_text_and_hits_logs_path():
     assert result.structured_content is None
 
 
-@pytest.mark.parametrize("honour_range", [True, False])
 @pytest.mark.parametrize(
     "text",
     [
@@ -122,9 +121,9 @@ async def test_download_log_returns_text_and_hits_logs_path():
         ("x" * (CHUNK_BYTES - 1) + "🚀\n") * 5,
     ],
 )
-async def test_download_reads_a_large_text_file_whole_in_chunks(honour_range, text):
+async def test_download_reads_a_large_text_file_whole_in_chunks(text):
     data = text.encode()
-    handler, _ = _file_server(data, honour_range)
+    handler, _ = _file_server(data)
 
     async with Client(_server(handler)) as client:
         content, metas = await _read_all(client, "download_task_run_log")
@@ -155,10 +154,9 @@ async def test_download_binary_artifact_is_fully_reachable(data):
     assert calls[0][0].endswith("/task_runs/tr/artifacts/download?filename=f")
 
 
-@pytest.mark.parametrize("honour_range", [True, False])
-async def test_download_reads_a_large_chunk_when_asked(honour_range):
+async def test_download_reads_a_large_chunk_when_asked():
     data = b'{"nodes": "' + b"x" * (2 * 1024 * 1024) + b'"}'
-    handler, calls = _file_server(data, honour_range)
+    handler, calls = _file_server(data)
 
     async with Client(_server(handler)) as client:
         result = await client.call_tool(
@@ -187,10 +185,9 @@ async def test_download_reads_a_large_chunk_when_asked(honour_range):
     assert calls[0][1] == f"bytes=0-{MAX_CHUNK_BYTES - 1}"
 
 
-@pytest.mark.parametrize("honour_range", [True, False])
-async def test_download_negative_offset_reads_the_tail(honour_range):
+async def test_download_negative_offset_reads_the_tail():
     data = b"".join(f"line {i}\n".encode() for i in range(20_000))
-    handler, calls = _file_server(data, honour_range)
+    handler, calls = _file_server(data)
 
     async with Client(_server(handler)) as client:
         content, metas = await _read_all(client, "download_task_run_log", offset=-50_000)
@@ -198,6 +195,31 @@ async def test_download_negative_offset_reads_the_tail(honour_range):
     assert content == data[-50_000:]
     assert metas[0]["offset"] == len(data) - 50_000
     assert calls[0][1] == "bytes=-50000"
+
+
+async def test_download_with_range_ignored_reads_only_from_the_start():
+    data = b"x" * (CHUNK_BYTES * 3)
+    handler, _ = _file_server(data, honour_range=False)
+
+    async with Client(_server(handler)) as client:
+        result = await client.call_tool(
+            "download_task_run_log",
+            {"pipeline_run_id": "pr", "task_run_id": "tr", "filename": "run.log"},
+        )
+        with pytest.raises(ToolError, match="ignored the requested range"):
+            await client.call_tool(
+                "download_task_run_log",
+                {
+                    "pipeline_run_id": "pr",
+                    "task_run_id": "tr",
+                    "filename": "run.log",
+                    "offset": -10,
+                },
+            )
+
+    meta, body = _download_result(result)
+    assert len(body) == CHUNK_BYTES
+    assert meta["next_offset"] == CHUNK_BYTES
 
 
 async def test_download_http_error_raises_tool_error():

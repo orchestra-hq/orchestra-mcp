@@ -4,7 +4,7 @@ import mcp.types as mt
 from fastmcp.server.middleware import CallNext, Middleware, MiddlewareContext
 from fastmcp.tools.tool import ToolResult
 
-from orchestramcp.handwritten import MAX_PARAMETER_CHARS, MAX_RESULT_CHARS, _bound_strings
+from orchestramcp.handwritten import MAX_RESULT_CHARS, _bound_strings
 
 # Generated list tools whose pages routinely exceed the budget, each returning the
 # API's {page, pageSize, total, results} envelope, mapped to the tool that returns
@@ -52,18 +52,12 @@ def shrink_page(payload: dict, getter: str | None = None, budget: int = MAX_RESU
         if size == 1 or _size(shrunk) <= budget:
             break
     if _size(shrunk) > budget:
-        # ponytail: one record alone over the budget is cut, harder until it fits,
-        # finally to its top-level scalar fields. Only a getter recovers what was cut.
-        record = results[0]
-        for limit in (MAX_PARAMETER_CHARS, _SHORT_FIELD_CHARS):
-            shrunk["results"] = [_bound_strings(record, limit)]
-            if _size(shrunk) <= budget:
-                break
-        else:
-            cut = _bound_strings(record, _SHORT_FIELD_CHARS)
-            shrunk["results"] = [
-                {key: value for key, value in cut.items() if not isinstance(value, (dict, list))}
-            ]
+        # ponytail: one record alone over the budget keeps only its top-level scalar
+        # fields, strings cut short. Only a getter recovers what was cut.
+        cut = _bound_strings(results[0], _SHORT_FIELD_CHARS)
+        shrunk["results"] = [
+            {key: value for key, value in cut.items() if not isinstance(value, (dict, list))}
+        ]
         recover = (
             f"fetch it in full with {getter}"
             if getter

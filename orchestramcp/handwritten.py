@@ -269,9 +269,19 @@ def register_handwritten(server: FastMCP, client: httpx.AsyncClient, ui_base_url
                     f"Download of {filename} failed with HTTP {response.status_code}.{hint}"
                 )
             start, total = _content_range(response)
-            if start is None and offset >= 0:
-                start = offset  # the range was ignored and the whole file is streamed
-            content, start, total = await _read_chunk(response, start, offset, total, chunk_bytes)
+            if start is None and offset != 0:
+                raise ToolError(
+                    f"The server ignored the requested range for {filename}; only offset=0 "
+                    "can be read."
+                )
+            # Streamed into a bounded buffer: a server ignoring the range sends the
+            # whole file, which can run to hundreds of MB.
+            content = b""
+            async for chunk in response.aiter_bytes():
+                content += chunk
+                if len(content) >= chunk_bytes:
+                    break
+            content, start = content[:chunk_bytes], start or 0
         return _chunk_result(filename, content, start, total, chunk_bytes, tail=offset < 0)
 
     @server.tool(
@@ -315,33 +325,6 @@ def _content_range(response: httpx.Response) -> tuple[int | None, int | None]:
         return int(match.group(1)), None if total == "*" else int(total)
     length = response.headers.get("content-length")
     return None, int(length) if length and length.isdigit() else None
-
-
-async def _read_chunk(
-    response: httpx.Response,
-    start: int | None,
-    offset: int,
-    total: int | None,
-    chunk_bytes: int,
-) -> tuple[bytes, int, int | None]:
-    """Collect up to ``chunk_bytes`` from ``start``, streaming so a server that ignores the
-    range never has a whole file buffered. ``start`` is None only for a tail read
-    answered with the whole file, which keeps just the last ``-offset`` bytes."""
-    buffer = b""
-    if start is None:
-        received = 0
-        async for chunk in response.aiter_bytes():
-            received += len(chunk)
-            buffer = (buffer + chunk)[offset:]
-        return buffer[:chunk_bytes], received - len(buffer), received
-    skip = 0 if response.status_code == 206 else start
-    async for chunk in response.aiter_bytes():
-        dropped = min(skip, len(chunk))
-        skip -= dropped
-        buffer += chunk[dropped:]
-        if len(buffer) >= chunk_bytes:
-            break
-    return buffer[:chunk_bytes], start, total
 
 
 def _utf8_prefix(body: bytes, more_follows: bool) -> bytes | None:
