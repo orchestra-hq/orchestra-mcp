@@ -493,8 +493,11 @@ def _register_triage(server: FastMCP, client: httpx.AsyncClient, ui_base_url: st
             "taskParameters and runParameters, the statuses of the upstream tasks it depends "
             "on, the tail of its newest log, and its artifact filenames. "
             "Over-long parameter values, the log tail and the artifact list are capped, and the "
-            "response says which parts were cut. Use download_task_run_log or "
-            "download_task_run_artifact when the tail is not enough."
+            "response says which parts were cut. It does not return: the task run's operations "
+            "(the failing dbt model, SQL statement or query; use list_operations with "
+            "task_run_id), older or full logs (download_task_run_log), artifact contents "
+            "(download_task_run_artifact), or whether a retry of this task later passed "
+            "(list_task_runs_for_pipeline_run)."
         ),
         annotations=ToolAnnotations(title="Diagnose Task Run", readOnlyHint=True),
     )
