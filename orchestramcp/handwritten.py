@@ -257,7 +257,7 @@ def register_handwritten(server: FastMCP, client: httpx.AsyncClient, ui_base_url
             if start is None and offset >= 0:
                 start = offset  # the range was ignored and the whole file is streamed
             content, start, total = await _read_chunk(response, start, offset, total)
-        return _chunk_result(filename, content, start, total)
+        return _chunk_result(filename, content, start, total, tail=offset < 0)
 
     @server.tool(
         description=_DOWNLOAD_DESCRIPTION.format(kind="log", note=""),
@@ -323,26 +323,40 @@ async def _read_chunk(
     return buffer[:CHUNK_BYTES], start, total
 
 
-def _chunk_result(filename: str, content: bytes, start: int, total: int | None) -> ToolResult:
+def _utf8_prefix(body: bytes, more_follows: bool) -> bytes | None:
+    """``body`` if it is UTF-8 text, else None. A last character cut by the chunk's
+    end is left for the next chunk, which exists only if more of the file follows;
+    an incomplete character at the end of the file means binary content."""
+    try:
+        body.decode("utf-8")
+        return body
+    except UnicodeDecodeError as exc:
+        split = exc.reason == "unexpected end of data" and exc.start >= len(body) - 3
+        return _utf8_prefix(body[: exc.start], False) if split and more_follows else None
+
+
+def _chunk_result(
+    filename: str, content: bytes, start: int, total: int | None, tail: bool
+) -> ToolResult:
     """Return the chunk as plain text when it is UTF-8, else base64.
 
     Plain text avoids base64 and JSON escaping, so a chunk's characters track its
     bytes. A multi-byte character split by either chunk boundary is left to the
     neighbouring chunk, so following next_offset still reads every byte once.
     """
+    more_follows = len(content) >= CHUNK_BYTES and (total is None or start + len(content) < total)
     lead = 0
-    while start and lead < min(3, len(content)) and 0x80 <= content[lead] < 0xC0:
+    # Only a tail read lands at an arbitrary byte; a start reached by following
+    # next_offset is on a character boundary, so stripping there could drop the
+    # bytes of a binary chunk returned before it.
+    while tail and lead < min(3, len(content)) and 0x80 <= content[lead] < 0xC0:
         lead += 1
-    body = content[lead:]
-    try:
+    body = _utf8_prefix(content[lead:], more_follows)
+    if body is None:
+        body, lead = content, 0
+        text, encoding = base64.b64encode(content).decode("ascii"), "base64"
+    else:
         text, encoding = body.decode("utf-8"), "utf-8"
-    except UnicodeDecodeError as exc:
-        if exc.reason == "unexpected end of data" and exc.start >= len(body) - 3:
-            body = body[: exc.start]
-            text, encoding = body.decode("utf-8"), "utf-8"
-        else:
-            body, lead = content, 0
-            text, encoding = base64.b64encode(content).decode("ascii"), "base64"
     start += lead
     end = start + len(body)
     more = end < total if total is not None else len(content) >= CHUNK_BYTES

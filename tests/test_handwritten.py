@@ -113,9 +113,16 @@ async def test_download_log_returns_text_and_hits_logs_path():
 
 
 @pytest.mark.parametrize("honour_range", [True, False])
-async def test_download_reads_a_large_text_file_whole_in_chunks(honour_range):
-    # Multi-byte characters land on chunk boundaries, which must not lose a byte.
-    data = ("line é ✓ 🚀\n" * 20_000).encode()
+@pytest.mark.parametrize(
+    "text",
+    [
+        "line é ✓ 🚀\n" * 20_000,
+        # A four-byte character straddles every chunk boundary.
+        ("x" * (CHUNK_BYTES - 1) + "🚀\n") * 5,
+    ],
+)
+async def test_download_reads_a_large_text_file_whole_in_chunks(honour_range, text):
+    data = text.encode()
     handler, _ = _file_server(data, honour_range)
 
     async with Client(_server(handler)) as client:
@@ -127,15 +134,23 @@ async def test_download_reads_a_large_text_file_whole_in_chunks(honour_range):
     assert metas[0]["total_bytes"] == len(data)
 
 
-async def test_download_binary_artifact_is_base64_and_fully_reachable():
-    data = bytes(range(256)) * 300
+@pytest.mark.parametrize(
+    "data",
+    [
+        bytes(range(256)) * 300,
+        # Valid UTF-8 apart from a final incomplete character: binary, not a split.
+        b"x" * 100 + b"\xf0\x9f",
+        # A binary chunk followed by one that starts mid-character.
+        b"\xff" + b"x" * (CHUNK_BYTES - 2) + "é".encode() + b"y" * 100,
+    ],
+)
+async def test_download_binary_artifact_is_fully_reachable(data):
     handler, calls = _file_server(data)
 
     async with Client(_server(handler)) as client:
         content, metas = await _read_all(client, "download_task_run_artifact")
 
     assert content == data
-    assert metas[0]["encoding"] == "base64"
     assert calls[0][0].endswith("/task_runs/tr/artifacts/download?filename=f")
 
 

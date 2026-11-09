@@ -11,24 +11,25 @@ from orchestramcp.handwritten import MAX_PARAMETER_CHARS, _bound_strings
 # Results are kept under this budget with headroom for the envelope and the note.
 MAX_RESULT_CHARS = 40_000
 
-# Generated list tools whose pages routinely exceed the budget. Each returns the
-# API's {page, pageSize, total, results} envelope.
-PAGED_TOOLS = frozenset(
-    {
-        "list_task_runs",
-        "list_task_runs_for_pipeline_run",
-        "list_assets",
-        "list_incident_events",
-        "list_operations",
-    }
-)
+# Generated list tools whose pages routinely exceed the budget, each returning the
+# API's {page, pageSize, total, results} envelope, mapped to the tool that returns
+# one of its records in full (None where the API has no such endpoint).
+PAGED_TOOLS = {
+    "list_task_runs": "get_task_run",
+    "list_task_runs_for_pipeline_run": "get_task_run",
+    "list_assets": "get_asset_by_id",
+    "list_incident_events": None,
+    "list_operations": None,
+}
+
+_SHORT_FIELD_CHARS = 200
 
 
 def _size(value) -> int:
     return len(json.dumps(value))
 
 
-def shrink_page(payload: dict, budget: int = MAX_RESULT_CHARS) -> dict:
+def shrink_page(payload: dict, getter: str | None = None, budget: int = MAX_RESULT_CHARS) -> dict:
     """Shrink an oversized page to a smaller page size that fits ``budget``.
 
     The new size divides the old one, so the items kept are exactly page
@@ -56,13 +57,24 @@ def shrink_page(payload: dict, budget: int = MAX_RESULT_CHARS) -> dict:
         if size == 1 or _size(shrunk) <= budget:
             break
     if _size(shrunk) > budget:
-        # ponytail: one record alone over the budget has its long strings cut; the
-        # full record stays reachable through the matching get_* tool.
-        shrunk["results"] = _bound_strings(shrunk["results"])
-        shrunk["note"] += (
-            f" This record alone exceeds the limit, so strings over {MAX_PARAMETER_CHARS} "
-            "characters are cut; get_task_run and get_asset_by_id return a record in full."
+        # ponytail: one record alone over the budget is cut, harder until it fits,
+        # finally to its top-level scalar fields. Only a getter recovers what was cut.
+        record = results[0]
+        for limit in (MAX_PARAMETER_CHARS, _SHORT_FIELD_CHARS):
+            shrunk["results"] = [_bound_strings(record, limit)]
+            if _size(shrunk) <= budget:
+                break
+        else:
+            cut = _bound_strings(record, _SHORT_FIELD_CHARS)
+            shrunk["results"] = [
+                {key: value for key, value in cut.items() if not isinstance(value, (dict, list))}
+            ]
+        recover = (
+            f"fetch it in full with {getter}"
+            if getter
+            else "the cut values are not available through any other tool"
         )
+        shrunk["note"] += f" This record alone exceeds the limit, so it was cut; {recover}."
     return shrunk
 
 
@@ -78,7 +90,7 @@ class PageSizeMiddleware(Middleware):
         payload = result.structured_content
         if context.message.name not in PAGED_TOOLS or not isinstance(payload, dict):
             return result
-        shrunk = shrink_page(payload)
+        shrunk = shrink_page(payload, PAGED_TOOLS[context.message.name])
         if shrunk is payload:
             return result
         # Meta makes the result bypass outputSchema validation, which the added note fails.

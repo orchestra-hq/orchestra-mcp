@@ -43,10 +43,18 @@ def test_shrunk_page_names_the_next_call():
 
 def test_single_record_over_the_budget_has_long_strings_cut():
     items = [{"id": 0, "taskParameters": {"script": "x" * 100_000}}]
-    shrunk = shrink_page(_page(1, 1, items))
+    shrunk = shrink_page(_page(1, 1, items), "get_task_run")
     assert len(json.dumps(shrunk)) <= MAX_RESULT_CHARS
     assert shrunk["results"][0]["id"] == 0
     assert "get_task_run" in shrunk["note"]
+
+
+def test_single_record_with_many_small_fields_still_fits():
+    items = [{"id": 0, "runParameters": {f"k{i}": "v" * 50 for i in range(5_000)}}]
+    shrunk = shrink_page(_page(1, 1, items))
+    assert len(json.dumps(shrunk)) <= MAX_RESULT_CHARS
+    assert shrunk["results"] == [{"id": 0}]
+    assert "not available through any other tool" in shrunk["note"]
 
 
 async def test_middleware_shrinks_only_paged_tools():
