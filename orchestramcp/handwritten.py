@@ -50,7 +50,8 @@ _DOWNLOAD_DESCRIPTION = (
 )
 
 ChunkBytes = Annotated[
-    int, Field(ge=1, le=MAX_CHUNK_BYTES, description="Bytes to return in this call.")
+    # At least 4, the longest UTF-8 character, so a chunk always holds a whole one.
+    int, Field(ge=4, le=MAX_CHUNK_BYTES, description="Bytes to return in this call.")
 ]
 
 
@@ -274,14 +275,12 @@ def register_handwritten(server: FastMCP, client: httpx.AsyncClient, ui_base_url
                     f"The server ignored the requested range for {filename}; only offset=0 "
                     "can be read."
                 )
-            # Streamed into a bounded buffer: a server ignoring the range sends the
-            # whole file, which can run to hundreds of MB.
+            # Only the first chunk_bytes are read: a server ignoring the range sends
+            # the whole file, which can run to hundreds of MB.
             content = b""
-            async for chunk in response.aiter_bytes():
-                content += chunk
-                if len(content) >= chunk_bytes:
-                    break
-            content, start = content[:chunk_bytes], start or 0
+            async for content in response.aiter_bytes(chunk_size=chunk_bytes):
+                break
+            start = start or 0
         return _chunk_result(filename, content, start, total, chunk_bytes, tail=offset < 0)
 
     @server.tool(
