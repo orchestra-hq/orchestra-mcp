@@ -31,12 +31,13 @@ Use Orchestra's hosted MCP endpoint:
 | `validate_pipeline` | No | Validate pipeline schema (`POST /pipelines/schema`). | Pipelines |
 | `migrate_pipeline` | Yes | Migrate an Orchestra-backed pipeline to git-backed storage. Identify it with pipeline_id or alias, and omit working_branch when it equals default_branch (`PATCH /pipelines/storage-settings`). | Pipelines |
 | `import_pipeline` | Yes | Import a pipeline (`POST /pipelines/import`). | Pipelines |
-| `get_pipeline_run_status` | Yes | Get pipeline run status (`GET /pipeline_runs/{pipeline_run_id}/status`). | Pipeline Runs |
+| `get_pipeline_run` | Yes | Get a pipeline run (`GET /pipeline_runs/{pipeline_run_id}`). | Pipeline Runs |
 | `list_pipeline_runs` | Yes | List pipeline runs with optional filters. status accepts comma-separated values: CREATED, QUEUED, RUNNING, SUCCEEDED, WARNING, FAILED, SKIPPED, CANCELLING, CANCELLED (`GET /pipeline_runs`). | Pipeline Runs |
 | `cancel_pipeline_run` | Yes | Cancel a running or queued pipeline run by its ID (`POST /pipeline_runs/{pipeline_run_id}/cancel`). | Pipeline Runs |
 | `get_pipeline_run_lineage_url` | No | Build the URL of a pipeline run's lineage graph in the Orchestra UI (derived from `ORCHESTRA_ENV`). | Pipeline Runs |
 | `list_task_runs_for_pipeline_run` | Yes | List task runs for a pipeline run (`GET /pipeline_runs/{pipeline_run_id}/task_runs`). | Task Runs |
 | `list_task_runs` | Yes | List task runs (`GET /task_runs`). | Task Runs |
+| `get_task_run` | Yes | Get a task run (`GET /task_runs/{task_run_id}`). | Task Runs |
 | `list_incidents` | Yes | List incidents (`GET /incidents`). | Incidents |
 | `get_incident` | Yes | Get an incident (`GET /incidents/{incident_id}`). | Incidents |
 | `update_incident` | Yes | Update an incident (`PATCH /incidents/{incident_id}`). | Incidents |
