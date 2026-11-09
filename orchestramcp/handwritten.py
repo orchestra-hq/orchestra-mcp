@@ -276,7 +276,11 @@ def register_handwritten(server: FastMCP, client: httpx.AsyncClient, ui_base_url
         return ToolResult(content=json.dumps(result))
 
     @server.tool(
-        description=_DOWNLOAD_DESCRIPTION.format(kind="log", note=""),
+        description=_DOWNLOAD_DESCRIPTION.format(
+            kind="log",
+            note=" To find why a task run failed, call diagnose first; it already returns the "
+            "tail of the newest log.",
+        ),
         annotations=ToolAnnotations(title="Download Task Run Log", readOnlyHint=True),
     )
     async def download_task_run_log(
@@ -483,9 +487,11 @@ def _register_triage(server: FastMCP, client: httpx.AsyncClient, ui_base_url: st
 
     @server.tool(
         description=(
-            "Deep dive on one failed task run: its status and messages, taskParameters and "
-            "runParameters, the statuses of the upstream tasks it depends on, the tail of its "
-            "newest log, and its artifact filenames. "
+            "Start here for 'why did this task run fail'. One call replaces "
+            "list_task_runs_for_pipeline_run, list_task_run_logs and download_task_run_log, "
+            "and finds the task run by ID however old it is. Returns its status and messages, "
+            "taskParameters and runParameters, the statuses of the upstream tasks it depends "
+            "on, the tail of its newest log, and its artifact filenames. "
             "Over-long parameter values, the log tail and the artifact list are capped, and the "
             "response says which parts were cut. Use download_task_run_log or "
             "download_task_run_artifact when the tail is not enough."
