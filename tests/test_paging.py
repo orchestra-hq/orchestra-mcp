@@ -54,10 +54,17 @@ def test_single_record_with_many_small_fields_still_fits():
     shrunk = shrink_page(_page(1, 1, items))
     assert len(json.dumps(shrunk)) <= MAX_RESULT_CHARS
     assert shrunk["results"] == [{"id": 0}]
-    assert "not available through any other tool" in shrunk["note"]
+    assert "get_* tool" in shrunk["note"]
 
 
-async def test_middleware_shrinks_only_paged_tools():
+def test_last_page_note_does_not_ask_for_another_page():
+    # Only a cut single record can be the whole of a shrunk page.
+    shrunk = shrink_page(_page(1, 1, [{"id": 0, "blob": "x" * 100_000}]))
+    assert "last page" in shrunk["note"]
+    assert "Continue" not in shrunk["note"]
+
+
+async def test_middleware_shrinks_any_paged_envelope_only():
     server = FastMCP("test", middleware=[PageSizeMiddleware()])
 
     @server.tool
@@ -65,13 +72,19 @@ async def test_middleware_shrinks_only_paged_tools():
         return _page(1, 50)
 
     @server.tool
-    def other() -> dict:
+    def list_audit_events() -> dict:
         return _page(1, 50)
 
-    async with Client(server) as client:
-        shrunk = await client.call_tool("list_assets", {})
-        untouched = await client.call_tool("other", {})
+    @server.tool
+    def get_big() -> dict:
+        return {"results": ITEMS}
 
-    assert len(shrunk.content[0].text) <= MAX_RESULT_CHARS
-    assert shrunk.structured_content["pageSize"] == 10
-    assert untouched.structured_content["pageSize"] == 50
+    async with Client(server) as client:
+        listed = await client.call_tool("list_assets", {})
+        other_list = await client.call_tool("list_audit_events", {})
+        untouched = await client.call_tool("get_big", {})
+
+    assert len(listed.content[0].text) <= MAX_RESULT_CHARS
+    assert listed.structured_content["pageSize"] == 10
+    assert other_list.structured_content["pageSize"] == 10
+    assert len(untouched.structured_content["results"]) == 100

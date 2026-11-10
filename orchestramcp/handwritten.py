@@ -29,8 +29,10 @@ HANDWRITTEN_OPERATION_IDS = (
 # Results are kept under this budget with headroom for the envelope.
 MAX_RESULT_CHARS = 40_000
 
-# Default bytes per download call: a chunk that stays within MAX_RESULT_CHARS even
-# when binary content is base64-encoded (4/3 larger), so the agent reads it in line.
+# Default bytes per download call. Text comes back at most this many characters and
+# binary chunks are cut to 3/4 of it so their base64 is the same length. That stays
+# under MAX_RESULT_CHARS and, at base64's ~1.5 characters per token, under the
+# 25,000-token limit too.
 CHUNK_BYTES = MAX_RESULT_CHARS * 3 // 4
 
 # Largest chunk a caller may ask for, bounded by the transport rather than the agent:
@@ -43,8 +45,11 @@ _DOWNLOAD_DESCRIPTION = (
     "reads from the beginning, a negative offset counts back from the end (e.g. -30000 "
     "reads the last 30000 bytes, usually where an error is). The first content block "
     "reports total_bytes and next_offset; call again with offset=next_offset until "
-    "next_offset is null to read the whole file. Text comes back as-is, binary content "
-    f"base64-encoded. chunk_bytes defaults to {CHUNK_BYTES}, which you can read in line; "
+    "next_offset is null to read the whole file. Text comes back as-is (encoding utf-8), "
+    "binary content base64-encoded (encoding base64, 3/4 of chunk_bytes per call). Text "
+    "with a few invalid bytes comes back as utf-8-escaped: each invalid byte appears as "
+    "\\xNN and every literal backslash is doubled. "
+    f"chunk_bytes defaults to {CHUNK_BYTES}, which you can read in line; "
     f"raise it up to {MAX_CHUNK_BYTES} only to save a large file to disk and process it "
     "with a script."
 )
@@ -256,31 +261,32 @@ def register_handwritten(server: FastMCP, client: httpx.AsyncClient, ui_base_url
             headers["Range"] = f"bytes={offset}-{offset + chunk_bytes - 1}"
         else:
             headers["Range"] = f"bytes={offset}"
-        async with client.stream(
-            "GET", path, params={"filename": filename}, headers=headers
-        ) as response:
-            if response.status_code >= 400:
-                await response.aread()
-                hint = (
-                    " The offset is past the end of the file."
-                    if response.status_code == 416
-                    else ""
-                )
-                raise ToolError(
-                    f"Download of {filename} failed with HTTP {response.status_code}.{hint}"
-                )
-            start, total = _content_range(response)
-            if start is None and offset != 0:
-                raise ToolError(
-                    f"The server ignored the requested range for {filename}; only offset=0 "
-                    "can be read."
-                )
-            # Only the first chunk_bytes are read: a server ignoring the range sends
-            # the whole file, which can run to hundreds of MB.
-            content = b""
-            async for content in response.aiter_bytes(chunk_size=chunk_bytes):
-                break
-            start = start or 0
+        try:
+            async with client.stream(
+                "GET", path, params={"filename": filename}, headers=headers
+            ) as response:
+                if response.status_code >= 400:
+                    await response.aread()
+                    raise OrchestraAPIError(response.status_code, f"Download of {filename} failed")
+                start, total = _content_range(response)
+                if start is None and offset != 0:
+                    raise ToolError(
+                        f"The server ignored the requested range for {filename}; only "
+                        "offset=0 can be read."
+                    )
+                # Only the first chunk_bytes are read: a server ignoring the range sends
+                # the whole file, which can run to hundreds of MB.
+                content = b""
+                async for content in response.aiter_bytes(chunk_size=chunk_bytes):
+                    break
+                start = start or 0
+        except OrchestraAPIError as exc:
+            if exc.status_code != 416:
+                raise
+            # An empty file satisfies no range, so reading it from the start is not an error.
+            if offset <= 0:
+                return _chunk_result(filename, b"", 0, 0, chunk_bytes, tail=False)
+            raise ToolError(f"Offset {offset} is past the end of {filename}.") from exc
         return _chunk_result(filename, content, start, total, chunk_bytes, tail=offset < 0)
 
     @server.tool(
@@ -322,20 +328,31 @@ def _content_range(response: httpx.Response) -> tuple[int | None, int | None]:
     if match and response.status_code == 206:
         total = match.group(2)
         return int(match.group(1)), None if total == "*" else int(total)
+    # A compressed body's length is not the length of the bytes read from it.
     length = response.headers.get("content-length")
-    return None, int(length) if length and length.isdigit() else None
+    encoded = response.headers.get("content-encoding", "identity") != "identity"
+    return None, int(length) if length and length.isdigit() and not encoded else None
 
 
-def _utf8_prefix(body: bytes, more_follows: bool) -> bytes | None:
-    """``body`` if it is UTF-8 text, else None. A last character cut by the chunk's
-    end is left for the next chunk, which exists only if more of the file follows;
-    an incomplete character at the end of the file means binary content."""
+def _decode(body: bytes, more_follows: bool) -> tuple[bytes, str, str] | None:
+    """Decode a chunk to (bytes covered, text, encoding), or None if it is binary.
+
+    A last character cut by the chunk's end is left for the next chunk, which exists
+    only if more of the file follows. Text with a few invalid bytes, such as one
+    Latin-1 character in a log, stays readable: those bytes are escaped as \\xNN and
+    literal backslashes doubled, so the original bytes can still be recovered.
+    """
     try:
-        body.decode("utf-8")
-        return body
+        return body, body.decode("utf-8"), "utf-8"
     except UnicodeDecodeError as exc:
         split = exc.reason == "unexpected end of data" and exc.start >= len(body) - 3
-        return _utf8_prefix(body[: exc.start], False) if split and more_follows else None
+        if split and more_follows:
+            return _decode(body[: exc.start], False)
+    invalid = body.decode("utf-8", "replace").count("\ufffd")
+    if invalid * 100 > len(body):
+        return None
+    escaped = body.replace(b"\\", b"\\\\").decode("utf-8", "backslashreplace")
+    return body, escaped, "utf-8-escaped"
 
 
 def _chunk_result(
@@ -354,15 +371,20 @@ def _chunk_result(
     # bytes of a binary chunk returned before it.
     while tail and lead < min(3, len(content)) and 0x80 <= content[lead] < 0xC0:
         lead += 1
-    body = _utf8_prefix(content[lead:], more_follows)
-    if body is None:
-        body, lead = content, 0
-        text, encoding = base64.b64encode(content).decode("ascii"), "base64"
+    decoded = _decode(content[lead:], more_follows)
+    if decoded is None:
+        lead = 0
+        body = content[: chunk_bytes * 3 // 4]
+        text, encoding = base64.b64encode(body).decode("ascii"), "base64"
     else:
-        text, encoding = body.decode("utf-8"), "utf-8"
+        body, text, encoding = decoded
     start += lead
     end = start + len(body)
-    more = end < total if total is not None else len(content) >= chunk_bytes
+    more = (
+        end < total
+        if total is not None
+        else len(body) < len(content) or len(content) >= chunk_bytes
+    )
     meta = {
         "filename": filename,
         "offset": start,

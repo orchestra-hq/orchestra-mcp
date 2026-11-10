@@ -16,13 +16,14 @@ from orchestramcp.handwritten import (
     MAX_ARTIFACT_NAMES,
     MAX_CHUNK_BYTES,
     MAX_FAILED_TASKS_PER_RUN,
+    MAX_RESULT_CHARS,
     MAX_SIBLING_TASK_RUNS,
     MAX_WINDOW_HOURS,
     RUN_TASK_RUNS_PAGE_SIZE,
+    _content_range,
     _duration_seconds,
     register_handwritten,
 )
-from orchestramcp.paging import MAX_RESULT_CHARS
 
 
 def _server(handler=None, ui_base_url="https://stage.getorchestra.io"):
@@ -65,6 +66,23 @@ def _file_server(data: bytes, honour_range: bool = True):
     return handler, calls
 
 
+def _decode_body(body: str, encoding: str) -> bytes:
+    """Recover a chunk's bytes from each encoding the download tools return."""
+    if encoding == "base64":
+        return base64.b64decode(body)
+    if encoding == "utf-8-escaped":
+        parts = re.split(r"(\\\\|\\x[0-9a-f]{2})", body)
+        return b"".join(
+            b"\\"
+            if part == "\\\\"
+            else bytes([int(part[2:], 16)])
+            if part.startswith("\\x")
+            else part.encode()
+            for part in parts
+        )
+    return body.encode()
+
+
 async def _read_all(client, tool: str, offset: int = 0) -> tuple[bytes, list[dict]]:
     """Follow next_offset from ``offset`` to the end, as an agent would."""
     content, metas = b"", []
@@ -74,7 +92,7 @@ async def _read_all(client, tool: str, offset: int = 0) -> tuple[bytes, list[dic
         )
         meta, body = _download_result(result)
         metas.append(meta)
-        content += base64.b64decode(body) if meta["encoding"] == "base64" else body.encode()
+        content += _decode_body(body, meta["encoding"])
         assert len(body) <= MAX_RESULT_CHARS
         offset = meta["next_offset"]
     return content, metas
@@ -227,7 +245,7 @@ async def test_download_http_error_raises_tool_error():
         return httpx.Response(404, content=b"not found")
 
     async with Client(_server(handler)) as client:
-        with pytest.raises(ToolError, match="HTTP 404"):
+        with pytest.raises(ToolError, match="404"):
             await client.call_tool(
                 "download_task_run_log",
                 {"pipeline_run_id": "pr", "task_run_id": "tr", "filename": "missing.log"},
@@ -243,6 +261,72 @@ async def test_download_offset_past_the_end_raises_tool_error_with_hint():
                 "download_task_run_log",
                 {"pipeline_run_id": "pr", "task_run_id": "tr", "filename": "run.log", "offset": 99},
             )
+
+
+async def test_download_text_with_a_few_invalid_bytes_stays_readable_and_exact():
+    data = "café ok\n".encode("latin-1") + b"path C:\\logs\\x.txt\n" * 10
+
+    async with Client(_server(_file_server(data)[0])) as client:
+        content, metas = await _read_all(client, "download_task_run_log")
+
+    assert content == data
+    assert metas[0]["encoding"] == "utf-8-escaped"
+
+
+async def test_download_binary_chunk_base64_stays_within_chunk_bytes():
+    data = bytes(range(256)) * 400
+
+    async with Client(_server(_file_server(data)[0])) as client:
+        result = await client.call_tool(
+            "download_task_run_artifact",
+            {"pipeline_run_id": "pr", "task_run_id": "tr", "filename": "f"},
+        )
+
+    meta, body = _download_result(result)
+    assert meta["encoding"] == "base64"
+    assert len(body) <= CHUNK_BYTES
+    assert meta["next_offset"] == CHUNK_BYTES * 3 // 4
+
+
+@pytest.mark.parametrize("offset", [0, -100])
+async def test_download_empty_file_returns_empty_content(offset):
+    # Through the production client, whose response hook raises on a 416.
+    os.environ["ORCHESTRA_API_KEY"] = "test-api-key"
+    client = build_http_client("https://example.com/api/engine")
+    client._transport = httpx.MockTransport(_file_server(b"")[0])
+    server = FastMCP("test")
+    register_handwritten(server, client, "https://stage.getorchestra.io")
+
+    async with Client(server) as mcp:
+        result = await mcp.call_tool(
+            "download_task_run_log",
+            {
+                "pipeline_run_id": "pr",
+                "task_run_id": "tr",
+                "filename": "empty.log",
+                "offset": offset,
+            },
+        )
+        with pytest.raises(ToolError, match="past the end"):
+            await mcp.call_tool(
+                "download_task_run_log",
+                {
+                    "pipeline_run_id": "pr",
+                    "task_run_id": "tr",
+                    "filename": "empty.log",
+                    "offset": 5,
+                },
+            )
+
+    meta, body = _download_result(result)
+    assert body == ""
+    assert meta["total_bytes"] == 0
+    assert meta["next_offset"] is None
+
+
+def test_compressed_length_is_not_reported_as_the_file_size():
+    response = httpx.Response(200, headers={"Content-Length": "50", "Content-Encoding": "gzip"})
+    assert _content_range(response) == (None, None)
 
 
 # --- composite triage tools ---
