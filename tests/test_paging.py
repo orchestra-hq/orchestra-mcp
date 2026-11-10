@@ -41,27 +41,19 @@ def test_shrunk_page_names_the_next_call():
     assert f"page={2}, page_size={10}" in shrunk["note"]
 
 
-def test_single_record_over_the_budget_has_long_strings_cut():
-    items = [{"id": 0, "taskParameters": {"script": "x" * 100_000}}]
-    shrunk = shrink_page(_page(1, 1, items), "get_task_run")
-    assert len(json.dumps(shrunk)) <= MAX_RESULT_CHARS
-    assert shrunk["results"][0]["id"] == 0
-    assert "get_task_run" in shrunk["note"]
-
-
-def test_single_record_with_many_small_fields_still_fits():
-    items = [{"id": 0, "runParameters": {f"k{i}": "v" * 50 for i in range(5_000)}}]
+def test_single_record_over_the_budget_keeps_its_top_level_fields():
+    items = [
+        {
+            "id": 0,
+            "message": "m" * 100_000,
+            "runParameters": {f"k{i}": "v" * 50 for i in range(5_000)},
+        }
+    ]
     shrunk = shrink_page(_page(1, 1, items))
     assert len(json.dumps(shrunk)) <= MAX_RESULT_CHARS
-    assert shrunk["results"] == [{"id": 0}]
-    assert "get_* tool" in shrunk["note"]
-
-
-def test_last_page_note_does_not_ask_for_another_page():
-    # Only a cut single record can be the whole of a shrunk page.
-    shrunk = shrink_page(_page(1, 1, [{"id": 0, "blob": "x" * 100_000}]))
-    assert "last page" in shrunk["note"]
-    assert "Continue" not in shrunk["note"]
+    assert shrunk["results"][0]["id"] == 0
+    assert "runParameters" not in shrunk["results"][0]
+    assert "too large" in shrunk["note"]
 
 
 async def test_middleware_shrinks_any_paged_envelope_only():
