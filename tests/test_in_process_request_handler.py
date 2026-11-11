@@ -123,3 +123,22 @@ def test_slow_tool_returns_error_naming_it_before_the_lambda_times_out(
     assert response.error.message.startswith(REQUEST_TIMED_OUT_MESSAGE)
     assert "tool 'whats_broken'" in response.error.message
     assert any("whats_broken" in record.message for record in caplog.records)
+
+
+def test_slow_spec_download_returns_error_before_the_lambda_times_out(
+    handler, lambda_context, monkeypatch
+):
+    def blocking_get_mcp():
+        time.sleep(5)
+
+    monkeypatch.setattr(iprh, "get_mcp", blocking_get_mcp)
+    lambda_context.get_remaining_time_in_millis.return_value = 3_300
+
+    started = time.monotonic()
+    response = handler.handle_request(
+        _make_request("tools/call", {"name": "diagnose", "arguments": {}}), lambda_context
+    )
+
+    assert time.monotonic() - started < 2
+    assert isinstance(response, JSONRPCError)
+    assert "tool 'diagnose'" in response.error.message

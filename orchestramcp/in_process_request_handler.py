@@ -4,6 +4,7 @@ from copy import deepcopy
 from typing import Any
 
 import anyio
+import anyio.to_thread
 import mcp.types as types
 from fastmcp.client.transports import FastMCPTransport
 from mcp.types import (
@@ -133,7 +134,10 @@ async def _forward_request(event: dict[str, Any], timeout: float) -> dict[str, A
 
     try:
         with anyio.fail_after(timeout):
-            transport = FastMCPTransport(get_mcp())
+            # Building the server downloads the API specs with blocking calls the deadline
+            # cannot interrupt, so it runs in a thread the deadline can walk away from.
+            server = await anyio.to_thread.run_sync(get_mcp, abandon_on_cancel=True)
+            transport = FastMCPTransport(server)
             async with transport.connect_session() as session:
                 await session.initialize()
                 result = await session.send_request(
