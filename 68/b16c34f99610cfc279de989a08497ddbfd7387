@@ -1,0 +1,20 @@
+orchestramcp/in_process_request_handler.py
+  s_438e5016ce35cb::t_15bdb7ed3059ee 31
+  s_438e5016ce35cb::t_9490f4a2732450 135
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "68b16c34f99610cfc279de989a08497ddbfd7387",
+  "prompts": {},
+  "sessions": {
+    "s_438e5016ce35cb": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "4f8c5633-dc20-4e44-b279-065776712e6b",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Jeroen Rijks <jeroen@getorchestra.io>"
+    }
+  }
+}
