@@ -1,11 +1,15 @@
+import time
 from unittest.mock import MagicMock
 
+import anyio
 import pytest
+from fastmcp import FastMCP
 from mcp.types import JSONRPCError, JSONRPCRequest, JSONRPCResponse
 
 import orchestramcp.in_process_request_handler as iprh
 from orchestramcp.in_process_request_handler import (
     MAX_RESPONSE_BYTES,
+    REQUEST_TIMED_OUT_MESSAGE,
     FastMCPInProcessRequestHandler,
 )
 
@@ -19,6 +23,7 @@ def handler():
 def lambda_context():
     context = MagicMock()
     context.aws_request_id = "test-request-id"
+    context.get_remaining_time_in_millis.return_value = 29_000
     return context
 
 
@@ -52,7 +57,7 @@ def test_unknown_method_returns_jsonrpc_error(handler, lambda_context):
 def test_oversized_response_returns_error_and_logs_tool(
     handler, lambda_context, monkeypatch, caplog
 ):
-    async def oversized(request_dict):
+    async def oversized(request_dict, timeout):
         return {
             "jsonrpc": "2.0",
             "id": 1,
@@ -91,3 +96,49 @@ def test_guard_accounts_for_proxy_envelope_escaping():
 
     assert error is not None
     assert "Response exceeds the maximum MCP payload size" in error.error.message
+
+
+def test_slow_tool_returns_error_naming_it_before_the_lambda_times_out(
+    handler, lambda_context, monkeypatch, caplog
+):
+    server = FastMCP("slow")
+
+    @server.tool
+    async def whats_broken() -> str:
+        await anyio.sleep(5)
+        return "too late"
+
+    monkeypatch.setattr(iprh, "get_mcp", lambda: server)
+    lambda_context.get_remaining_time_in_millis.return_value = 3_300
+
+    started = time.monotonic()
+    with caplog.at_level("ERROR"):
+        response = handler.handle_request(
+            _make_request("tools/call", {"name": "whats_broken", "arguments": {}}),
+            lambda_context,
+        )
+
+    assert time.monotonic() - started < 2
+    assert isinstance(response, JSONRPCError)
+    assert response.error.message.startswith(REQUEST_TIMED_OUT_MESSAGE)
+    assert "tool 'whats_broken'" in response.error.message
+    assert any("whats_broken" in record.message for record in caplog.records)
+
+
+def test_slow_spec_download_returns_error_before_the_lambda_times_out(
+    handler, lambda_context, monkeypatch
+):
+    def blocking_get_mcp():
+        time.sleep(5)
+
+    monkeypatch.setattr(iprh, "get_mcp", blocking_get_mcp)
+    lambda_context.get_remaining_time_in_millis.return_value = 3_300
+
+    started = time.monotonic()
+    response = handler.handle_request(
+        _make_request("tools/call", {"name": "diagnose", "arguments": {}}), lambda_context
+    )
+
+    assert time.monotonic() - started < 2
+    assert isinstance(response, JSONRPCError)
+    assert "tool 'diagnose'" in response.error.message
