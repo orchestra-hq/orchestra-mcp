@@ -28,9 +28,7 @@ INTERNAL_FAILURE_MESSAGE = "Internal failure, please check Lambda function logs"
 MAX_RESPONSE_BYTES = 5 * 1024 * 1024
 RESPONSE_TOO_LARGE_MESSAGE = "Response exceeds the maximum MCP payload size"
 
-# A request still running when the Lambda times out is killed without a word, and API
-# Gateway answers with a bare 500. Stopping this long before the Lambda's own timeout
-# leaves time to return an error that names what was slow.
+# Ends a request before the Lambda's timeout kills it and API Gateway returns a bare 500.
 REQUEST_TIMED_OUT_MESSAGE = "Request did not finish in time"
 _DEADLINE_MARGIN_SECONDS = 3
 
@@ -134,8 +132,7 @@ async def _forward_request(event: dict[str, Any], timeout: float) -> dict[str, A
 
     try:
         with anyio.fail_after(timeout):
-            # Building the server downloads the API specs with blocking calls the deadline
-            # cannot interrupt, so it runs in a thread the deadline can walk away from.
+            # get_mcp downloads specs with blocking calls, so a thread lets the deadline abandon it.
             server = await anyio.to_thread.run_sync(get_mcp, abandon_on_cancel=True)
             transport = FastMCPTransport(server)
             async with transport.connect_session() as session:
