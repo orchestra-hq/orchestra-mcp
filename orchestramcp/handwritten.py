@@ -177,7 +177,12 @@ def _definition_integrations(definition: dict) -> list[str]:
     return sorted(integrations)
 
 
-def register_handwritten(server: FastMCP, client: httpx.AsyncClient, ui_base_url: str) -> None:
+def register_handwritten(
+    server: FastMCP,
+    client: httpx.AsyncClient,
+    ui_base_url: str,
+    platform_client: httpx.AsyncClient,
+) -> None:
     """Register the tools that cannot be generated from the spec.
 
     ``get_pipeline_run_lineage_url`` has no backing endpoint; the downloads return
@@ -186,6 +191,7 @@ def register_handwritten(server: FastMCP, client: httpx.AsyncClient, ui_base_url
     several endpoints, so no single operation describes them.
     """
     _register_triage(server, client, ui_base_url)
+    _register_account_setup(server, client, platform_client, ui_base_url)
 
     @server.tool(
         annotations=ToolAnnotations(title="Get Pipeline Run Lineage URL", readOnlyHint=True)
@@ -620,4 +626,38 @@ def _register_triage(server: FastMCP, client: httpx.AsyncClient, ui_base_url: st
             "medianSucceededDurationSeconds": (
                 round(statistics.median(succeeded_durations)) if succeeded_durations else None
             ),
+        }
+
+
+def _register_account_setup(
+    server: FastMCP,
+    client: httpx.AsyncClient,
+    platform_client: httpx.AsyncClient,
+    ui_base_url: str,
+) -> None:
+    @server.tool(
+        description=(
+            "Summarise how a workspace is set up, in one call: the account's id and name, the "
+            "app base URL to build Orchestra links from, and its environments. Use it at the "
+            "start of onboarding instead of listing accounts or exploring the workspace."
+        ),
+        annotations=ToolAnnotations(title="Get Account Setup", readOnlyHint=True),
+    )
+    async def get_account_setup(account_id: AccountId = None) -> dict:
+        accounts = (await platform_client.get("/accounts")).json()
+        if account_id:
+            accounts = [a for a in accounts if a.get("id") == str(account_id)]
+        if len(accounts) != 1:
+            # An OAuth grant can reach several workspaces; refuse to guess between them.
+            names = ", ".join(f"{a.get('name')} ({a.get('id')})" for a in accounts) or "none"
+            raise ToolError(f"Pass account_id to pick one workspace. Reachable: {names}.")
+        environments = (
+            await client.get("/public/environments", headers=_account_headers(account_id))
+        ).json()
+        return {
+            "account": {"id": accounts[0].get("id"), "name": accounts[0].get("name")},
+            "appBaseUrl": ui_base_url,
+            "environments": [
+                {"id": e.get("environmentId"), "name": e.get("name")} for e in environments
+            ],
         }

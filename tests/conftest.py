@@ -79,6 +79,7 @@ EXPECTED_TOOLS = {
     "mute_incident",
     "pause_pipeline",
     "pipeline_context",
+    "get_account_setup",
     "reorder_monitors",
     "send_agent_session_message",
     "set_agent_integrations",

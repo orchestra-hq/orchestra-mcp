@@ -71,6 +71,11 @@ HANDWRITTEN_ROWS = (
         "Triage",
     ),
     (
+        "get_account_setup",
+        "A workspace's account id and name, app base URL and environments, in one call. Built for onboarding.",
+        "Accounts",
+    ),
+    (
         "get_pipeline_run_lineage_url",
         "Build the URL of a pipeline run's lineage graph in the Orchestra UI (derived from `ORCHESTRA_ENV`).",
         "Pipeline Runs",
