@@ -73,5 +73,5 @@ def build_server(
                 validate_output=False,
             )
         )
-    register_handwritten(server, engine.client, ui_base_url)
+    register_handwritten(server, engine.client, ui_base_url, platform.client)
     return server
