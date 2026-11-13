@@ -45,6 +45,26 @@ jobs:
             echo 'environments=["development","staging"]' >> "$GITHUB_OUTPUT"
           fi
 
+  notify_release_started:
+    name: Notify release started
+    if: ${{ github.event_name == 'release' }}
+    runs-on: blacksmith-2vcpu-ubuntu-2404
+    environment: production
+    steps:
+      - name: Start the release-started Orchestra pipeline
+        env:
+          ORCHESTRA_TOKEN: ${{ secrets.ORCHESTRA_ENGINEERING_TEAM_API_TOKEN }}
+          PIPELINE_ID: ${{ vars.START_RELEASE_PIPELINE_ID }}
+          RELEASE_NAME: ${{ github.event.release.tag_name }}
+        run: |
+          jq -n --arg repository "$GITHUB_REPOSITORY" --arg release_name "$RELEASE_NAME" \
+            '{runInputs: {repository: $repository, release_name: $release_name}}' |
+          curl -sS --fail-with-body --max-time 60 -X POST \
+            -H "Content-Type: application/json" \
+            -H "Authorization: Bearer ${ORCHESTRA_TOKEN}" \
+            -d @- \
+            "https://app.getorchestra.io/api/engine/public/pipelines/${PIPELINE_ID}/start"
+
   change_detection:
     name: Detect deploy-relevant changes
     runs-on: blacksmith-2vcpu-ubuntu-2404
