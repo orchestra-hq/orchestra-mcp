@@ -1,0 +1,19 @@
+.github/workflows/deploy_lambda.yml
+  s_2dd999407a3544::t_4b4098df2ae746 48-67
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "d21103ec2f50068bbc323938bcb0bfd6c107ac27",
+  "prompts": {},
+  "sessions": {
+    "s_2dd999407a3544": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "429284e4-9064-4cde-8259-b8e9d29b9a2f",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Jeroen Rijks <jeroen@getorchestra.io>"
+    }
+  }
+}
