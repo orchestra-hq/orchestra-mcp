@@ -59,7 +59,7 @@ jobs:
         run: |
           jq -n --arg repository "$GITHUB_REPOSITORY" --arg release_name "$RELEASE_NAME" \
             '{runInputs: {repository: $repository, release_name: $release_name}}' |
-          curl -sS --fail-with-body -X POST \
+          curl -sS --fail-with-body --max-time 60 -X POST \
             -H "Content-Type: application/json" \
             -H "Authorization: Bearer ${ORCHESTRA_TOKEN}" \
             -d @- \
