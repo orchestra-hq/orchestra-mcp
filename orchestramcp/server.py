@@ -29,6 +29,10 @@ def _agents_base_url() -> str:
     return f"https://{_env()}.getorchestra.io/api/ai/v1"
 
 
+def _gitbridge_base_url() -> str:
+    return f"https://{_env()}.getorchestra.io/api/gitbridge/public"
+
+
 def _ui_base_url() -> str:
     return f"https://{_env()}.getorchestra.io"
 
@@ -62,6 +66,7 @@ def get_mcp() -> FastMCP:
         ApiSource(load_spec(_spec_url()), get_client(_base_url())),
         ApiSource(load_spec(_platform_spec_url()), get_client(_platform_base_url())),
         ApiSource(load_spec(_agents_spec_url()), get_client(_agents_base_url())),
+        gitbridge_client=get_client(_gitbridge_base_url()),
         include_deletes=_delete_enabled(),
         ui_base_url=_ui_base_url(),
     )

@@ -182,6 +182,7 @@ def register_handwritten(
     client: httpx.AsyncClient,
     ui_base_url: str,
     platform_client: httpx.AsyncClient,
+    gitbridge_client: httpx.AsyncClient,
 ) -> None:
     """Register the tools that cannot be generated from the spec.
 
@@ -191,7 +192,7 @@ def register_handwritten(
     several endpoints, so no single operation describes them.
     """
     _register_triage(server, client, ui_base_url)
-    _register_account_setup(server, client, platform_client, ui_base_url)
+    _register_account_setup(server, client, platform_client, gitbridge_client, ui_base_url)
 
     @server.tool(
         annotations=ToolAnnotations(title="Get Pipeline Run Lineage URL", readOnlyHint=True)
@@ -633,13 +634,15 @@ def _register_account_setup(
     server: FastMCP,
     client: httpx.AsyncClient,
     platform_client: httpx.AsyncClient,
+    gitbridge_client: httpx.AsyncClient,
     ui_base_url: str,
 ) -> None:
     @server.tool(
         description=(
             "Summarise how a workspace is set up, in one call: the account's id and name, the "
-            "app base URL to build Orchestra links from, and its environments. Use it at the "
-            "start of onboarding instead of listing accounts or exploring the workspace."
+            "app base URL to build Orchestra links from, its environments, and whether a Git "
+            "provider is linked. Use it at the start of onboarding instead of listing accounts "
+            "or exploring the workspace, and again after the user links Git to confirm it."
         ),
         annotations=ToolAnnotations(title="Get Account Setup", readOnlyHint=True),
     )
@@ -654,10 +657,27 @@ def _register_account_setup(
         environments = (
             await client.get("/public/environments", headers=_account_headers(account_id))
         ).json()
+        git = (
+            await gitbridge_client.get("/connection", headers=_account_headers(account_id))
+        ).json()
         return {
             "account": {"id": accounts[0].get("id"), "name": accounts[0].get("name")},
             "appBaseUrl": ui_base_url,
             "environments": [
                 {"id": e.get("environmentId"), "name": e.get("name")} for e in environments
             ],
+            # connected stays even when False; empty provider details are dropped.
+            "git": {
+                "connected": bool(git.get("connected")),
+                **_compact(
+                    {
+                        "provider": git.get("git_source"),
+                        "githubOrg": git.get("github_org"),
+                        "githubEnterpriseUrl": git.get("github_enterprise_url"),
+                        "gitlabUrl": git.get("self_hosted_instance_url"),
+                        "azureOrganization": git.get("organization_name"),
+                        "bitbucketWorkspace": git.get("workspace"),
+                    }
+                ),
+            },
         }

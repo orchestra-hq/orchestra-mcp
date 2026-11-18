@@ -43,6 +43,7 @@ def build_server(
     engine: ApiSource,
     platform: ApiSource,
     agents: ApiSource,
+    gitbridge_client: httpx.AsyncClient,
     include_deletes: bool = False,
     name: str = SERVER_NAME,
     ui_base_url: str = DEFAULT_UI_BASE_URL,
@@ -73,5 +74,5 @@ def build_server(
                 validate_output=False,
             )
         )
-    register_handwritten(server, engine.client, ui_base_url, platform.client)
+    register_handwritten(server, engine.client, ui_base_url, platform.client, gitbridge_client)
     return server
