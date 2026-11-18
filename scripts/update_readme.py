@@ -72,7 +72,7 @@ HANDWRITTEN_ROWS = (
     ),
     (
         "get_account_setup",
-        "A workspace's account id and name, app base URL, environments and Git connection, in one call. Built for onboarding.",
+        "A workspace's app base URL, environments and Git connection, in one call. Built for onboarding.",
         "Accounts",
     ),
     (

@@ -74,5 +74,5 @@ def build_server(
                 validate_output=False,
             )
         )
-    register_handwritten(server, engine.client, ui_base_url, platform.client, gitbridge_client)
+    register_handwritten(server, engine.client, ui_base_url, gitbridge_client)
     return server

@@ -29,7 +29,7 @@ def _server(handler=None, ui_base_url="https://stage.getorchestra.io"):
         base_url="https://example.com/api/engine", transport=httpx.MockTransport(handler)
     )
     server = FastMCP("test")
-    register_handwritten(server, client, ui_base_url, client, client)
+    register_handwritten(server, client, ui_base_url, client)
     return server
 
 
@@ -222,7 +222,7 @@ def _triage_server(routes, ui_base_url="https://app.getorchestra.io"):
     client = build_http_client("https://example.com/api/engine")
     client._transport = httpx.MockTransport(handler)
     server = FastMCP("test")
-    register_handwritten(server, client, ui_base_url, client, client)
+    register_handwritten(server, client, ui_base_url, client)
     return server, requests
 
 
@@ -721,7 +721,6 @@ ACCOUNT_ROUTES = {
     r"/pipelines/data$": {"pipeline": {}},
     r"/public/pipeline$": {"id": "pipe-1", "name": "nightly"},
     r"/pipelines/schema$": {"valid": True},
-    r"^/api/engine/accounts$": [{"id": ACCOUNT_ID, "name": "Acme"}],
     r"/connection$": {"connected": False},
 }
 
@@ -765,10 +764,8 @@ async def test_account_id_is_forwarded_on_every_request(tool_name):
             tool_name, {**ACCOUNT_TOOL_CALLS[tool_name], "account_id": ACCOUNT_ID}
         )
 
-    # GET /accounts lists every reachable workspace, so it is filtered locally instead.
-    workspace_requests = [r for r in requests if not r.url.path.endswith("/accounts")]
-    assert workspace_requests
-    for request in workspace_requests:
+    assert requests
+    for request in requests:
         assert request.headers.get("X-Orchestra-Account-Id") == ACCOUNT_ID, request.url.path
 
 
@@ -796,10 +793,9 @@ async def test_account_id_that_is_not_a_uuid4_is_rejected_before_any_request():
 # --- account setup ---
 
 
-async def test_account_setup_summarises_account_url_and_environments():
+async def test_account_setup_summarises_url_environments_and_git():
     server, _ = _triage_server(
         {
-            r"/accounts$": [{"id": "acc-1", "name": "Acme"}],
             r"/environments$": [{"environmentId": "env-1", "name": "Production", "x": 1}],
             r"/connection$": {
                 "connected": True,
@@ -814,42 +810,7 @@ async def test_account_setup_summarises_account_url_and_environments():
         result = await client.call_tool("get_account_setup", {})
 
     assert result.structured_content == {
-        "account": {"id": "acc-1", "name": "Acme"},
         "appBaseUrl": "https://app.getorchestra.io",
         "environments": [{"id": "env-1", "name": "Production"}],
         "git": {"connected": True, "provider": "GITHUB"},
     }
-
-
-async def test_account_setup_picks_the_requested_account():
-    server, _ = _triage_server(
-        {
-            r"/accounts$": [{"id": "other", "name": "Other"}, {"id": ACCOUNT_ID, "name": "Acme"}],
-            r"/environments$": [],
-            r"/connection$": {"connected": False},
-        }
-    )
-
-    async with Client(server) as client:
-        result = await client.call_tool("get_account_setup", {"account_id": ACCOUNT_ID})
-
-    assert result.structured_content["account"] == {"id": ACCOUNT_ID, "name": "Acme"}
-    assert result.structured_content["git"] == {"connected": False}
-
-
-async def test_account_setup_refuses_to_guess_between_several_accounts():
-    server, _ = _triage_server(
-        {r"/accounts$": [{"id": "a", "name": "A"}, {"id": "b", "name": "B"}]}
-    )
-
-    async with Client(server) as client:
-        with pytest.raises(ToolError, match="Pass account_id"):
-            await client.call_tool("get_account_setup", {})
-
-
-async def test_account_setup_lists_reachable_accounts_when_the_id_matches_none():
-    server, _ = _triage_server({r"/accounts$": [{"id": "a", "name": "Alpha"}]})
-
-    async with Client(server) as client:
-        with pytest.raises(ToolError, match=r"Reachable: Alpha \(a\)"):
-            await client.call_tool("get_account_setup", {"account_id": ACCOUNT_ID})
