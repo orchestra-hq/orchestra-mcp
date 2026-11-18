@@ -845,3 +845,11 @@ async def test_account_setup_refuses_to_guess_between_several_accounts():
     async with Client(server) as client:
         with pytest.raises(ToolError, match="Pass account_id"):
             await client.call_tool("get_account_setup", {})
+
+
+async def test_account_setup_lists_reachable_accounts_when_the_id_matches_none():
+    server, _ = _triage_server({r"/accounts$": [{"id": "a", "name": "Alpha"}]})
+
+    async with Client(server) as client:
+        with pytest.raises(ToolError, match=r"Reachable: Alpha \(a\)"):
+            await client.call_tool("get_account_setup", {"account_id": ACCOUNT_ID})

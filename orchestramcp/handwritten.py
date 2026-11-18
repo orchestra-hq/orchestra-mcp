@@ -647,12 +647,11 @@ def _register_account_setup(
         annotations=ToolAnnotations(title="Get Account Setup", readOnlyHint=True),
     )
     async def get_account_setup(account_id: AccountId = None) -> dict:
-        accounts = (await platform_client.get("/accounts")).json()
-        if account_id:
-            accounts = [a for a in accounts if a.get("id") == str(account_id)]
+        reachable = (await platform_client.get("/accounts")).json()
+        accounts = [a for a in reachable if not account_id or a.get("id") == str(account_id)]
         if len(accounts) != 1:
             # An OAuth grant can reach several workspaces; refuse to guess between them.
-            names = ", ".join(f"{a.get('name')} ({a.get('id')})" for a in accounts) or "none"
+            names = ", ".join(f"{a.get('name')} ({a.get('id')})" for a in reachable) or "none"
             raise ToolError(f"Pass account_id to pick one workspace. Reachable: {names}.")
         environments = (
             await client.get("/public/environments", headers=_account_headers(account_id))
