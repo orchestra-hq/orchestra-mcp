@@ -72,7 +72,7 @@ HANDWRITTEN_ROWS = (
     ),
     (
         "get_git_connection",
-        "Whether a Git provider is linked to the workspace, which one, and the org or instance that identifies it.",
+        "The workspace-level Git connection (not integration-task Git credentials): whether a provider is linked, which one, and the org or instance that identifies it.",
         "Accounts",
     ),
     (

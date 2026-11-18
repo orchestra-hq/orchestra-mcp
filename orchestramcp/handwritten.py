@@ -631,9 +631,12 @@ def _register_triage(server: FastMCP, client: httpx.AsyncClient, ui_base_url: st
 def _register_git_connection(server: FastMCP, client: httpx.AsyncClient, ui_base_url: str) -> None:
     @server.tool(
         description=(
-            "Whether a Git provider is linked to the workspace, which one, and the org or "
-            "instance that identifies it. Call it during onboarding, and again after the user "
-            "links Git to confirm it."
+            "The workspace-level Git connection: whether a Git provider (GitHub, GitLab, Azure "
+            "DevOps, Bitbucket) is linked to the Orchestra account itself, which one, and the "
+            "org or instance that identifies it. This is the account link used for Git-backed "
+            "pipelines, not the Git credentials an integration task uses (e.g. a Python or dbt "
+            "task's repository connection); see list_integration_connections for those. Call it "
+            "during onboarding, and again after the user links Git to confirm it."
         ),
         annotations=ToolAnnotations(title="Get Git Connection", readOnlyHint=True),
     )
