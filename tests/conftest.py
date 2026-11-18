@@ -79,7 +79,7 @@ EXPECTED_TOOLS = {
     "mute_incident",
     "pause_pipeline",
     "pipeline_context",
-    "get_git_connection",
+    "get_workspace_git_connection",
     "reorder_monitors",
     "send_agent_session_message",
     "set_agent_integrations",

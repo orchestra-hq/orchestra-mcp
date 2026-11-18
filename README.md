@@ -77,7 +77,7 @@ Use Orchestra's hosted MCP endpoint:
 | `get_integration_state_for_state_aware` | Yes | Get integration state (`GET /state/{integration}`). | State |
 | `list_audit_events` | Yes | List audit events (`GET /audit_events`). | Audit |
 | `list_accounts` | Yes | List workspaces (`GET /accounts`). | Accounts |
-| `get_git_connection` | Yes | The workspace-level Git connection (not integration-task Git credentials): whether a provider is linked, which one, and the org or instance that identifies it. | Accounts |
+| `get_workspace_git_connection` | Yes | The workspace-level Git connection (not integration-task Git credentials): whether a provider is linked, which one, and the org or instance that identifies it. | Accounts |
 | `list_agent_avatars` | Yes | List agent avatars (`GET /agents/avatar-catalog`). | Agents |
 | `create_agent` | Yes | Create an agent (`POST /agents`). | Agents |
 | `list_agents` | Yes | List agents (`GET /agents`). | Agents |

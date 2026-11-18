@@ -71,7 +71,7 @@ HANDWRITTEN_ROWS = (
         "Triage",
     ),
     (
-        "get_git_connection",
+        "get_workspace_git_connection",
         "The workspace-level Git connection (not integration-task Git credentials): whether a provider is linked, which one, and the org or instance that identifies it.",
         "Accounts",
     ),

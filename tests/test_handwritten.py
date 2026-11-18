@@ -735,7 +735,7 @@ ACCOUNT_TOOL_CALLS = {
         "filename": "manifest.json",
     },
     "validate_pipeline": {"pipeline_definition": {"version": "v1", "name": "demo"}},
-    "get_git_connection": {},
+    "get_workspace_git_connection": {},
 }
 
 # Hand-written tools that never call the Orchestra API, so have no account to select.
@@ -806,7 +806,7 @@ async def test_git_connection_reports_provider_and_drops_empty_details():
     )
 
     async with Client(server) as client:
-        result = await client.call_tool("get_git_connection", {})
+        result = await client.call_tool("get_workspace_git_connection", {})
 
     assert result.structured_content == {"connected": True, "provider": "GITHUB"}
 
@@ -815,6 +815,6 @@ async def test_git_connection_keeps_connected_when_unlinked():
     server, _ = _triage_server({r"/connection$": {"connected": False}})
 
     async with Client(server) as client:
-        result = await client.call_tool("get_git_connection", {})
+        result = await client.call_tool("get_workspace_git_connection", {})
 
     assert result.structured_content == {"connected": False}
