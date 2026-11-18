@@ -71,8 +71,8 @@ HANDWRITTEN_ROWS = (
         "Triage",
     ),
     (
-        "get_account_setup",
-        "A workspace's app base URL, environments and Git connection, in one call. Built for onboarding.",
+        "get_git_connection",
+        "Whether a Git provider is linked to the workspace, which one, and the org or instance that identifies it.",
         "Accounts",
     ),
     (

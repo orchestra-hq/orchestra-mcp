@@ -735,7 +735,7 @@ ACCOUNT_TOOL_CALLS = {
         "filename": "manifest.json",
     },
     "validate_pipeline": {"pipeline_definition": {"version": "v1", "name": "demo"}},
-    "get_account_setup": {},
+    "get_git_connection": {},
 }
 
 # Hand-written tools that never call the Orchestra API, so have no account to select.
@@ -790,13 +790,12 @@ async def test_account_id_that_is_not_a_uuid4_is_rejected_before_any_request():
     assert requests == []
 
 
-# --- account setup ---
+# --- git connection ---
 
 
-async def test_account_setup_summarises_url_environments_and_git():
+async def test_git_connection_reports_provider_and_drops_empty_details():
     server, _ = _triage_server(
         {
-            r"/environments$": [{"environmentId": "env-1", "name": "Production", "x": 1}],
             r"^/api/gitbridge/public/connection$": {
                 "connected": True,
                 "git_source": "GITHUB",
@@ -807,10 +806,15 @@ async def test_account_setup_summarises_url_environments_and_git():
     )
 
     async with Client(server) as client:
-        result = await client.call_tool("get_account_setup", {})
+        result = await client.call_tool("get_git_connection", {})
 
-    assert result.structured_content == {
-        "appBaseUrl": "https://app.getorchestra.io",
-        "environments": [{"id": "env-1", "name": "Production"}],
-        "git": {"connected": True, "provider": "GITHUB"},
-    }
+    assert result.structured_content == {"connected": True, "provider": "GITHUB"}
+
+
+async def test_git_connection_keeps_connected_when_unlinked():
+    server, _ = _triage_server({r"/connection$": {"connected": False}})
+
+    async with Client(server) as client:
+        result = await client.call_tool("get_git_connection", {})
+
+    assert result.structured_content == {"connected": False}
