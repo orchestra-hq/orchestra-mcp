@@ -29,9 +29,6 @@ PLATFORM_BASE_URL = "https://example.com/public/v1"
 AGENTS_BASE_URL = "https://example.com/api/ai/v1"
 
 
-GITBRIDGE_BASE_URL = "https://example.com/api/gitbridge/public"
-
-
 def _client(base_url=ENGINE_BASE_URL, handler=None):
     handler = handler or (lambda request: httpx.Response(200, json={}))
     return httpx.AsyncClient(base_url=base_url, transport=httpx.MockTransport(handler))
@@ -44,7 +41,6 @@ def _server(
         ApiSource(load_spec(engine_spec), _client(ENGINE_BASE_URL, engine_handler)),
         ApiSource(load_spec(PLATFORM), _client(PLATFORM_BASE_URL, platform_handler)),
         ApiSource(load_spec(AGENTS), _client(AGENTS_BASE_URL, agents_handler)),
-        gitbridge_client=_client(GITBRIDGE_BASE_URL),
         **kwargs,
     )
 
@@ -216,7 +212,6 @@ async def test_a_tool_name_claimed_by_one_api_twice_is_refused():
             ApiSource(load_spec(LIVE), _client(ENGINE_BASE_URL)),
             ApiSource(platform, _client(PLATFORM_BASE_URL)),
             ApiSource(load_spec(AGENTS), _client(AGENTS_BASE_URL)),
-            gitbridge_client=_client(GITBRIDGE_BASE_URL),
         )
 
 
@@ -230,7 +225,6 @@ async def test_a_tool_name_claimed_by_both_apis_is_refused():
             ApiSource(engine, _client(ENGINE_BASE_URL)),
             ApiSource(platform, _client(PLATFORM_BASE_URL)),
             ApiSource(load_spec(AGENTS), _client(AGENTS_BASE_URL)),
-            gitbridge_client=_client(GITBRIDGE_BASE_URL),
         )
 
 
@@ -277,7 +271,6 @@ async def test_delete_tools_only_run_for_an_oauth_token(monkeypatch, token, expe
         ApiSource(load_spec(LIVE), engine),
         ApiSource(load_spec(PLATFORM), _client(PLATFORM_BASE_URL)),
         ApiSource(load_spec(AGENTS), _client(AGENTS_BASE_URL)),
-        gitbridge_client=_client(GITBRIDGE_BASE_URL),
         include_deletes=True,
     )
 

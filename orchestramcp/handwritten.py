@@ -181,7 +181,6 @@ def register_handwritten(
     server: FastMCP,
     client: httpx.AsyncClient,
     ui_base_url: str,
-    gitbridge_client: httpx.AsyncClient,
 ) -> None:
     """Register the tools that cannot be generated from the spec.
 
@@ -191,7 +190,7 @@ def register_handwritten(
     several endpoints, so no single operation describes them.
     """
     _register_triage(server, client, ui_base_url)
-    _register_account_setup(server, client, gitbridge_client, ui_base_url)
+    _register_account_setup(server, client, ui_base_url)
 
     @server.tool(
         annotations=ToolAnnotations(title="Get Pipeline Run Lineage URL", readOnlyHint=True)
@@ -632,7 +631,6 @@ def _register_triage(server: FastMCP, client: httpx.AsyncClient, ui_base_url: st
 def _register_account_setup(
     server: FastMCP,
     client: httpx.AsyncClient,
-    gitbridge_client: httpx.AsyncClient,
     ui_base_url: str,
 ) -> None:
     @server.tool(
@@ -648,7 +646,11 @@ def _register_account_setup(
             await client.get("/public/environments", headers=_account_headers(account_id))
         ).json()
         git = (
-            await gitbridge_client.get("/connection", headers=_account_headers(account_id))
+            # Git lives on another API under the same host; the client's auth is host-agnostic.
+            await client.get(
+                f"{ui_base_url}/api/gitbridge/public/connection",
+                headers=_account_headers(account_id),
+            )
         ).json()
         return {
             "appBaseUrl": ui_base_url,

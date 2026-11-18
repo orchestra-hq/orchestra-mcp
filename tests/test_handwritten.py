@@ -29,7 +29,7 @@ def _server(handler=None, ui_base_url="https://stage.getorchestra.io"):
         base_url="https://example.com/api/engine", transport=httpx.MockTransport(handler)
     )
     server = FastMCP("test")
-    register_handwritten(server, client, ui_base_url, client)
+    register_handwritten(server, client, ui_base_url)
     return server
 
 
@@ -222,7 +222,7 @@ def _triage_server(routes, ui_base_url="https://app.getorchestra.io"):
     client = build_http_client("https://example.com/api/engine")
     client._transport = httpx.MockTransport(handler)
     server = FastMCP("test")
-    register_handwritten(server, client, ui_base_url, client)
+    register_handwritten(server, client, ui_base_url)
     return server, requests
 
 
@@ -797,7 +797,7 @@ async def test_account_setup_summarises_url_environments_and_git():
     server, _ = _triage_server(
         {
             r"/environments$": [{"environmentId": "env-1", "name": "Production", "x": 1}],
-            r"/connection$": {
+            r"^/api/gitbridge/public/connection$": {
                 "connected": True,
                 "git_source": "GITHUB",
                 "created_at": "2026-11-01T00:00:00Z",
