@@ -721,6 +721,7 @@ ACCOUNT_ROUTES = {
     r"/pipelines/data$": {"pipeline": {}},
     r"/public/pipeline$": {"id": "pipe-1", "name": "nightly"},
     r"/pipelines/schema$": {"valid": True},
+    r"/connection$": {"connected": False},
 }
 
 ACCOUNT_TOOL_CALLS = {
@@ -734,6 +735,7 @@ ACCOUNT_TOOL_CALLS = {
         "filename": "manifest.json",
     },
     "validate_pipeline": {"pipeline_definition": {"version": "v1", "name": "demo"}},
+    "get_workspace_git_connection": {},
 }
 
 # Hand-written tools that never call the Orchestra API, so have no account to select.
@@ -786,3 +788,33 @@ async def test_account_id_that_is_not_a_uuid4_is_rejected_before_any_request():
             await client.call_tool("diagnose", {"task_run_id": "tr-1", "account_id": "acme"})
 
     assert requests == []
+
+
+# --- git connection ---
+
+
+async def test_git_connection_reports_provider_and_drops_empty_details():
+    server, _ = _triage_server(
+        {
+            r"^/api/gitbridge/public/connection$": {
+                "connected": True,
+                "git_source": "GITHUB",
+                "created_at": "2026-11-01T00:00:00Z",
+                "github_org": None,
+            },
+        }
+    )
+
+    async with Client(server) as client:
+        result = await client.call_tool("get_workspace_git_connection", {})
+
+    assert result.structured_content == {"connected": True, "provider": "GITHUB"}
+
+
+async def test_git_connection_keeps_connected_when_unlinked():
+    server, _ = _triage_server({r"/connection$": {"connected": False}})
+
+    async with Client(server) as client:
+        result = await client.call_tool("get_workspace_git_connection", {})
+
+    assert result.structured_content == {"connected": False}

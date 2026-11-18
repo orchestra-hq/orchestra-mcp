@@ -177,7 +177,11 @@ def _definition_integrations(definition: dict) -> list[str]:
     return sorted(integrations)
 
 
-def register_handwritten(server: FastMCP, client: httpx.AsyncClient, ui_base_url: str) -> None:
+def register_handwritten(
+    server: FastMCP,
+    client: httpx.AsyncClient,
+    ui_base_url: str,
+) -> None:
     """Register the tools that cannot be generated from the spec.
 
     ``get_pipeline_run_lineage_url`` has no backing endpoint; the downloads return
@@ -186,6 +190,7 @@ def register_handwritten(server: FastMCP, client: httpx.AsyncClient, ui_base_url
     several endpoints, so no single operation describes them.
     """
     _register_triage(server, client, ui_base_url)
+    _register_workspace_git_connection(server, client, ui_base_url)
 
     @server.tool(
         annotations=ToolAnnotations(title="Get Pipeline Run Lineage URL", readOnlyHint=True)
@@ -619,5 +624,43 @@ def _register_triage(server: FastMCP, client: httpx.AsyncClient, ui_base_url: st
             "recentRuns": recent_runs,
             "medianSucceededDurationSeconds": (
                 round(statistics.median(succeeded_durations)) if succeeded_durations else None
+            ),
+        }
+
+
+def _register_workspace_git_connection(
+    server: FastMCP, client: httpx.AsyncClient, ui_base_url: str
+) -> None:
+    @server.tool(
+        description=(
+            "The workspace-level Git connection: whether a Git provider (GitHub, GitLab, Azure "
+            "DevOps, Bitbucket) is linked to the Orchestra account itself, which one, and the "
+            "org or instance that identifies it. This is the account link used for Git-backed "
+            "pipelines, not the Git credentials an integration task uses (e.g. a Python or dbt "
+            "task's repository connection); see list_integration_connections for those. Call it "
+            "during onboarding, and again after the user links Git to confirm it."
+        ),
+        annotations=ToolAnnotations(title="Get Workspace Git Connection", readOnlyHint=True),
+    )
+    async def get_workspace_git_connection(account_id: AccountId = None) -> dict:
+        # Git lives on another API under the same host; the client's auth is host-agnostic.
+        git = (
+            await client.get(
+                f"{ui_base_url}/api/gitbridge/public/connection",
+                headers=_account_headers(account_id),
+            )
+        ).json()
+        # connected stays even when False; empty provider details are dropped.
+        return {
+            "connected": bool(git.get("connected")),
+            **_compact(
+                {
+                    "provider": git.get("git_source"),
+                    "githubOrg": git.get("github_org"),
+                    "githubEnterpriseUrl": git.get("github_enterprise_url"),
+                    "gitlabUrl": git.get("self_hosted_instance_url"),
+                    "azureOrganization": git.get("organization_name"),
+                    "bitbucketWorkspace": git.get("workspace"),
+                }
             ),
         }

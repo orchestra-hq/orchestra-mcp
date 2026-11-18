@@ -71,6 +71,11 @@ HANDWRITTEN_ROWS = (
         "Triage",
     ),
     (
+        "get_workspace_git_connection",
+        "The workspace-level Git connection (not integration-task Git credentials): whether a provider is linked, which one, and the org or instance that identifies it.",
+        "Accounts",
+    ),
+    (
         "get_pipeline_run_lineage_url",
         "Build the URL of a pipeline run's lineage graph in the Orchestra UI (derived from `ORCHESTRA_ENV`).",
         "Pipeline Runs",
