@@ -488,12 +488,18 @@ def _register_triage(server: FastMCP, client: httpx.AsyncClient, ui_base_url: st
 
     @server.tool(
         description=(
-            "Deep dive on one failed task run: its status and messages, taskParameters and "
-            "runParameters, the statuses of the upstream tasks it depends on, the tail of its "
-            "newest log, and its artifact filenames. "
+            "Start here for 'why did this task run fail', before "
+            "list_task_runs_for_pipeline_run, list_task_run_logs or download_task_run_log. "
+            "Finds the task run by ID however old it is. Returns its status and messages, "
+            "taskParameters and runParameters, the statuses of the upstream tasks it depends "
+            "on, the tail of its newest log, and its artifact filenames. "
             "Over-long parameter values, the log tail and the artifact list are capped, and the "
-            "response says which parts were cut. Use download_task_run_log or "
-            "download_task_run_artifact when the tail is not enough."
+            "response says which parts were cut. It does not return: the task run's operations "
+            "(the failing dbt model, SQL statement or query; use list_operations with "
+            "task_run_id), other or full logs (list_task_run_logs, download_task_run_log), "
+            "artifact contents "
+            "(download_task_run_artifact), or whether a retry of this task later passed "
+            "(list_task_runs_for_pipeline_run)."
         ),
         annotations=ToolAnnotations(title="Diagnose Task Run", readOnlyHint=True),
     )
