@@ -31,8 +31,9 @@ _WHY_FAILED = (
 
 
 _PIPELINE_CONTEXT = (
-    "Before editing or reasoning about a pipeline, call pipeline_context instead: one call "
-    "returns its metadata, definition, integrations and recent runs."
+    "Given a pipeline ID or alias, call pipeline_context first: one call returns its metadata, "
+    "definition, integrations and recent runs. Use this tool for what pipeline_context does "
+    "not take: a repository and yaml_path selector, or a specific version, branch or commit."
 )
 
 ADAPTATIONS: dict[str, Adaptation] = {

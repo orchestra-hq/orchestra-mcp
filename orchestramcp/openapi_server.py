@@ -25,7 +25,7 @@ Start with the composite tools; each replaces a chain of list and get calls:
 - whats_broken: what is failing or warning in an account or environment, joined to the failed task runs.
 - diagnose(task_run_id): why one task run failed: its messages, parameters, upstream statuses, log tail and artifact names.
 - pipeline_context(pipeline_id_or_alias): a pipeline's definition, integrations and recent runs, before editing or reasoning about it.
-Reach for list_task_runs_for_pipeline_run, list_operations, list_task_run_logs and download_task_run_log only for detail these do not return."""
+Reach for list_task_runs_for_pipeline_run, list_operations, list_task_run_logs, download_task_run_log and download_task_run_artifact only for detail these do not return."""
 
 
 @dataclass(frozen=True)
