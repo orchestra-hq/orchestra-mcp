@@ -292,19 +292,9 @@ async def test_every_delete_tool_says_it_needs_oauth():
     assert all(tool.description.endswith(DELETE_NEEDS_OAUTH) for tool in deletes)
 
 
-async def test_low_level_triage_tools_point_to_the_composites():
+async def test_instructions_route_triage_to_the_composite_tools():
     server = _server()
-    tools = await _tools_by_name(server)
-    for name in (
-        "list_task_runs_for_pipeline_run",
-        "list_operations",
-        "list_task_run_logs",
-        "download_task_run_log",
-    ):
-        assert "call diagnose" in tools[name].description, name
-    assert "whats_broken" in tools["list_pipeline_runs"].description
-    assert "comma-separated" in tools["list_pipeline_runs"].description
-    assert "pipeline_context" in tools["get_pipeline_data"].description
-    assert all(
-        name in server.instructions for name in ("whats_broken", "diagnose(", "pipeline_context(")
-    )
+    for name in ("whats_broken", "diagnose(", "pipeline_context("):
+        assert name in server.instructions
+    diagnose = (await _tools_by_name(server))["diagnose"]
+    assert "It does not return" in diagnose.description

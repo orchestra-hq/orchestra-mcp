@@ -281,11 +281,7 @@ def register_handwritten(
         return ToolResult(content=json.dumps(result))
 
     @server.tool(
-        description=_DOWNLOAD_DESCRIPTION.format(
-            kind="log",
-            note=" To find why a task run failed, call diagnose first; it already returns the "
-            "tail of the newest log.",
-        ),
+        description=_DOWNLOAD_DESCRIPTION.format(kind="log", note=""),
         annotations=ToolAnnotations(title="Download Task Run Log", readOnlyHint=True),
     )
     async def download_task_run_log(
